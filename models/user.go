@@ -235,16 +235,7 @@ func (this *User) MarkRead(typ, id string) error {
 		change = bson.M{
 			"$unset": bson.M{
 				"events.$.reviews": 1,
-			},
-		}
-	case "thumb":
-		selector = bson.M{
-			"_id":       this.Id,
-			"events.id": id,
-		}
-		change = bson.M{
-			"$unset": bson.M{
-				"events.$.thumbs": 1,
+				"events.$.thumbs":  1,
 			},
 		}
 	default:
