@@ -31,6 +31,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Post("/1/account/login", binding.Json(loginForm{}), ErrorHandler, loginHandler)
 	m.Post("/1/user/logout", binding.Json(logoutForm{}), ErrorHandler, logoutHandler)
 	m.Get("/1/user/getInfo", binding.Form(getInfoForm{}), ErrorHandler, userInfoHandler)
+	m.Post("/1/user/setInfo", binding.Json(setInfoForm{}), ErrorHandler, setInfoHandler)
 	m.Post("/1/user/set_profile_image", binding.Json(setProfileForm{}), ErrorHandler, setProfileHandler)
 
 	//m.Get("/1/user/news", binding.Form(userNewsForm{}), ErrorHandler, userNewsHandler)
@@ -87,7 +88,7 @@ type weiboInfo struct {
 	ErrCode     int    `json:"error_code"`
 }
 
-func weiboLogin(uid, password string, redis *models.RedisLogger) (*models.Account, error) {
+func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.Account, error) {
 	weibo := weiboInfo{}
 	user := &models.Account{}
 
@@ -98,33 +99,33 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (*models.Accoun
 	url := WeiboUserShowUrl + "?" + v.Encode()
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, errors.NewError(errors.HttpError)
+		return false, nil, errors.NewError(errors.HttpError)
 	}
 	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.NewError(errors.HttpError)
+		return false, nil, errors.NewError(errors.HttpError)
 	}
 
 	if err := json.Unmarshal(data, &weibo); err != nil {
-		return nil, errors.NewError(errors.HttpError)
+		return false, nil, errors.NewError(errors.HttpError)
 	}
 
 	if weibo.ErrCode != 0 {
 		log.Println(weibo.ErrorDesc)
-		return nil, errors.NewError(errors.AccessError)
+		return false, nil, errors.NewError(errors.AccessError)
 	}
 
 	user.Id = strings.ToLower(uid)
 	user.Password = Md5(password)
 	exist, err := user.Exists()
 	if err != nil {
-		return nil, err
+		return false, nil, err
 	}
 
 	if exist {
 		user.ChangePassword(user.Password)
-		return user, nil
+		return false, user, nil
 	}
 
 	user.Nickname = weibo.ScreenName
@@ -137,11 +138,11 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (*models.Accoun
 	user.RegTime = time.Now()
 
 	if err := user.Save(); err != nil {
-		return nil, err
+		return true, nil, err
 	}
 	redis.LogRegister(user.Id)
 
-	return user, nil
+	return true, user, nil
 }
 func guestLogin(redis *models.RedisLogger) (*models.Account, error) {
 	user := &models.Account{}
@@ -153,11 +154,12 @@ func guestLogin(redis *models.RedisLogger) (*models.Account, error) {
 func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form loginForm) {
 	user := &models.Account{}
 	var err error
+	var reg bool
 	token := Uuid()
 
 	switch form.Type {
 	case "weibo":
-		user, err = weiboLogin(form.Userid, form.Password, redis)
+		reg, user, err = weiboLogin(form.Userid, form.Password, redis)
 	case "weixin":
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.UnimplementedError))
 		return
@@ -169,8 +171,9 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 			}
 		}
 	default: // guest
-		user, err = guestLogin(redis)
-		token = models.GuestUserPrefix + token // start with 'guest:' for redis checking
+		//user, err = guestLogin(redis)
+		//token = models.GuestUserPrefix + token // start with 'guest:' for redis checking
+		err = errors.NewError(errors.UnimplementedError, "unknown type "+form.Type)
 	}
 
 	if err != nil {
@@ -178,7 +181,18 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 		return
 	}
 
-	data := map[string]string{"access_token": token}
+	score := 0
+	news, _ := user.UpdateAction(ActLogin, nowDate())
+	if news {
+		score = actionExps[ActLogin]
+		redis.AddScore(user.Id, score)
+	}
+
+	data := map[string]interface{}{
+		"access_token": token,
+		"register":     reg,
+		"exp_effect":   score,
+	}
 	writeResponse(request.RequestURI, resp, data, nil)
 
 	redis.LogOnlineUser(token, user)
@@ -207,8 +221,16 @@ type userJsonStruct struct {
 	About    string `json:"about"`
 	Location string `json:"location"`
 	Profile  string `json:"profile_image"`
-	RegTime  string `json:"register_time"`
-	Online   bool   `json:"online"`
+	RegTime  int64  `json:"register_time"`
+	Hobby    string `json:"hobby"`
+	Height   int    `json:"height"`
+	Weight   int    `json:"weight"`
+	Birth    int64  `json:"birthday"`
+	Actor    string `json:"actor"`
+	Score    int    `json:"rankscore"`
+	Level    int    `json:"rankLevel"`
+	Rank     string `json:"rankName"`
+	//Online   bool   `json:"online"`
 }
 
 func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getInfoForm) {
@@ -221,19 +243,57 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
 	}
+	score := redis.UserScore(user.Id)
+	level := userLevel(score)
+	rank := userRank(level)
+	birth := user.Birth.Unix()
+	if birth <= 0 {
+		birth = 0
+	}
+	info := &userJsonStruct{
+		Userid:   user.Id,
+		Nickname: user.Nickname,
+		Type:     user.Role,
+		Phone:    user.Phone,
+		About:    user.About,
+		Location: user.Location,
+		Profile:  user.Profile,
+		RegTime:  user.RegTime.Unix(),
+		Hobby:    user.Hobby,
+		Height:   user.Height,
+		Weight:   user.Weight,
+		Birth:    birth,
+		Actor:    userActor(user.Actor),
+		Score:    score,
+		Level:    level,
+		Rank:     rank,
+	}
 
-	respData := make(map[string]interface{})
-	respData["userid"] = user.Id
-	respData["nikename"] = user.Nickname
-	respData["account_type"] = user.Role
-	respData["phone_number"] = user.Phone
-	respData["about"] = user.About
-	respData["location"] = user.Location
-	respData["profile_image"] = user.Profile
-	respData["register_time"] = user.RegTime.Format(models.TimeFormat)
-	//respData["online"] = redis.IsOnline(user.Id)
+	writeResponse(request.RequestURI, resp, info, nil)
+}
 
-	writeResponse(request.RequestURI, resp, respData, nil)
+type setInfoForm struct {
+	Token string `json:"access_token" binding:"required"`
+	models.UserInfo
+}
+
+func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form setInfoForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+	err := user.SetInfo(form.UserInfo)
+	score := 0
+	if !user.Setinfo && err == nil {
+		score = actionExps[ActInfo]
+		redis.AddScore(user.Id, score)
+	}
+
+	writeResponse(request.RequestURI, resp, map[string]int{"exp_effect": score}, err)
+
+	user.UpdateAction(ActInfo, nowDate())
+	redis.LogOnlineUser(form.Token, user)
 }
 
 type setProfileForm struct {
@@ -249,10 +309,13 @@ func setProfileHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	err := user.ChangeProfile(form.ImageId)
-
 	redis.LogOnlineUser(form.Token, user)
-
-	writeResponse(request.RequestURI, resp, nil, err)
+	score := 0
+	if len(user.Profile) == 0 && err == nil {
+		score = actionExps[ActProfile]
+		redis.AddScore(user.Id, score)
+	}
+	writeResponse(request.RequestURI, resp, map[string]int{"exp_effect": score}, err)
 }
 
 type userListForm struct {
@@ -279,7 +342,7 @@ func userListHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		jsonStructs[i].Phone = users[i].Phone
 		jsonStructs[i].Location = users[i].Location
 		jsonStructs[i].About = users[i].About
-		jsonStructs[i].RegTime = users[i].RegTime.Format(models.TimeFormat)
+		jsonStructs[i].RegTime = users[i].RegTime.Unix()
 		//jsonStructs[i].Views = view
 		//jsonStructs[i].Thumbs = thumb
 		//jsonStructs[i].Reviews = review

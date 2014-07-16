@@ -28,10 +28,12 @@ var (
 	userColl     = "users"
 	articleColl  = "articles"
 	msgColl      = "messages"
-	reviewColl   = "reviews"
-	fileColl     = "files"
-	eventColl    = "events"
-	rateColl     = "rates"
+	//reviewColl   = "reviews"
+	fileColl   = "files"
+	recordColl = "records"
+	actionColl = "actions"
+	//eventColl    = "events"
+	//rateColl     = "rates"
 )
 
 var (
@@ -127,6 +129,10 @@ func search(collection string, query interface{}, selector interface{},
 			}
 		}
 
+		if result == nil {
+			return err
+		}
+
 		if limit > 0 {
 			qy = qy.Limit(limit)
 		}
@@ -137,10 +143,7 @@ func search(collection string, query interface{}, selector interface{},
 			qy = qy.Sort(sortFields...)
 		}
 
-		if result != nil {
-			err = qy.All(result)
-		}
-		return err
+		return qy.All(result)
 	}
 
 	return withCollection(collection, nil, q)
@@ -171,16 +174,18 @@ func update(collection string, selector, change interface{}, safe bool) error {
 	return withCollection(collection, nil, update)
 }
 
-func upsert(collection string, selector, change interface{}, safe bool) error {
-	upsert := func(c *mgo.Collection) error {
-		_, err := c.Upsert(selector, change)
-		//log.Println(info, err)
+func upsert(collection string, selector, change interface{}, safe bool) (*mgo.ChangeInfo, error) {
+	var chinfo *mgo.ChangeInfo
+
+	upsert := func(c *mgo.Collection) (err error) {
+		chinfo, err = c.Upsert(selector, change)
+		//log.Println(chinfo, err)
 		return err
 	}
 	if safe {
-		return withCollection(collection, &mgo.Safe{}, upsert)
+		return chinfo, withCollection(collection, &mgo.Safe{}, upsert)
 	}
-	return withCollection(collection, nil, upsert)
+	return chinfo, withCollection(collection, nil, upsert)
 }
 
 func save(collection string, o interface{}, safe bool) error {

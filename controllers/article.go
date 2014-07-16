@@ -34,23 +34,25 @@ type articleJsonStruct struct {
 	Author     string           `json:"author"`
 	Title      string           `json:"cover_text"`
 	Image      string           `json:"cover_image"`
-	PubTime    string           `json:"time"`
+	PubTime    int64            `json:"time"`
 	Thumbs     int              `json:"thumb_count"`
 	NewThumbs  int              `json:"new_thumb_count"`
 	Reviews    int              `json:"sub_article_count"`
 	NewReviews int              `json:"new_sub_article_count"`
 	Contents   []models.Segment `json:"article_segments"`
+	Score      int              `json:"exp_effect,omitempty"`
 }
 
-func convertArticle(article *models.Article) *articleJsonStruct {
+func convertArticle(article *models.Article, score int) *articleJsonStruct {
 	jsonStruct := &articleJsonStruct{}
 	jsonStruct.Id = article.Id.Hex()
 	jsonStruct.Parent = article.Parent
 	jsonStruct.Author = article.Author
 	jsonStruct.Contents = article.Contents
-	jsonStruct.PubTime = article.PubTime.Format(models.TimeFormat)
+	jsonStruct.PubTime = article.PubTime.Unix()
 	jsonStruct.Thumbs = len(article.Thumbs)
 	jsonStruct.Reviews = len(article.Reviews)
+	jsonStruct.Score = score
 	for _, seg := range jsonStruct.Contents {
 		if seg.ContentType == "IMAGE" {
 			jsonStruct.Image = seg.ContentText
@@ -96,7 +98,14 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	writeResponse(request.RequestURI, resp, convertArticle(article), nil)
+	score := 0
+	if len(form.Parent) == 0 {
+		score = actionExps[ActPost]
+	} else {
+		score = actionExps[ActComment]
+	}
+	redis.AddScore(user.Id, score)
+	writeResponse(request.RequestURI, resp, convertArticle(article, score), nil)
 
 	if len(form.Parent) > 0 {
 		parent := &models.Article{}
@@ -236,7 +245,7 @@ func articleListHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
-		jsonStructs[i] = convertArticle(&articles[i])
+		jsonStructs[i] = convertArticle(&articles[i], 0)
 	}
 
 	respData := make(map[string]interface{})
@@ -262,7 +271,7 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, form ar
 		return
 	}
 
-	jsonStruct := convertArticle(article)
+	jsonStruct := convertArticle(article, 0)
 	writeResponse(request.RequestURI, resp, jsonStruct, nil)
 }
 
@@ -277,7 +286,7 @@ func articleCommentsHandler(request *http.Request, resp http.ResponseWriter, for
 
 	jsonStructs := make([]*articleJsonStruct, len(comments))
 	for i, _ := range comments {
-		jsonStructs[i] = convertArticle(&comments[i])
+		jsonStructs[i] = convertArticle(&comments[i], 0)
 	}
 
 	respData := make(map[string]interface{})

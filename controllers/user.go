@@ -39,7 +39,7 @@ func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
-		jsonStructs[i] = convertArticle(&articles[i])
+		jsonStructs[i] = convertArticle(&articles[i], 0)
 	}
 
 	respData := make(map[string]interface{})

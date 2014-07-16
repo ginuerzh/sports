@@ -34,6 +34,11 @@ const (
 	redisArticleReviewPrefix  = redisPrefix + ":article:review:"  // set per article
 	redisArticleRelatedPrefix = redisPrefix + ":article:related:" // sorted set per article
 	//redisUserArticlePrefix    = redisPrefix + ":user:articles:" // sorted set per user
+
+	redisDisLeaderboard    = redisPrefix + ":lb:distance:total" // sorted set
+	redisMaxDisLeaderboard = redisPrefix + ":lb:distance:max"   // sorted set
+	redisDurLeaderboard    = redisPrefix + ":lb:duration:total" // sorted set
+	redisScoreLB           = redisPrefix + ":lb:score"          // sorted set
 )
 
 const (
@@ -85,6 +90,7 @@ type redisUser struct {
 	Profile  string `redis:"profile"`
 	RegTime  int64  `redis:"reg_time"`
 	Role     string `redis:"role"`
+	SetInfo  bool   `redis:"setinfo"`
 }
 
 func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
@@ -117,6 +123,7 @@ func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
 		Profile:  user.Profile,
 		RegTime:  time.Unix(user.RegTime, 0),
 		Role:     user.Role,
+		Setinfo:  user.SetInfo,
 	}
 }
 
@@ -133,6 +140,7 @@ func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
 		Profile:  user.Profile,
 		RegTime:  user.RegTime.Unix(),
 		Role:     user.Role,
+		SetInfo:  user.Setinfo,
 	}
 
 	conn.Send("MULTI")
@@ -630,4 +638,81 @@ func (logger *RedisLogger) ArticleTopThumb(max int) []string {
 	}
 
 	return articles
+}
+
+func (logger *RedisLogger) UpdateRecLB(userid string, distance, duration int) {
+	if len(userid) == 0 {
+		return
+	}
+	conn := logger.conn
+	conn.Send("MULTI")
+	conn.Send("ZINCRBY", redisDisLeaderboard, distance, userid)
+	conn.Send("ZINCRBY", redisDurLeaderboard, duration, userid)
+	conn.Do("EXEC")
+	if rec := logger.MaxDisRecord(userid); rec < distance {
+		conn.Send("MULTI")
+		conn.Send("ZREM", redisMaxDisLeaderboard, userid)
+		conn.Send("ZINCRBY", redisMaxDisLeaderboard, distance, userid)
+		conn.Do("EXEC")
+	}
+
+}
+
+func (logger *RedisLogger) MaxDisRecord(userid string) int {
+	max, _ := redis.Int(logger.conn.Do("ZSCORE", redisMaxDisLeaderboard, userid))
+	return max
+}
+
+func (logger *RedisLogger) RecStats(userid string) (int, int) {
+	dis, _ := redis.Int(logger.conn.Do("ZSCORE", redisDisLeaderboard, userid))
+	dur, _ := redis.Int(logger.conn.Do("ZSCORE", redisDurLeaderboard, userid))
+	return dis, dur
+}
+
+func (logger *RedisLogger) LBDisRank(userid string) int {
+	if len(userid) == 0 {
+		return -1
+	}
+	rank, err := redis.Int(logger.conn.Do("ZREVRANK", redisDisLeaderboard, userid))
+	if err != nil {
+		return -1
+	}
+	return rank
+}
+
+func (logger *RedisLogger) LBDisCard() int {
+	count, _ := redis.Int(logger.conn.Do("ZCARD", redisDisLeaderboard))
+	return count
+}
+
+func (logger *RedisLogger) LBDurRank(userid string) int {
+	if len(userid) == 0 {
+		return -1
+	}
+	rank, err := redis.Int(logger.conn.Do("ZREVRANK", redisDurLeaderboard, userid))
+	if err != nil {
+		return -1
+	}
+	return rank
+}
+
+func (logger *RedisLogger) UserScore(userid string) int {
+	score, _ := redis.Int(logger.conn.Do("ZSCORE", redisScoreLB, userid))
+	return score
+}
+
+func (logger *RedisLogger) AddScore(userid string, score int) int {
+	news, _ := redis.Int(logger.conn.Do("ZINCRBY", redisScoreLB, score, userid))
+	return news
+}
+
+func (logger *RedisLogger) GetDisLB(start, stop int) []KV {
+	values, _ := redis.Values(logger.conn.Do("ZREVRANGE", redisDisLeaderboard, start, stop, "WITHSCORES"))
+	var s []KV
+
+	if err := redis.ScanSlice(values, &s); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return s
 }

@@ -52,6 +52,7 @@ func main() {
 	controllers.BindChatApi(m)
 	controllers.BindEventApi(m)
 	controllers.BindFileApi(m)
+	controllers.BindRecordApi(m)
 	//controllers.BindStatApi(m)
 
 	//m.Run()

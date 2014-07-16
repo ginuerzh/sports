@@ -14,6 +14,16 @@ import (
 	"net/http"
 	//"strconv"
 	"strings"
+	"time"
+)
+
+const (
+	ActLogin   = "login"
+	ActPost    = "post"
+	ActComment = "comment"
+	ActInvite  = "invite"
+	ActProfile = "profile"
+	ActInfo    = "info"
 )
 
 type response struct {
@@ -85,4 +95,67 @@ func ErrorHandler(err binding.Errors, request *http.Request, resp http.ResponseW
 		s += " " + e.Message
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.JsonError, s))
 	}
+}
+
+func userActor(actor string) string {
+	/*
+		switch actor {
+		case "PRO":
+			return "专业运动员"
+		case "MID":
+			return "业余运动员"
+		case "AMATEUR":
+			fallthrough
+		default:
+			return "爱好者"
+		}
+	*/
+	return actor
+}
+
+var levelScores = []int{
+	0, 20, 30, 45, 67, 101, 151, 227, 341, 512, /* 1 - 10 */
+	768, 1153, 1729, 2594, 3892, 5838, 8757, 13136, 19705, 29557, /* 11 - 20 */
+	44336, 66505, 99757, 149636, 224454, 336682, 505023, 757535, 1136302, 1704453, /* 21 - 30 */
+	2556680, 3835021, 5752531, 8628797, 12943196, /* 31 - 35 */
+	19414794, 29122192, 43683288, 65524932, 98287398, /* 36 - 40 */
+}
+
+func userLevel(score int) int {
+	for i, s := range levelScores {
+		if s > score {
+			return i
+		}
+		if s == score {
+			return i + 1
+		}
+	}
+	return len(levelScores)
+}
+
+func userRank(level int) string {
+	if level <= 10 {
+		return "初级"
+	} else if level <= 20 {
+		return "中级"
+	} else if level <= 30 {
+		return "高级"
+	} else {
+		return "至尊"
+	}
+}
+
+func nowDate() time.Time {
+	now := time.Now()
+	year, month, day := now.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
+}
+
+var actionExps = map[string]int{
+	ActLogin:   1,
+	ActPost:    10,
+	ActComment: 1,
+	ActInvite:  30,
+	ActProfile: 20,
+	ActInfo:    20,
 }

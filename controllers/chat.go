@@ -117,7 +117,7 @@ type msgJsonStruct struct {
 	To      string `json:"to_id"`
 	Type    string `json:"type"`
 	Content string `json:"content"`
-	Time    string `json:"time"`
+	Time    int64  `json:"time"`
 }
 
 func convertMsg(msg *models.Message) *msgJsonStruct {
@@ -127,7 +127,7 @@ func convertMsg(msg *models.Message) *msgJsonStruct {
 		To:      msg.To,
 		Type:    msg.Type,
 		Content: msg.Content,
-		Time:    msg.Time.Format(models.TimeFormat),
+		Time:    msg.Time.Unix(),
 	}
 }
 
