@@ -20,6 +20,7 @@ type Action struct {
 	Login   int
 	Post    int
 	Comment int
+	Thumb   int
 	Invite  int
 	Profile int
 	Info    int
@@ -36,4 +37,12 @@ func (this *Action) findOne(query interface{}) (bool, error) {
 		*this = actions[0]
 	}
 	return len(actions) > 0, nil
+}
+
+func (this *Action) Find(userid string, date time.Time) (bool, error) {
+	query := bson.M{
+		"userid": userid,
+		"date":   date,
+	}
+	return this.findOne(query)
 }

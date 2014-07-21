@@ -101,8 +101,10 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	score := 0
 	if len(form.Parent) == 0 {
 		score = actionExps[ActPost]
+		user.UpdateAction(ActPost, nowDate())
 	} else {
 		score = actionExps[ActComment]
+		user.UpdateAction(ActComment, nowDate())
 	}
 	redis.AddScore(user.Id, score)
 	writeResponse(request.RequestURI, resp, convertArticle(article, score), nil)
@@ -187,7 +189,16 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	writeResponse(request.RequestURI, resp, nil, nil)
+	score := 0
+	action := &models.Action{}
+	action.Find(user.Id, nowDate())
+	if action.Thumb == 0 {
+		score = actionExps[ActThumb]
+	}
+	redis.AddScore(user.Id, score)
+	user.UpdateAction(ActThumb, nowDate())
+
+	writeResponse(request.RequestURI, resp, map[string]int{"exp_effect": score}, nil)
 
 	if form.Status {
 		u := &models.User{Id: article.Author}

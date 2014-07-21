@@ -21,6 +21,7 @@ const (
 	ActLogin   = "login"
 	ActPost    = "post"
 	ActComment = "comment"
+	ActThumb   = "thumb"
 	ActInvite  = "invite"
 	ActProfile = "profile"
 	ActInfo    = "info"
@@ -155,6 +156,7 @@ var actionExps = map[string]int{
 	ActLogin:   1,
 	ActPost:    10,
 	ActComment: 1,
+	ActThumb:   1,
 	ActInvite:  30,
 	ActProfile: 20,
 	ActInfo:    20,
