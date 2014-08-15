@@ -129,6 +129,20 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			log.Println(err)
 		}
 
+		// ws push
+		msg := &pushMsg{
+			Type: "article",
+			Time: time.Now().Unix(),
+			Push: pushData{
+				Type: "comment",
+				Id:   parent.Id.Hex(),
+				From: user.Id,
+				To:   parent.Author,
+			},
+		}
+		redis.PubMsg("article", parent.Author, msg.Bytes())
+
+		// apple push
 		devs, enabled, _ := u.Devices()
 		if enabled {
 			for _, dev := range devs {
@@ -210,6 +224,19 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 		if err := u.AddEvent(event); err != nil {
 			log.Println(err)
 		}
+
+		// ws push
+		msg := &pushMsg{
+			Type: "article",
+			Time: time.Now().Unix(),
+			Push: pushData{
+				Type: "thumb",
+				Id:   article.Id.Hex(),
+				From: user.Id,
+				To:   article.Author,
+			},
+		}
+		redis.PubMsg("article", article.Author, msg.Bytes())
 
 		devs, enabled, _ := u.Devices()
 		if enabled {
@@ -307,214 +334,3 @@ func articleCommentsHandler(request *http.Request, resp http.ResponseWriter, for
 	respData["articles_without_content"] = jsonStructs
 	writeResponse(request.RequestURI, resp, respData, err)
 }
-
-/*
-type articleThumbForm struct {
-	ArticleId   string `form:"article_id" json:"article_id" binding:"required"`
-	Status      bool   `form:"thumb_status" json:"thumb_status"`
-	AccessToken string `form:"access_token" json:"access_token" binding:"required"`
-}
-
-func (form *articleThumbForm) Validate(e *binding.Errors, req *http.Request) {
-}
-
-func articleSetThumbHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form articleThumbForm) {
-	user := redis.OnlineUser(form.AccessToken)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.AccessError)
-		return
-	}
-
-	//var article models.Article
-	//article.Id = bson.ObjectIdHex(form.ArticleId)
-	//err := article.SetThumb(userid, form.Status)
-
-	if form.Status {
-		user.RateArticle(form.ArticleId, models.ThumbRate, false)
-	} else {
-		user.RateArticle(form.ArticleId, models.ThumbRateMask, true)
-	}
-
-	redis.LogArticleThumb(user.Userid, form.ArticleId, form.Status)
-
-	writeResponse(request.RequestURI, resp, nil, errors.NoError)
-}
-
-func checkArticleThumbHandler(request *http.Request, resp http.ResponseWriter, form articleThumbForm, redis *models.RedisLogger) {
-	user := redis.OnlineUser(form.AccessToken)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.AccessError)
-		return
-	}
-
-	respData := map[string]bool{"is_thumbed": redis.ArticleThumbed(user.Userid, form.ArticleId)}
-	writeResponse(request.RequestURI, resp, respData, errors.NoError)
-}
-
-type relatedArticleForm struct {
-	ArticleId   string `form:"article_id" json:"article_id"`
-	AccessToken string `form:"access_token" json:"access_token" binding:"required"`
-}
-
-func relatedArticleHandler(request *http.Request, resp http.ResponseWriter, form relatedArticleForm, redis *RedisLogger) {
-	userid := redis.OnlineUser(form.AccessToken)
-	if len(userid) == 0 {
-		writeResponse(request.RequestURI, resp, nil, errors.AccessError)
-		return
-	}
-	articleIds := redis.RelatedArticles(form.ArticleId, 3)
-
-	articles, err := models.GetArticles(articleIds...)
-
-	jsonStructs := make([]articleJsonStruct, len(articles))
-
-	for i, _ := range articles {
-		jsonStructs[i].Id = articles[i].Id.Hex()
-		jsonStructs[i].Title = articles[i].Title
-		jsonStructs[i].Source = articles[i].Source
-		jsonStructs[i].Url = articles[i].Url
-		jsonStructs[i].PubTime = articles[i].PubTime.Format(TimeFormat)
-		jsonStructs[i].Image = imageUrl(articles[i].Image, ImageThumbnail)
-		//jsonStructs[i].Thumbs = redis.ArticleThumbCount(articles[i].Id.Hex())
-		//jsonStructs[i].Reviews = redis.ArticleReviewCount(articles[i].Id.Hex())
-		//jsonStructs[i].Read = reads[i]
-	}
-
-	respData := make(map[string]interface{})
-	respData["related_articles"] = jsonStructs
-	writeResponse(request.RequestURI, resp, respData, err)
-}
-
-func relatedArticleHandler(request *http.Request, resp http.ResponseWriter, form relatedArticleForm, redis *models.RedisLogger) {
-	user := redis.OnlineUser(form.AccessToken)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.AccessError)
-		return
-	}
-	mRate := make(map[string]int)
-
-	if userRate, err := user.ArticleRate(); err == errors.NoError {
-		for _, rate := range userRate.Rates {
-			mRate[rate.Article] = rate.Rate
-		}
-	}
-	//log.Println(mRate)
-	data, err := json.Marshal(&mRate)
-	if err != nil {
-		log.Println(err)
-	}
-	r, err := http.Post(SlopeOneUrl, "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		log.Println(err)
-		writeResponse(request.RequestURI, resp, nil, errors.DbError)
-		return
-	}
-	defer r.Body.Close()
-
-	data, err = ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Println(err)
-		writeResponse(request.RequestURI, resp, nil, errors.DbError)
-		return
-	}
-
-	var ids []string
-	if err := json.Unmarshal(data, &ids); err != nil {
-		log.Println(err)
-	}
-	//log.Println(ids)
-	if len(ids) > 3 {
-		ids = ids[:3]
-	}
-	articles, e := models.GetArticles(ids...)
-
-	jsonStructs := make([]articleJsonStruct, len(articles))
-	for i, _ := range articles {
-		jsonStructs[i].Id = articles[i].Id.Hex()
-		jsonStructs[i].Title = articles[i].Title
-		//jsonStructs[i].Source = articles[i].Source
-		jsonStructs[i].Url = articles[i].Url
-		//jsonStructs[i].PubTime = articles[i].PubTime.Format(TimeFormat)
-		//jsonStructs[i].Image = imageUrl(articles[i].Image, ImageThumbnail)
-		//jsonStructs[i].Thumbs = redis.ArticleThumbCount(articles[i].Id.Hex())
-		//jsonStructs[i].Reviews = redis.ArticleReviewCount(articles[i].Id.Hex())
-		//jsonStructs[i].Read = reads[i]
-	}
-
-	respData := make(map[string]interface{})
-	respData["related_articles"] = jsonStructs
-	writeResponse(request.RequestURI, resp, respData, e)
-}
-
-func articleViewersHandler(request *http.Request, resp http.ResponseWriter, params martini.Params, redis *models.RedisLogger) {
-	aid := params["id"]
-
-	viewers := redis.ArticleViewers(aid)
-
-	users, err := models.FindUsers(viewers)
-
-	jsonStructs := make([]userJsonStruct, len(users))
-	for i, _ := range users {
-		//view, thumb, review, _ := users[i].ArticleCount()
-
-		jsonStructs[i].Userid = users[i].Userid
-		jsonStructs[i].Nickname = users[i].Nickname
-		jsonStructs[i].Type = users[i].Role
-		jsonStructs[i].Profile = users[i].Profile
-		jsonStructs[i].Phone = users[i].Phone
-		jsonStructs[i].Location = users[i].Location
-		jsonStructs[i].About = users[i].About
-		jsonStructs[i].RegTime = users[i].RegTime.Format(TimeFormat)
-		//jsonStructs[i].Views = view
-		//jsonStructs[i].Thumbs = thumb
-		//jsonStructs[i].Reviews = review
-		//jsonStructs[i].Online = redis.IsOnline(users[i].Userid)
-	}
-
-	writeResponse(request.RequestURI, resp, jsonStructs, err)
-}
-
-func articleThumbsHandler(request *http.Request, resp http.ResponseWriter, params martini.Params, redis *models.RedisLogger) {
-	aid := params["id"]
-
-	viewers := redis.ArticleThumbers(aid)
-
-	users, err := models.FindUsers(viewers)
-
-	jsonStructs := make([]userJsonStruct, len(users))
-	for i, _ := range users {
-		//view, thumb, review, _ := users[i].ArticleCount()
-
-		jsonStructs[i].Userid = users[i].Userid
-		jsonStructs[i].Nickname = users[i].Nickname
-		jsonStructs[i].Type = users[i].Role
-		jsonStructs[i].Profile = users[i].Profile
-		jsonStructs[i].Phone = users[i].Phone
-		jsonStructs[i].Location = users[i].Location
-		jsonStructs[i].About = users[i].About
-		jsonStructs[i].RegTime = users[i].RegTime.Format(TimeFormat)
-		//jsonStructs[i].Views = view
-		//jsonStructs[i].Thumbs = thumb
-		//jsonStructs[i].Reviews = review
-		jsonStructs[i].Online = redis.IsOnline(users[i].Userid)
-	}
-
-	writeResponse(request.RequestURI, resp, jsonStructs, err)
-}
-
-func articleWeightHandler(request *http.Request, resp http.ResponseWriter, params martini.Params) {
-	id := params["id"]
-	log.Println(id, params["weight"])
-	if !bson.IsObjectIdHex(id) {
-		writeResponse(request.RequestURI, resp, nil, errors.JsonError)
-		return
-	}
-
-	weight, _ := strconv.Atoi(params["weight"])
-
-	article := models.Article{Id: bson.ObjectIdHex(id)}
-	err := article.SetWeight(weight)
-
-	writeResponse(request.RequestURI, resp, nil, err)
-}
-*/

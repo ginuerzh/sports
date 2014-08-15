@@ -68,11 +68,11 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	msg := &models.Message{
-		From:    user.Id,
-		To:      form.To,
-		Type:    form.Type,
-		Content: form.Content,
-		Time:    time.Now(),
+		From: user.Id,
+		To:   form.To,
+		Body: []models.MsgBody{models.MsgBody{Type: form.Type, Content: form.Content}},
+		Type: "chat",
+		Time: time.Now(),
 	}
 	if err := msg.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
@@ -104,7 +104,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	devs, enabled, _ := u.Devices()
 	if enabled {
 		for _, dev := range devs {
-			if err := sendApns(client, dev, user.Nickname+": "+msg.Content, 1, ""); err != nil {
+			if err := sendApns(client, dev, user.Nickname+": "+msg.Body[0].Content, 1, ""); err != nil {
 				log.Println(err)
 			}
 		}
@@ -125,8 +125,8 @@ func convertMsg(msg *models.Message) *msgJsonStruct {
 		Id:      msg.Id.Hex(),
 		From:    msg.From,
 		To:      msg.To,
-		Type:    msg.Type,
-		Content: msg.Content,
+		Type:    msg.Body[0].Type,
+		Content: msg.Body[0].Content,
 		Time:    msg.Time.Unix(),
 	}
 }

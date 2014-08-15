@@ -54,6 +54,8 @@ func main() {
 	controllers.BindFileApi(m)
 	controllers.BindRecordApi(m)
 	//controllers.BindStatApi(m)
+	controllers.BindWSPushApi(m)
+	controllers.BindGroupApi(m)
 
 	//m.Run()
 	http.ListenAndServe(listenAddr, m)
@@ -61,7 +63,7 @@ func main() {
 
 func redisPool() *redis.Pool {
 	return &redis.Pool{
-		MaxIdle:     100,
+		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", "localhost:6379")

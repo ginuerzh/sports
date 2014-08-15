@@ -53,7 +53,7 @@ func eventNewsHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 
 	writeResponse(request.RequestURI, resp, respData, nil)
 
-	redis.LogOnlineUser(form.Token, user)
+	//redis.LogOnlineUser(form.Token, user)
 }
 
 type contactStruct struct {

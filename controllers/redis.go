@@ -10,7 +10,7 @@ import (
 )
 
 func RedisLoggerHandler(request *http.Request, c martini.Context, pool *redis.Pool) {
-	logger := models.NewRedisLogger(pool.Get())
+	logger := models.NewRedisLogger(pool, pool.Get())
 	defer logger.Close()
 
 	/*

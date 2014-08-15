@@ -22,6 +22,10 @@ func BindUserApi(m *martini.ClassicMartini) {
 	m.Post("/1/user/send_device_token", binding.Json(sendDevForm{}), ErrorHandler, sendDevHandler)
 	m.Post("/1/user/set_push_enable", binding.Json(setPushForm{}), ErrorHandler, setPushHandler)
 	m.Get("/1/user/is_push_enabled", binding.Form(pushStatusForm{}), ErrorHandler, pushStatusHandler)
+	m.Post("/1/user/enableAttention", binding.Json(followForm{}), ErrorHandler, followHandler)
+	m.Get("/1/user/getAttentionFriendsList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowsHandler)
+	m.Get("/1/user/getAttentedMembersList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowersHandler)
+	m.Get("/1/user/getJoinedGroupsList", binding.Form(getFollowsForm{}), ErrorHandler, getGroupsHandler)
 }
 
 type userArticlesForm struct {
@@ -107,4 +111,60 @@ func pushStatusHandler(request *http.Request, resp http.ResponseWriter,
 	u := &models.User{Id: user.Id}
 	enabled, err := u.PushEnabled()
 	writeResponse(request.RequestURI, resp, map[string]bool{"is_enabled": enabled}, err)
+}
+
+type followForm struct {
+	Userid string `json:"userid"`
+	Follow bool   `json:"beFriend"`
+	Token  string `json:"access_token" binding:"required"`
+}
+
+func followHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form followForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+	//u := &models.User{Id: user.Id}
+	//u.SetFollow(form.Userid, !form.Follow)
+	redis.SetFollow(user.Id, form.Userid, form.Follow)
+
+	writeResponse(request.RequestURI, resp, nil, nil)
+}
+
+type getFollowsForm struct {
+	Token string `form:"access_token" binding:"required"`
+}
+
+func getFollowsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+
+	//u := &models.User{Id: user.Id}
+	writeResponse(request.RequestURI, resp, redis.Follows(user.Id), nil)
+}
+
+func getFollowersHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+
+	//u := &models.User{Id: user.Id}
+	writeResponse(request.RequestURI, resp, redis.Followers(user.Id), nil)
+}
+
+func getGroupsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+
+	//u := &models.User{Id: user.Id}
+	writeResponse(request.RequestURI, resp, redis.Groups(user.Id), nil)
 }

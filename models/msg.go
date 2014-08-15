@@ -17,13 +17,18 @@ func init() {
 	ensureIndex(msgColl, "-time")
 }
 
+type MsgBody struct {
+	Type    string `json:"type"`
+	Content string `json:"content"`
+}
+
 type Message struct {
-	Id      bson.ObjectId `bson:"_id,omitempty"`
-	From    string
-	To      string
-	Type    string
-	Content string
-	Time    time.Time
+	Id   bson.ObjectId `bson:"_id,omitempty"`
+	From string
+	To   string
+	Type string
+	Body []MsgBody
+	Time time.Time
 }
 
 func (this *Message) findOne(query interface{}) (bool, error) {

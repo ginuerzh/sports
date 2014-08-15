@@ -2,6 +2,7 @@
 package models
 
 import (
+	"github.com/nf/geocode"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
@@ -32,6 +33,7 @@ var (
 	fileColl   = "files"
 	recordColl = "records"
 	actionColl = "actions"
+	groupColl  = "groups"
 	//eventColl    = "events"
 	//rateColl     = "rates"
 )
@@ -44,6 +46,43 @@ type Paging struct {
 	First string `form:"page_frist_id" json:"page_frist_id"`
 	Last  string `form:"page_last_id" json:"page_last_id"`
 	Count int    `form:"page_item_count" json:"-"`
+}
+
+type Address struct {
+	Country  string `json:"country,omitempty"`
+	Province string `json:"province,omitempty"`
+	City     string `json:"city,omitempty"`
+	Area     string `json:"area,omitempty"`
+	Desc     string `json:"location_desc"`
+}
+
+func (addr Address) String() string {
+	return addr.Country + addr.Province + addr.City + addr.Area + addr.Desc
+}
+
+type Location struct {
+	Lat float64 `json:"latitude,string"`
+	Lng float64 `json:"longitude,string"`
+}
+
+func Addr2Loc(addr Address) Location {
+	if len(addr.String()) == 0 {
+		return Location{}
+	}
+	req := &geocode.Request{
+		Region:   "cn",
+		Provider: geocode.GOOGLE,
+		Address:  addr.String(),
+	}
+	resp, err := req.Lookup(nil)
+	if err != nil || resp.Status != "OK" || len(resp.Results) == 0 {
+		return Location{}
+	}
+
+	return Location{
+		Lat: resp.Results[0].Geometry.Location.Lat,
+		Lng: resp.Results[0].Geometry.Location.Lng,
+	}
 }
 
 type PagingFunc func(c *mgo.Collection, first, last string) (query bson.M, err error)
@@ -66,6 +105,18 @@ func withCollection(collection string, safe *mgo.Safe, s func(*mgo.Collection) e
 	session.SetSafe(safe)
 	c := session.DB(databaseName).C(collection)
 	return s(c)
+}
+
+func exists(collection string, query interface{}) (bool, error) {
+	b := false
+	q := func(c *mgo.Collection) error {
+		n, err := c.Find(query).Count()
+		b = n > 0
+		return err
+	}
+
+	err := withCollection(collection, nil, q)
+	return b, err
 }
 
 // search with paging
@@ -149,11 +200,30 @@ func search(collection string, query interface{}, selector interface{},
 	return withCollection(collection, nil, q)
 }
 
+func findOne(collection string, query interface{}, sortFields []string, result interface{}) error {
+	q := func(c *mgo.Collection) error {
+		var err error
+		qy := c.Find(query)
+
+		if result == nil {
+			return err
+		}
+
+		if len(sortFields) > 0 {
+			qy = qy.Sort(sortFields...)
+		}
+
+		return qy.One(result)
+	}
+
+	return withCollection(collection, nil, q)
+}
+
 func findIds(c string, ids []interface{}, result interface{}) error {
 	return search(c, bson.M{"_id": bson.M{"$in": ids}}, nil, 0, 0, nil, nil, result)
 }
 
-func updateId(collection string, id bson.ObjectId, change interface{}, safe bool) error {
+func updateId(collection string, id interface{}, change interface{}, safe bool) error {
 	update := func(c *mgo.Collection) error {
 		return c.UpdateId(id, change)
 	}

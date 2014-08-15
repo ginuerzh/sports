@@ -5,6 +5,7 @@ import (
 	"github.com/ginuerzh/sports/errors"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+	//"labix.org/v2/mgo/txn"
 	"log"
 )
 
@@ -26,9 +27,12 @@ type User struct {
 	Id string `bson:"_id"`
 
 	Contacts []Contact `bson:",omitempty"`
-	Events   []Event   `bson:",omitempty"`
-	Devs     []string  `bson:",omitempty"`
-	Push     bool
+	//Followers []string  `bson:",omitempty"`
+	//Following []string  `bson:",omitempty"`
+	//Groups    []string  `bson:",omitempty"`
+	Events []Event  `bson:",omitempty"`
+	Devs   []string `bson:",omitempty"`
+	Push   bool
 }
 
 func (this *User) findOne(query interface{}) (bool, error) {

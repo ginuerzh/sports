@@ -26,12 +26,20 @@ type UserInfo struct {
 	Hobby    string `json:"hobby"`
 	Height   int    `json:"height"`
 	Weight   int    `json:"weight"`
-	Birth    int64  `json:"birthday" `
+	Birth    int64  `json:"birthday"`
 	Actor    string `json:"actor"`
 	Gender   string `json:"gender"`
 	Phone    string `json:"phone_number"`
 	About    string `json:"about"`
 	Nickname string `json:"nikename"`
+
+	Country  string `json:"country"`
+	Province string `json:"province"`
+	City     string `json:"city"`
+	Area     string `json:"area"`
+	LocDesc  string `json:"location_desc"`
+	Lng      float64
+	Lat      float64
 }
 
 type Account struct {
@@ -41,7 +49,6 @@ type Account struct {
 	Profile  string    `bson:",omitempty"`
 	RegTime  time.Time `bson:"reg_time,omitempty"`
 	Role     string    `bson:",omitempty"`
-	//Score    int       `bson:",omitempty"`
 	Hobby    string    `bson:",omitempty"`
 	Height   int       `bson:",omitempty"`
 	Weight   int       `bson:",omitempty"`
@@ -51,7 +58,8 @@ type Account struct {
 	Url      string    `bson:",omitempty"`
 	Phone    string    `bson:",omitempty"`
 	About    string    `bson:",omitempty"`
-	Location string    `bson:",omitempty"`
+	Addr     Address
+	Loc      Location
 	Setinfo  bool
 }
 

@@ -132,8 +132,9 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 	user.Gender = weibo.Gender
 	user.Url = weibo.Url
 	user.Profile = weibo.Avatar
-	user.Location = weibo.Location
+	user.Addr.Desc = weibo.Location
 	user.About = weibo.Description
+	user.Loc = models.Addr2Loc(user.Addr)
 	user.Role = "weibo"
 	user.RegTime = time.Now()
 
@@ -195,7 +196,11 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 	}
 	writeResponse(request.RequestURI, resp, data, nil)
 
+	u := &models.User{}
+	u.FindByUserid(user.Id)
+
 	redis.LogOnlineUser(token, user)
+	//redis.LogUser(u)
 	redis.LogVisitor(user.Id)
 }
 
@@ -211,26 +216,31 @@ func logoutHandler(request *http.Request, resp http.ResponseWriter, redis *model
 
 type getInfoForm struct {
 	Userid string `form:"userid" binding:"required"`
+	Token  string `form:"access_token"`
 }
 
 type userJsonStruct struct {
-	Userid   string `json:"userid"`
-	Nickname string `json:"nikename"`
-	Type     string `json:"account_type"`
-	Phone    string `json:"phone_number"`
-	About    string `json:"about"`
-	Location string `json:"location"`
-	Profile  string `json:"profile_image"`
-	RegTime  int64  `json:"register_time"`
-	Hobby    string `json:"hobby"`
-	Height   int    `json:"height"`
-	Weight   int    `json:"weight"`
-	Birth    int64  `json:"birthday"`
-	Actor    string `json:"actor"`
-	Score    int    `json:"rankscore"`
-	Level    int    `json:"rankLevel"`
-	Rank     string `json:"rankName"`
-	//Online   bool   `json:"online"`
+	Userid   string  `json:"userid"`
+	Nickname string  `json:"nikename"`
+	Type     string  `json:"account_type"`
+	Phone    string  `json:"phone_number"`
+	About    string  `json:"about"`
+	Location string  `json:"location"`
+	Profile  string  `json:"profile_image"`
+	RegTime  int64   `json:"register_time"`
+	Hobby    string  `json:"hobby"`
+	Height   int     `json:"height"`
+	Weight   int     `json:"weight"`
+	Birth    int64   `json:"birthday"`
+	Actor    string  `json:"actor"`
+	Score    int     `json:"rankscore"`
+	Level    int     `json:"rankLevel"`
+	Rank     string  `json:"rankName"`
+	Addr     string  `json:"location_desc"`
+	Lng      float64 `json:"longitude"`
+	Lat      float64 `json:"latitude"`
+	Followed bool    `json:"beFriend"`
+	Online   bool    `json:"beOnline"`
 }
 
 func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getInfoForm) {
@@ -256,7 +266,6 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		Type:     user.Role,
 		Phone:    user.Phone,
 		About:    user.About,
-		Location: user.Location,
 		Profile:  user.Profile,
 		RegTime:  user.RegTime.Unix(),
 		Hobby:    user.Hobby,
@@ -267,7 +276,17 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		Score:    score,
 		Level:    level,
 		Rank:     rank,
+		Addr:     user.Addr.String(),
+		Lng:      user.Loc.Lng,
+		Lat:      user.Loc.Lat,
+		Online:   redis.IsOnline(user.Id),
 	}
+
+	loginer := ""
+	if user := redis.OnlineUser(form.Token); user != nil {
+		loginer = user.Id
+	}
+	info.Followed = redis.Followed(loginer, user.Id)
 
 	writeResponse(request.RequestURI, resp, info, nil)
 }
@@ -283,6 +302,19 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 		return
 	}
+
+	addr := models.Address{
+		Country:  form.UserInfo.Country,
+		Province: form.UserInfo.Province,
+		City:     form.UserInfo.City,
+		Area:     form.UserInfo.Area,
+		Desc:     form.UserInfo.LocDesc,
+	}
+
+	loc := models.Addr2Loc(addr)
+	form.UserInfo.Lat = loc.Lat
+	form.UserInfo.Lng = loc.Lng
+
 	err := user.SetInfo(form.UserInfo)
 	score := 0
 	if !user.Setinfo && err == nil {
@@ -340,7 +372,7 @@ func userListHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		jsonStructs[i].Type = users[i].Role
 		jsonStructs[i].Profile = users[i].Profile
 		jsonStructs[i].Phone = users[i].Phone
-		jsonStructs[i].Location = users[i].Location
+		//jsonStructs[i].Location = users[i].Location
 		jsonStructs[i].About = users[i].About
 		jsonStructs[i].RegTime = users[i].RegTime.Unix()
 		//jsonStructs[i].Views = view

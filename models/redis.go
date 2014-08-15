@@ -18,10 +18,14 @@ const (
 	redisStatPvPrefix       = redisPrefix + ":stat:pv:"        // sorted set per day
 	redisStatRegisterPrefix = redisPrefix + ":stat:registers:" // set per day
 
-	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:" // set per half an hour
-	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"  // hashs per user
-	redisUserGuest            = redisPrefix + ":user:guest"    // hashes for all guests
-	redisUserMessagePrefix    = redisPrefix + ":user:msgs:"    // list per user
+	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:"  // set per half an hour
+	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"   // hashs per user
+	redisUserGuest            = redisPrefix + ":user:guest"     // hashes for all guests
+	redisUserMessagePrefix    = redisPrefix + ":user:msgs:"     // list per user
+	redisUserFollowPrefix     = redisPrefix + ":user:follow:"   // set per user
+	redisUserFollowerPrefix   = redisPrefix + ":user:follower:" // set per user
+	redisUserGroupPrefix      = redisPrefix + ":user:group:"    // hash per user
+	redisGroupPrefix          = redisPrefix + ":group:"         // set per group
 
 	redisStatArticleViewPrefix = redisPrefix + ":stat:articles:view:"  // sorted set per day
 	redisStatArticleView       = redisPrefix + ":stat:articles:view"   // sorted set
@@ -39,6 +43,9 @@ const (
 	redisMaxDisLeaderboard = redisPrefix + ":lb:distance:max"   // sorted set
 	redisDurLeaderboard    = redisPrefix + ":lb:duration:total" // sorted set
 	redisScoreLB           = redisPrefix + ":lb:score"          // sorted set
+
+	redisPubSubGroup = redisPrefix + ":pubsub:group:"
+	redisPubSubUser  = redisPrefix + ":pubsub:user:"
 )
 
 const (
@@ -47,16 +54,54 @@ const (
 )
 
 type RedisLogger struct {
-	//pool *redis.Pool
+	pool *redis.Pool
 	conn redis.Conn
 }
 
-func NewRedisLogger(conn redis.Conn) *RedisLogger {
-	return &RedisLogger{conn}
+func NewRedisLogger(pool *redis.Pool, conn redis.Conn) *RedisLogger {
+	return &RedisLogger{pool, conn}
 }
 
 func (logger *RedisLogger) Close() error {
 	return logger.conn.Close()
+}
+
+func (logger *RedisLogger) PubSub(userid string, groups ...string) *redis.PubSubConn {
+	channels := []interface{}{redisPubSubUser + userid}
+	for _, group := range groups {
+		channels = append(channels, redisPubSubGroup+group)
+	}
+	conn := redis.PubSubConn{logger.conn}
+	conn.Subscribe(channels...)
+	return &conn
+}
+
+func (logger *RedisLogger) Subscribe(psc *redis.PubSubConn, groups ...string) error {
+	var channels []interface{}
+	for _, group := range groups {
+		channels = append(channels, redisPubSubGroup+group)
+	}
+	return psc.Subscribe(channels...)
+}
+
+func (logger *RedisLogger) Unsubscribe(psc *redis.PubSubConn, groups ...string) error {
+	var channels []interface{}
+	for _, group := range groups {
+		channels = append(channels, redisPubSubGroup+group)
+	}
+	return psc.Unsubscribe(channels...)
+}
+
+func (logger *RedisLogger) PubMsg(typ string, to string, msg []byte) {
+	conn := logger.pool.Get()
+	defer conn.Close()
+
+	switch typ {
+	case "groupchat":
+		conn.Do("PUBLISH", redisPubSubGroup+to, msg)
+	default:
+		conn.Do("PUBLISH", redisPubSubUser+to, msg)
+	}
 }
 
 func (logger *RedisLogger) Users() int {
@@ -85,12 +130,14 @@ func onlineTimeString() string {
 }
 
 type redisUser struct {
-	Userid   string `redis:"userid"`
-	Nickname string `redis:"nickname"`
-	Profile  string `redis:"profile"`
-	RegTime  int64  `redis:"reg_time"`
-	Role     string `redis:"role"`
-	SetInfo  bool   `redis:"setinfo"`
+	Userid   string  `redis:"userid"`
+	Nickname string  `redis:"nickname"`
+	Profile  string  `redis:"profile"`
+	RegTime  int64   `redis:"reg_time"`
+	Role     string  `redis:"role"`
+	Lng      float64 `redis:"lng"`
+	Lat      float64 `redis:"lat"`
+	SetInfo  bool    `redis:"setinfo"`
 }
 
 func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
@@ -123,6 +170,7 @@ func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
 		Profile:  user.Profile,
 		RegTime:  time.Unix(user.RegTime, 0),
 		Role:     user.Role,
+		Loc:      Location{Lng: user.Lng, Lat: user.Lat},
 		Setinfo:  user.SetInfo,
 	}
 }
@@ -140,6 +188,8 @@ func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
 		Profile:  user.Profile,
 		RegTime:  user.RegTime.Unix(),
 		Role:     user.Role,
+		Lng:      user.Loc.Lng,
+		Lat:      user.Loc.Lat,
 		SetInfo:  user.Setinfo,
 	}
 
@@ -155,6 +205,58 @@ func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
 	conn.Send("SADD", redisUserOnlinesPrefix+timeStr, user.Id)
 	conn.Send("EXPIRE", redisUserOnlinesPrefix+timeStr, onlinesExpire)
 	conn.Do("EXEC")
+}
+
+func (logger *RedisLogger) Followed(userid, following string) bool {
+	if len(userid) == 0 || len(following) == 0 {
+		return false
+	}
+	followed, _ := redis.Bool(logger.conn.Do("SISMEMBER", redisUserFollowPrefix+userid, following))
+	return followed
+}
+
+func (logger *RedisLogger) SetFollow(userid, following string, follow bool) {
+	if len(userid) == 0 || len(following) == 0 {
+		return
+	}
+	conn := logger.conn
+	conn.Send("MULTI")
+	if follow {
+		logger.conn.Send("SADD", redisUserFollowPrefix+userid, following)
+		logger.conn.Send("SADD", redisUserFollowerPrefix+following, userid)
+	} else {
+		logger.conn.Send("SREM", redisUserFollowPrefix+userid, following)
+		logger.conn.Send("SREM", redisUserFollowerPrefix+following, userid)
+	}
+	conn.Do("EXEC")
+}
+
+func (logger *RedisLogger) Follows(userid string) []string {
+	v, _ := redis.Strings(logger.conn.Do("SMEMBERS", redisUserFollowPrefix+userid))
+	return v
+}
+
+func (logger *RedisLogger) Followers(userid string) []string {
+	v, _ := redis.Strings(logger.conn.Do("SMEMBERS", redisUserFollowerPrefix+userid))
+	return v
+}
+
+func (logger *RedisLogger) JoinGroup(userid, gid string, join bool) {
+	conn := logger.conn
+	conn.Send("MULTI")
+	if join {
+		conn.Send("HSET", redisUserGroupPrefix+userid, gid, time.Now().Unix())
+		conn.Send("SADD", redisGroupPrefix+gid, userid)
+	} else {
+		conn.Send("HDEL", redisUserGroupPrefix+userid, gid)
+		conn.Send("SREM", redisGroupPrefix+gid, userid)
+	}
+	conn.Do("EXEC")
+}
+
+func (logger *RedisLogger) Groups(userid string) []string {
+	v, _ := redis.Strings(logger.conn.Do("HKEYS", redisUserGroupPrefix+userid))
+	return v
 }
 
 func (logger *RedisLogger) DelOnlineUser(accessToken string) *Account {
@@ -219,54 +321,6 @@ func (logger *RedisLogger) setsCount(key string, days int) []int64 {
 	return counts
 }
 
-/*
-func (logger *RedisLogger) LogUserArticle(userid, article string, rate int) {
-	conn := logger.pool.Get()
-	defer conn.Close()
-
-	conn.Send("MULTI")
-	if (rate | AccessRate) != 0 {
-		conn.Send("ZADD", redisUserArticlePrefix+userid, rate, article)
-	}
-	if (rate | ThumbRate) != 0 {
-		conn.Send("ZADD", redisUserArticlePrefix+userid, rate, article)
-	}
-}
-
-func (logger *RedisLogger) UserArticleRate(userid string, articles ...string) []int {
-	conn := logger.conn
-
-	rates := make([]int, len(articles))
-	conn.Send("MULTI")
-	for _, article := range articles {
-		conn.Send("ZSCORE", redisUserArticlePrefix+userid, article)
-	}
-	if values, err := redis.Strings(conn.Do("EXEC")); err == nil {
-		for i, v := range values {
-			rates[i], _ = strconv.Atoi(v)
-		}
-	}
-
-	return rates
-}
-
-func (logger *RedisLogger) LogArticleCache(articleId string, article []byte) {
-	d := time.Minute * 5
-
-	conn := logger.conn
-	conn.Do("SETEX", redisArticleCachePrefix+articleId, int(d.Seconds()), article)
-}
-
-func (logger *RedisLogger) GetArticleCache(articleId string) []byte {
-	conn := logger.conn
-
-	s, err := redis.Bytes(conn.Do("GET", redisArticleCachePrefix+articleId))
-	if err != nil {
-		//log.Println(err)
-	}
-	return s
-}
-*/
 func (logger *RedisLogger) LogUserMessages(userid string, msgs ...string) {
 	args := redis.Args{}.Add(redisUserMessagePrefix + userid).AddFlat(msgs)
 	conn := logger.conn
@@ -346,92 +400,6 @@ func (logger *RedisLogger) PV(date string) []KV {
 	return pvs
 }
 
-/*
-func (logger *RedisLogger) RelatedArticles(article string, max int) []string {
-	conn := logger.conn
-	members, err := redis.Strings(conn.Do("SMEMBERS", redisArticleViewPrefix+article))
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-	//log.Println(members)
-	keys := make([]string, len(members))
-	for i, _ := range members {
-		keys[i] = redisUserArticlePrefix + members[i]
-	}
-	args := redis.Args{}.Add(redisArticleRelatedPrefix + article).Add(len(members)).AddFlat(keys)
-	conn.Send("MULTI")
-	conn.Send("ZUNIONSTORE", args...)
-	conn.Send("ZREVRANGE", redisArticleRelatedPrefix+article, 0, max)
-	values, err := redis.Values(conn.Do("EXEC"))
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	//log.Println(values)
-	s, ok := values[1].([]interface{})
-	if !ok {
-		return nil
-	}
-
-	var articles []string
-	for i, _ := range s {
-		bs, ok := s[i].([]byte)
-		if !ok {
-			log.Println(string(bs), "is not string")
-		}
-		id := string(bs)
-		if len(id) > 0 && id != article {
-			articles = append(articles, id)
-		}
-
-		if len(articles) == max {
-			break
-		}
-	}
-	return articles
-}
-
-func (logger *RedisLogger) ViewedArticles(userid string) []string {
-	conn := logger.conn
-	count, _ := redis.Int(conn.Do("ZCARD", redisUserArticlePrefix+userid))
-	values, err := redis.Strings(conn.Do("ZRANGE", redisUserArticlePrefix+userid, 0, count))
-
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	return values
-}
-
-func (logger *RedisLogger) UserArticleCount(userid string) (view, thumb, review int64) {
-	conn := logger.conn
-	count, _ := redis.Int(conn.Do("ZCARD", redisUserArticlePrefix+userid))
-	values, _ := redis.Values(conn.Do("ZRANGE", redisUserArticlePrefix+userid, 0, count, "WITHSCORES"))
-
-	var articles []KV
-
-	if err := redis.ScanSlice(values, &articles); err != nil {
-		log.Println(err)
-		return
-	}
-
-	for i, _ := range articles {
-		view++
-
-		if articles[i].V > AccessRate {
-			thumb++
-		}
-		if articles[i].V > ThumbRate {
-			review++
-		}
-	}
-
-	return
-}
-*/
 func (logger *RedisLogger) ArticleCount(articleId string) (view, thumb, review int64) {
 	conn := logger.conn
 	conn.Send("MULTI")
