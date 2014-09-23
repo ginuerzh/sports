@@ -7,6 +7,12 @@ import (
 	"labix.org/v2/mgo/bson"
 	//"labix.org/v2/mgo/txn"
 	"log"
+	"time"
+)
+
+const (
+	TaskCompleted = iota
+	TaskUncompleted
 )
 
 type Contact struct {
@@ -23,16 +29,26 @@ type Event struct {
 	Reviews []string `bson:",omitempty"`
 }
 
+type Proof struct {
+	Tid  int
+	Pics []string
+}
+
+type TaskList struct {
+	Completed   []int
+	Uncompleted []int
+	Proofs      []Proof
+	Last        time.Time
+}
+
 type User struct {
 	Id string `bson:"_id"`
 
 	Contacts []Contact `bson:",omitempty"`
-	//Followers []string  `bson:",omitempty"`
-	//Following []string  `bson:",omitempty"`
-	//Groups    []string  `bson:",omitempty"`
-	Events []Event  `bson:",omitempty"`
-	Devs   []string `bson:",omitempty"`
-	Push   bool
+	Events   []Event   `bson:",omitempty"`
+	Devs     []string  `bson:",omitempty"`
+	Push     bool
+	Tasks    TaskList
 }
 
 func (this *User) findOne(query interface{}) (bool, error) {
@@ -330,6 +346,51 @@ func (this *User) RmDevice(dev string) error {
 			"devs": dev,
 		},
 	}
+	if err := update(userColl, selector, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *User) GetTasks() (TaskList, error) {
+	_, err := this.FindByUserid(this.Id)
+	return this.Tasks, err
+}
+
+func (this *User) AddTask(tid int, proofs []string) error {
+	selector := bson.M{
+		"_id": this.Id,
+	}
+	change := bson.M{
+		"$addToSet": bson.M{
+			"tasks.uncompleted": tid,
+			"tasks.proofs":      Proof{Tid: tid, Pics: proofs},
+		},
+		"$set": bson.M{
+			"tasks.last": time.Now(),
+		},
+	}
+
+	if err := update(userColl, selector, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *User) SetTaskComplete(tid int) error {
+	selector := bson.M{
+		"_id": this.Id,
+	}
+
+	change := bson.M{
+		"$pull": bson.M{
+			"tasks.uncompleted": tid,
+		},
+		"$addToSet": bson.M{
+			"tasks.completed": tid,
+		},
+	}
+
 	if err := update(userColl, selector, change, true); err != nil {
 		return errors.NewError(errors.DbError, err.Error())
 	}

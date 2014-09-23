@@ -2,6 +2,7 @@
 package models
 
 import (
+	"encoding/json"
 	"github.com/nf/geocode"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -22,8 +23,14 @@ const (
 	TimeFormat      = "2006-01-02 15:04:05"
 )
 
+const (
+	ScorePhysical = "physical"
+	ScoreLiteral  = "literal"
+	ScoreMental   = "mental"
+	ScoreWealth   = "wealth"
+)
+
 var (
-	mgoSession   *mgo.Session
 	databaseName = "sports"
 	accountColl  = "accounts"
 	userColl     = "users"
@@ -42,6 +49,43 @@ var (
 	GuestUserPrefix = "guest:"
 )
 
+const (
+	Satoshi = 100000000
+)
+
+type Props struct {
+	Physical int64 `json:"physique_value"`
+	Literal  int64 `json:"literature_value"`
+	Mental   int64 `json:"magic_value"`
+	Wealth   int64 `json:"coin_value"`
+	Score    int64 `json:"rankscore"`
+	Level    int64 `json:"rankLevel"`
+}
+
+func UserScore(props *Props) int {
+	return int(props.Physical*4 + props.Literal*3 + props.Mental*2 + props.Wealth/Satoshi*1)
+}
+
+var levelScores = []int{
+	0, 20, 30, 45, 67, 101, 151, 227, 341, 512, /* 1 - 10 */
+	768, 1153, 1729, 2594, 3892, 5838, 8757, 13136, 19705, 29557, /* 11 - 20 */
+	44336, 66505, 99757, 149636, 224454, 336682, 505023, 757535, 1136302, 1704453, /* 21 - 30 */
+	2556680, 3835021, 5752531, 8628797, 12943196, /* 31 - 35 */
+	19414794, 29122192, 43683288, 65524932, 98287398, /* 36 - 40 */
+}
+
+func UserLevel(score int) int {
+	for i, s := range levelScores {
+		if s > score {
+			return i
+		}
+		if s == score {
+			return i + 1
+		}
+	}
+	return len(levelScores)
+}
+
 type Paging struct {
 	First string `form:"page_frist_id" json:"page_frist_id"`
 	Last  string `form:"page_last_id" json:"page_last_id"`
@@ -53,7 +97,7 @@ type Address struct {
 	Province string `json:"province,omitempty"`
 	City     string `json:"city,omitempty"`
 	Area     string `json:"area,omitempty"`
-	Desc     string `json:"location_desc"`
+	Desc     string `bson:"location_desc" json:"location_desc"`
 }
 
 func (addr Address) String() string {
@@ -61,11 +105,13 @@ func (addr Address) String() string {
 }
 
 type Location struct {
-	Lat float64 `json:"latitude,string"`
-	Lng float64 `json:"longitude,string"`
+	Lat float64 `bson:"latitude" json:"latitude"`
+	Lng float64 `bson:"longitude" json:"longitude"`
 }
 
 func Addr2Loc(addr Address) Location {
+	return Location{}
+
 	if len(addr.String()) == 0 {
 		return Location{}
 	}
@@ -85,7 +131,7 @@ func Addr2Loc(addr Address) Location {
 	}
 }
 
-type PagingFunc func(c *mgo.Collection, first, last string) (query bson.M, err error)
+type PagingFunc func(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error)
 
 func getSession() *mgo.Session {
 	if mgoSession == nil {
@@ -121,14 +167,14 @@ func exists(collection string, query interface{}) (bool, error) {
 
 // search with paging
 func psearch(collection string, query, selector interface{}, sortFields []string,
-	total *int, result interface{}, pagingFunc PagingFunc, paging *Paging) (err error) {
+	total *int, result interface{}, pagingFunc PagingFunc, paging *Paging, args ...interface{}) (err error) {
 	q := func(c *mgo.Collection) error {
 		var pquery bson.M
 		if pagingFunc != nil {
 			if paging == nil {
 				paging = &Paging{}
 			}
-			pquery, err = pagingFunc(c, paging.First, paging.Last)
+			pquery, err = pagingFunc(c, paging.First, paging.Last, args...)
 			if err != nil {
 				return err
 			}
@@ -297,6 +343,26 @@ func ensureIndex(collection string, keys ...string) error {
 	return withCollection(collection, nil, ensure)
 }
 
+func ensureIndex2D(collection string, key string) error {
+	ensure := func(c *mgo.Collection) error {
+		return c.EnsureIndex(mgo.Index{
+			Key: []string{"$2d:" + key},
+		})
+	}
+	return withCollection(collection, nil, ensure)
+}
+
 func DateString(t time.Time) string {
 	return t.Format("2006-01-02")
+}
+
+func Struct2Map(i interface{}) bson.M {
+	v, err := json.Marshal(i)
+	if err != nil {
+		return nil
+	}
+	var m bson.M
+	json.Unmarshal(v, &m)
+
+	return m
 }

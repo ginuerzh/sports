@@ -68,7 +68,7 @@ func (this *Message) Save() error {
 	return nil
 }
 
-func msgPagingFunc(c *mgo.Collection, first, last string) (query bson.M, err error) {
+func msgPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error) {
 	msg := &Message{}
 
 	if bson.IsObjectIdHex(first) {

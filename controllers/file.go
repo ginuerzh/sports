@@ -89,7 +89,6 @@ func fileUploadHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	url, _, _ := weedfs.GetUrl(fid)
-	//url := "http://172.24.222.54:8082/" + fid
 	respData := map[string]interface{}{"fileid": fid, "fileurl": url}
 
 	writeResponse(request.RequestURI, resp, respData, nil)

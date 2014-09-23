@@ -32,6 +32,22 @@ type Article struct {
 	Views   []string `bson:",omitempty"`
 	Thumbs  []string `bson:",omitempty"`
 	Reviews []string `bson:",omitempty"`
+	Tags    []string `bson:",omitempty"`
+}
+
+func (this *Article) Cover() (text string, image string) {
+	for _, seg := range this.Contents {
+		if len(text) > 0 && len(image) > 0 {
+			break
+		}
+		if len(text) == 0 && seg.ContentType == "TEXT" {
+			text = seg.ContentText
+		}
+		if len(image) == 0 && seg.ContentType == "IMAGE" {
+			image = seg.ContentText
+		}
+	}
+	return
 }
 
 func FindArticles(ids ...string) (articles []Article, err error) {
@@ -188,7 +204,7 @@ func (this *Article) IsThumbed(userid string) (bool, error) {
 	return count > 0, nil
 }
 
-func articlePagingFunc(c *mgo.Collection, first, last string) (query bson.M, err error) {
+func articlePagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error) {
 	article := &Article{}
 
 	if bson.IsObjectIdHex(first) {
@@ -220,11 +236,17 @@ func articlePagingFunc(c *mgo.Collection, first, last string) (query bson.M, err
 	return
 }
 
-func GetArticles(paging *Paging) (int, []Article, error) {
+func GetArticles(tag string, paging *Paging) (int, []Article, error) {
 	var articles []Article
 	total := 0
 
-	if err := psearch(articleColl, bson.M{"parent": nil}, nil,
+	selector := bson.M{
+		"parent": nil,
+	}
+	if len(tag) > 0 {
+		selector["tags"] = tag
+	}
+	if err := psearch(articleColl, selector, nil,
 		[]string{"-pub_time"}, nil, &articles, articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -243,6 +265,11 @@ func GetArticles(paging *Paging) (int, []Article, error) {
 	}
 
 	return total, articles, nil
+}
+
+func (this *Article) CommentCount() (count int) {
+	search(articleColl, bson.M{"parent": this.Id.Hex()}, nil, 0, 0, nil, &count, nil)
+	return
 }
 
 func (this *Article) Comments(paging *Paging) (int, []Article, error) {
@@ -269,56 +296,3 @@ func (this *Article) Comments(paging *Paging) (int, []Article, error) {
 
 	return total, articles, nil
 }
-
-/*
-func (this *Article) ReviewCount() (int, int) {
-	total := 0
-	err := search(reviewColl, bson.M{"article_id": this.Id.Hex()}, nil, 0, 0, nil, &total, nil)
-	if err != nil {
-		return 0, errors.DbError
-	}
-	return total, errors.NoError
-}
-
-func (this *Article) LoadBrief() int {
-	var articles []Article
-	if err := search(articleColl, bson.M{"_id": this.Id}, bson.M{"content": false}, 0, 1, nil, nil, &articles); err != nil {
-		return errors.DbError
-	}
-
-	if len(articles) > 0 {
-		*this = articles[0]
-	}
-	return errors.NoError
-}
-
-func GetArticles(articleIds ...string) (articles []Article, errId int) {
-	ids := make([]bson.ObjectId, len(articleIds))
-	for i, _ := range articleIds {
-		ids[i] = bson.ObjectIdHex(articleIds[i])
-	}
-	err := search(articleColl,
-		bson.M{"_id": bson.M{"$in": ids}},
-		bson.M{"content": false},
-		0, 0, []string{"-pub_time"}, nil, &articles)
-	if err != nil {
-		return nil, errors.DbError
-	}
-
-	errId = errors.NoError
-	return
-}
-
-
-func RandomArticles(excludes []string, max int) (article []Article, errId int) {
-	ids := make([]bson.ObjectId, len(excludes))
-	for i, _ := range excludes {
-		ids[i] = bson.ObjectIdHex(excludes[i])
-	}
-
-	selector := bson.M{
-		"_id":bson.M{"$nin": ids},
-		"random":
-	}
-}
-*/

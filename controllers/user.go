@@ -26,6 +26,7 @@ func BindUserApi(m *martini.ClassicMartini) {
 	m.Get("/1/user/getAttentionFriendsList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowsHandler)
 	m.Get("/1/user/getAttentedMembersList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowersHandler)
 	m.Get("/1/user/getJoinedGroupsList", binding.Form(getFollowsForm{}), ErrorHandler, getGroupsHandler)
+	m.Get("/1/user/getRelatedMembersList", binding.Form(socialListForm{}), ErrorHandler, socialListHandler)
 }
 
 type userArticlesForm struct {
@@ -43,7 +44,7 @@ func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
-		jsonStructs[i] = convertArticle(&articles[i], 0)
+		jsonStructs[i] = convertArticle(&articles[i])
 	}
 
 	respData := make(map[string]interface{})
@@ -125,8 +126,7 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 		return
 	}
-	//u := &models.User{Id: user.Id}
-	//u.SetFollow(form.Userid, !form.Follow)
+
 	redis.SetFollow(user.Id, form.Userid, form.Follow)
 
 	writeResponse(request.RequestURI, resp, nil, nil)
@@ -144,7 +144,7 @@ func getFollowsHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	//u := &models.User{Id: user.Id}
-	writeResponse(request.RequestURI, resp, redis.Follows(user.Id), nil)
+	writeResponse(request.RequestURI, resp, redis.Friends("follow", user.Id), nil)
 }
 
 func getFollowersHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
@@ -155,7 +155,16 @@ func getFollowersHandler(request *http.Request, resp http.ResponseWriter, redis 
 	}
 
 	//u := &models.User{Id: user.Id}
-	writeResponse(request.RequestURI, resp, redis.Followers(user.Id), nil)
+	writeResponse(request.RequestURI, resp, redis.Friends("follower", user.Id), nil)
+}
+
+func getFriendsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+	writeResponse(request.RequestURI, resp, redis.Friends("friend", user.Id), nil)
 }
 
 func getGroupsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
@@ -167,4 +176,58 @@ func getGroupsHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 
 	//u := &models.User{Id: user.Id}
 	writeResponse(request.RequestURI, resp, redis.Groups(user.Id), nil)
+}
+
+type socialListForm struct {
+	Token string `form:"access_token" binding:"required"`
+	Type  string `form:"member_type" binding:"required"`
+	models.Paging
+}
+
+func socialListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form socialListForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+
+	var ids []string
+	switch form.Type {
+	case "FRIENDS":
+		ids = redis.Friends("friend", user.Id)
+	case "ATTENTION":
+		ids = redis.Friends("follow", user.Id)
+	case "FANS":
+		ids = redis.Friends("follower", user.Id)
+	case "WEIBO":
+		ids = redis.Friends("weibo", user.Id)
+	}
+	users, err := models.Users(ids, &form.Paging)
+	if err != nil {
+		writeResponse(request.RequestURI, resp, nil, err)
+		return
+	}
+
+	lb := make([]leaderboardResp, len(users))
+	for i, _ := range users {
+		lb[i].Userid = users[i].Id
+		lb[i].Score = users[i].Score
+		lb[i].Level = users[i].Level
+		lb[i].Profile = users[i].Profile
+		lb[i].Nickname = users[i].Nickname
+		lb[i].Gender = users[i].Gender
+		lb[i].LastLog = users[i].LastLogin.Unix()
+		if users[i].Loc != nil {
+			lb[i].Location = *users[i].Loc
+		}
+	}
+
+	respData := map[string]interface{}{
+		"leaderboard_list": lb,
+		"page_frist_id":    form.Paging.First,
+		"page_last_id":     form.Paging.Last,
+	}
+	writeResponse(request.RequestURI, resp, respData, nil)
+
+	return
 }

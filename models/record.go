@@ -7,20 +7,32 @@ import (
 	"time"
 )
 
-type Record struct {
-	Id       bson.ObjectId `bson:"_id,omitempty"`
-	Uid      string
-	Type     string
-	Time     time.Time
-	Duration int64
-	Distance int
-	PubTime  time.Time `bson:"pub_time"`
-}
-
 func init() {
 	ensureIndex(recordColl, "uid")
-	ensureIndex(recordColl, "-time")
+	ensureIndex(recordColl, "-sport.time")
+	ensureIndex(recordColl, "-sport.distance")
 	ensureIndex(recordColl, "-pub_time")
+}
+
+type SportRecord struct {
+	Duration int64
+	Distance int
+	Pics     []string
+	Time     time.Time
+}
+
+type GameRecord struct {
+	Name  string
+	Score int
+}
+
+type Record struct {
+	Id      bson.ObjectId `bson:"_id,omitempty"`
+	Uid     string
+	Type    string
+	Sport   *SportRecord `bson:",omitempty"`
+	Game    *GameRecord  `bson:",omitempty"`
+	PubTime time.Time    `bson:"pub_time"`
 }
 
 func (this *Record) findOne(query interface{}) (bool, error) {
@@ -45,7 +57,7 @@ func TotalRecords(userid string) (int, error) {
 
 func MaxDistanceRecord(userid string) (rec *Record, err error) {
 	var records []Record
-	err = search(recordColl, bson.M{"uid": userid}, nil, 0, 1, []string{"-distance"}, nil, &records)
+	err = search(recordColl, bson.M{"uid": userid}, nil, 0, 1, []string{"-sport.distance"}, nil, &records)
 	if len(records) > 0 {
 		rec = &records[0]
 	}

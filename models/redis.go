@@ -18,14 +18,15 @@ const (
 	redisStatPvPrefix       = redisPrefix + ":stat:pv:"        // sorted set per day
 	redisStatRegisterPrefix = redisPrefix + ":stat:registers:" // set per day
 
-	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:"  // set per half an hour
-	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"   // hashs per user
-	redisUserGuest            = redisPrefix + ":user:guest"     // hashes for all guests
-	redisUserMessagePrefix    = redisPrefix + ":user:msgs:"     // list per user
-	redisUserFollowPrefix     = redisPrefix + ":user:follow:"   // set per user
-	redisUserFollowerPrefix   = redisPrefix + ":user:follower:" // set per user
-	redisUserGroupPrefix      = redisPrefix + ":user:group:"    // hash per user
-	redisGroupPrefix          = redisPrefix + ":group:"         // set per group
+	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:"      // set per half an hour
+	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"       // hashs per user
+	redisUserGuest            = redisPrefix + ":user:guest"         // hashes for all guests
+	redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
+	redisUserFollowPrefix     = redisPrefix + ":user:follow:"       // set per user
+	redisUserFollowerPrefix   = redisPrefix + ":user:follower:"     // set per user
+	redisUserWBImportPrefix   = redisPrefix + ":user:import:weibo:" // set per user
+	redisUserGroupPrefix      = redisPrefix + ":user:group:"        // hash per user
+	redisGroupPrefix          = redisPrefix + ":group:"             // set per group
 
 	redisStatArticleViewPrefix = redisPrefix + ":stat:articles:view:"  // sorted set per day
 	redisStatArticleView       = redisPrefix + ":stat:articles:view"   // sorted set
@@ -42,7 +43,10 @@ const (
 	redisDisLeaderboard    = redisPrefix + ":lb:distance:total" // sorted set
 	redisMaxDisLeaderboard = redisPrefix + ":lb:distance:max"   // sorted set
 	redisDurLeaderboard    = redisPrefix + ":lb:duration:total" // sorted set
-	redisScoreLB           = redisPrefix + ":lb:score"          // sorted set
+	redisScorePhysicalLB   = redisPrefix + ":lb:score:physical" // sorted set
+	redisScoreLiteralLB    = redisPrefix + ":lb:score:literal"  // sorted set
+	redisScoreMentalLB     = redisPrefix + ":lb:score:mental"   // sorted set
+	redisScoreWealthLB     = redisPrefix + ":lb:score:wealth"   // sorted set
 
 	redisPubSubGroup = redisPrefix + ":pubsub:group:"
 	redisPubSubUser  = redisPrefix + ":pubsub:user:"
@@ -71,7 +75,7 @@ func (logger *RedisLogger) PubSub(userid string, groups ...string) *redis.PubSub
 	for _, group := range groups {
 		channels = append(channels, redisPubSubGroup+group)
 	}
-	conn := redis.PubSubConn{logger.conn}
+	conn := redis.PubSubConn{logger.pool.Get()}
 	conn.Subscribe(channels...)
 	return &conn
 }
@@ -130,14 +134,20 @@ func onlineTimeString() string {
 }
 
 type redisUser struct {
-	Userid   string  `redis:"userid"`
-	Nickname string  `redis:"nickname"`
-	Profile  string  `redis:"profile"`
-	RegTime  int64   `redis:"reg_time"`
-	Role     string  `redis:"role"`
-	Lng      float64 `redis:"lng"`
-	Lat      float64 `redis:"lat"`
-	SetInfo  bool    `redis:"setinfo"`
+	Userid    string  `redis:"userid"`
+	Nickname  string  `redis:"nickname"`
+	Profile   string  `redis:"profile"`
+	RegTime   int64   `redis:"reg_time"`
+	Role      string  `redis:"role"`
+	Lng       float64 `redis:"lng"`
+	Lat       float64 `redis:"lat"`
+	SetInfo   bool    `redis:"setinfo"`
+	WalletId  string  `redis:"wallet_id"`
+	Sharedkey string  `redis:"shared_key"`
+	Addr      string  `redis:"recv_addr"`
+	Addrs     string  `redis:"addrs"`
+	Score     int     `redis:"score"`
+	Level     int     `redis:"level"`
 }
 
 func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
@@ -164,14 +174,20 @@ func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
 	if len(user.Userid) == 0 {
 		return nil
 	}
+
+	addrs := strings.Split(user.Addrs, ",")
+
 	return &Account{
 		Id:       user.Userid,
 		Nickname: user.Nickname,
 		Profile:  user.Profile,
 		RegTime:  time.Unix(user.RegTime, 0),
 		Role:     user.Role,
-		Loc:      Location{Lng: user.Lng, Lat: user.Lat},
+		Loc:      &Location{Lng: user.Lng, Lat: user.Lat},
 		Setinfo:  user.SetInfo,
+		Wallet:   DbWallet{Id: user.WalletId, Addrs: addrs, Addr: addrs[0], Key: user.Sharedkey},
+		Score:    user.Score,
+		Level:    user.Level,
 	}
 }
 
@@ -183,14 +199,22 @@ func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
 	conn := logger.conn
 
 	u := &redisUser{
-		Userid:   user.Id,
-		Nickname: user.Nickname,
-		Profile:  user.Profile,
-		RegTime:  user.RegTime.Unix(),
-		Role:     user.Role,
-		Lng:      user.Loc.Lng,
-		Lat:      user.Loc.Lat,
-		SetInfo:  user.Setinfo,
+		Userid:    user.Id,
+		Nickname:  user.Nickname,
+		Profile:   user.Profile,
+		RegTime:   user.RegTime.Unix(),
+		Role:      user.Role,
+		SetInfo:   user.Setinfo,
+		WalletId:  user.Wallet.Id,
+		Sharedkey: user.Wallet.Key,
+		Addr:      user.Wallet.Addr,
+		Addrs:     strings.Join(user.Wallet.Addrs, ","),
+		Score:     user.Score,
+		Level:     user.Level,
+	}
+	if user.Loc != nil {
+		u.Lat = user.Loc.Lat
+		u.Lng = user.Loc.Lng
 	}
 
 	conn.Send("MULTI")
@@ -222,23 +246,68 @@ func (logger *RedisLogger) SetFollow(userid, following string, follow bool) {
 	conn := logger.conn
 	conn.Send("MULTI")
 	if follow {
-		logger.conn.Send("SADD", redisUserFollowPrefix+userid, following)
-		logger.conn.Send("SADD", redisUserFollowerPrefix+following, userid)
+		conn.Send("SADD", redisUserFollowPrefix+userid, following)
+		conn.Send("SADD", redisUserFollowerPrefix+following, userid)
 	} else {
-		logger.conn.Send("SREM", redisUserFollowPrefix+userid, following)
-		logger.conn.Send("SREM", redisUserFollowerPrefix+following, userid)
+		conn.Send("SREM", redisUserFollowPrefix+userid, following)
+		conn.Send("SREM", redisUserFollowerPrefix+following, userid)
 	}
 	conn.Do("EXEC")
 }
 
-func (logger *RedisLogger) Follows(userid string) []string {
-	v, _ := redis.Strings(logger.conn.Do("SMEMBERS", redisUserFollowPrefix+userid))
-	return v
+func (logger *RedisLogger) SetWBImport(userid, wb string) {
+	logger.conn.Do("SADD", redisUserWBImportPrefix+userid, wb)
 }
 
-func (logger *RedisLogger) Followers(userid string) []string {
-	v, _ := redis.Strings(logger.conn.Do("SMEMBERS", redisUserFollowerPrefix+userid))
-	return v
+func (logger *RedisLogger) ImportFriend(userid, friend string) {
+	conn := logger.conn
+	logger.SetFollow(userid, friend, true)
+	conn.Do("SREM", redisUserWBImportPrefix+friend, userid)
+}
+
+func (logger *RedisLogger) Friends(typ string, userid string) (users []string) {
+	var key string
+	switch typ {
+	case "following":
+		key = redisUserFollowPrefix + userid
+	case "follower":
+		key = redisUserFollowerPrefix + userid
+	case "friend":
+		users, _ = redis.Strings(logger.conn.Do("SINTER",
+			redisUserFollowerPrefix+userid, redisUserFollowPrefix+userid))
+		return
+	case "weibo":
+		key = redisUserWBImportPrefix + userid
+	default:
+		return
+	}
+
+	users, _ = redis.Strings(logger.conn.Do("SMEMBERS", key))
+	return
+}
+
+func (logger *RedisLogger) FriendCount(userid string) (follows int, followers int, friends int) {
+	conn := logger.conn
+
+	conn.Send("MULTI")
+	conn.Send("SCARD", redisUserFollowPrefix+userid)
+	conn.Send("SCARD", redisUserFollowerPrefix+userid)
+	values, err := redis.Values(conn.Do("EXEC"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	counts := make([]int, 2)
+
+	if err := redis.ScanSlice(values, &counts); err != nil {
+		log.Println(err)
+		return
+	}
+
+	follows = counts[0]
+	followers = counts[1]
+	friends = len(logger.Friends("friend", userid))
+	return
 }
 
 func (logger *RedisLogger) JoinGroup(userid, gid string, join bool) {
@@ -623,7 +692,6 @@ func (logger *RedisLogger) UpdateRecLB(userid string, distance, duration int) {
 		conn.Send("ZINCRBY", redisMaxDisLeaderboard, distance, userid)
 		conn.Do("EXEC")
 	}
-
 }
 
 func (logger *RedisLogger) MaxDisRecord(userid string) int {
@@ -664,14 +732,88 @@ func (logger *RedisLogger) LBDurRank(userid string) int {
 	return rank
 }
 
-func (logger *RedisLogger) UserScore(userid string) int {
-	score, _ := redis.Int(logger.conn.Do("ZSCORE", redisScoreLB, userid))
-	return score
+func (logger *RedisLogger) UserProps(userid string) *Props {
+	conn := logger.conn
+	conn.Send("MULTI")
+	conn.Send("ZSCORE", redisScorePhysicalLB, userid)
+	conn.Send("ZSCORE", redisScoreLiteralLB, userid)
+	conn.Send("ZSCORE", redisScoreMentalLB, userid)
+	conn.Send("ZSCORE", redisScoreWealthLB, userid)
+	values, _ := redis.Values(conn.Do("EXEC"))
+
+	var scores []int64
+	if err := redis.ScanSlice(values, &scores); err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	props := &Props{
+		Physical: scores[0],
+		Literal:  scores[1],
+		Mental:   scores[2],
+		Wealth:   scores[3],
+	}
+
+	props.Score = int64(UserScore(props))
+	props.Level = int64(UserLevel(int(props.Score)))
+
+	return props
 }
 
-func (logger *RedisLogger) AddScore(userid string, score int) int {
-	news, _ := redis.Int(logger.conn.Do("ZINCRBY", redisScoreLB, score, userid))
-	return news
+func (logger *RedisLogger) Props(typ string, ids ...string) []int {
+	conn := logger.conn
+	var key string
+
+	switch typ {
+	case ScorePhysical:
+		key = redisScorePhysicalLB
+	case ScoreLiteral:
+		key = redisScoreLiteralLB
+	case ScoreMental:
+		key = redisScoreMentalLB
+	case ScoreWealth:
+		key = redisScoreWealthLB
+	default:
+		key = redisScorePhysicalLB
+	}
+	conn.Send("MULTI")
+	for _, id := range ids {
+		conn.Send("ZSCORE", key, id)
+	}
+	values, _ := redis.Values(conn.Do("EXEC"))
+	var scores []int
+
+	if err := redis.ScanSlice(values, &scores); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return scores
+}
+
+func (logger *RedisLogger) AddProps(userid string, props *Props) (*Props, error) {
+	conn := logger.conn
+	conn.Send("MULTI")
+	conn.Send("ZINCRBY", redisScorePhysicalLB, props.Physical, userid)
+	conn.Send("ZINCRBY", redisScoreLiteralLB, props.Literal, userid)
+	conn.Send("ZINCRBY", redisScoreMentalLB, props.Mental, userid)
+	conn.Send("ZINCRBY", redisScoreWealthLB, props.Wealth, userid)
+	values, err := redis.Values(conn.Do("EXEC"))
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	var newScores []int64
+	if err := redis.ScanSlice(values, &newScores); err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	//log.Println("new scores:", newScores)
+	props.Physical = newScores[0]
+	props.Literal = newScores[1]
+	props.Mental = newScores[2]
+	props.Wealth = newScores[3]
+
+	return props, nil
 }
 
 func (logger *RedisLogger) GetDisLB(start, stop int) []KV {
@@ -683,4 +825,15 @@ func (logger *RedisLogger) GetDisLB(start, stop int) []KV {
 		return nil
 	}
 	return s
+}
+
+func (logger *RedisLogger) Transaction(from, to string, amount int64) {
+	if len(from) == 0 || len(to) == 0 || amount <= 0 {
+		return
+	}
+	conn := logger.conn
+	conn.Send("MULTI")
+	conn.Send("ZINCRBY", redisScoreWealthLB, -amount, from)
+	conn.Send("ZINCRBY", redisScoreWealthLB, amount, to)
+	conn.Do("EXEC")
 }

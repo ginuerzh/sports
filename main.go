@@ -18,6 +18,7 @@ import (
 var (
 	staticDir  string
 	listenAddr string
+	coinAddr   string
 )
 
 func init() {
@@ -25,6 +26,7 @@ func init() {
 
 	flag.StringVar(&staticDir, "static", "public", "static files directory")
 	flag.StringVar(&listenAddr, "l", ":8080", "addr on listen")
+	flag.StringVar(&coinAddr, "cs", ":8088", "coin server address")
 	flag.Parse()
 }
 
@@ -56,6 +58,8 @@ func main() {
 	//controllers.BindStatApi(m)
 	controllers.BindWSPushApi(m)
 	controllers.BindGroupApi(m)
+	controllers.BindWalletApi(m)
+	controllers.BindTaskApi(m)
 
 	//m.Run()
 	http.ListenAndServe(listenAddr, m)

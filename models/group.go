@@ -14,17 +14,17 @@ func init() {
 }
 
 type Group struct {
-	Id      bson.ObjectId `bson:"_id,omitempty"`
-	Gid     string
-	Name    string
-	Profile string
-	Desc    string
-	Creator string
-	Level   int
-	Addr    Address
-	Loc     Location
-	Time    time.Time
-	Members []string
+	Id      bson.ObjectId `bson:"_id,omitempty" json:"-"`
+	Gid     string        `json:"-"`
+	Name    string        `json:"name,omitempty"`
+	Profile string        `bson:",omitempty" json:"profile,omitempty"`
+	Desc    string        `bson:",omitempty" json:"desc,omitempty"`
+	Creator string        `json:"-"`
+	Level   int           `json:"-"`
+	Addr    *Address      `bson:",omitempty" json:"addr,omitempty"`
+	Loc     *Location     `bson:",omitempty" json:"loc,omitempty"`
+	Time    time.Time     `json:"-"`
+	Members []string      `bson:",omitempty" json:"-"`
 }
 
 func (group *Group) Exists() (bool, error) {
@@ -32,17 +32,37 @@ func (group *Group) Exists() (bool, error) {
 }
 
 func (group *Group) FindById(gid string) error {
-	return findOne(groupColl, bson.M{"gid": gid}, nil, group)
+	if err := findOne(groupColl, bson.M{"gid": gid}, nil, group); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
 }
 
 func (group *Group) Save() error {
 	group.Id = bson.NewObjectId()
 	group.Gid = group.Id.Hex()
-	return save(groupColl, group, true)
+	if err := save(groupColl, group, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (group *Group) Update() error {
+	change := bson.M{
+		"$set": Struct2Map(group),
+	}
+
+	if err := update(groupColl, bson.M{"gid": group.Gid}, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
 }
 
 func (group *Group) Remove(userid string) error {
-	return remove(groupColl, bson.M{"gid": group.Gid, "creator": userid}, true)
+	if err := remove(groupColl, bson.M{"gid": group.Gid, "creator": userid}, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
 }
 
 func (group *Group) SetMember(userid string, remove bool) error {

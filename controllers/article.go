@@ -13,7 +13,7 @@ import (
 	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
-	//"strconv"
+	"strconv"
 	//"strings"
 	"time"
 )
@@ -40,10 +40,9 @@ type articleJsonStruct struct {
 	Reviews    int              `json:"sub_article_count"`
 	NewReviews int              `json:"new_sub_article_count"`
 	Contents   []models.Segment `json:"article_segments"`
-	Score      int              `json:"exp_effect,omitempty"`
 }
 
-func convertArticle(article *models.Article, score int) *articleJsonStruct {
+func convertArticle(article *models.Article) *articleJsonStruct {
 	jsonStruct := &articleJsonStruct{}
 	jsonStruct.Id = article.Id.Hex()
 	jsonStruct.Parent = article.Parent
@@ -52,18 +51,8 @@ func convertArticle(article *models.Article, score int) *articleJsonStruct {
 	jsonStruct.PubTime = article.PubTime.Unix()
 	jsonStruct.Thumbs = len(article.Thumbs)
 	jsonStruct.Reviews = len(article.Reviews)
-	jsonStruct.Score = score
-	for _, seg := range jsonStruct.Contents {
-		if seg.ContentType == "IMAGE" {
-			jsonStruct.Image = seg.ContentText
-		}
-		if seg.ContentType == "TEXT" {
-			jsonStruct.Title = seg.ContentText
-		}
-		if len(jsonStruct.Image) > 0 && len(jsonStruct.Title) > 0 {
-			break
-		}
-	}
+
+	jsonStruct.Title, jsonStruct.Image = article.Cover()
 
 	if len(jsonStruct.Contents) == 0 {
 		jsonStruct.Contents = []models.Segment{}
@@ -75,6 +64,7 @@ func convertArticle(article *models.Article, score int) *articleJsonStruct {
 type newArticleForm struct {
 	Parent   string           `json:"parent_article_id"`
 	Contents []models.Segment `json:"article_segments" binding:"required"`
+	Tags     []string         `json:"article_tag"`
 	Token    string           `json:"access_token" binding:"required"`
 }
 
@@ -91,23 +81,21 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		Contents: form.Contents,
 		PubTime:  time.Now(),
 		Parent:   form.Parent,
+		Tags:     form.Tags,
 	}
 
 	if err := article.Save(); err != nil {
+		log.Println(err)
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
 	}
 
-	score := 0
-	if len(form.Parent) == 0 {
-		score = actionExps[ActPost]
-		user.UpdateAction(ActPost, nowDate())
-	} else {
-		score = actionExps[ActComment]
-		user.UpdateAction(ActComment, nowDate())
+	awards := Awards{Literal: 1, Wealth: 1 * models.Satoshi}
+	if err := giveAwards(user, &awards, redis); err != nil {
+		log.Println(err)
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+		return
 	}
-	redis.AddScore(user.Id, score)
-	writeResponse(request.RequestURI, resp, convertArticle(article, score), nil)
 
 	if len(form.Parent) > 0 {
 		parent := &models.Article{}
@@ -129,6 +117,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			log.Println(err)
 		}
 
+		_, coverImage := parent.Cover()
 		// ws push
 		msg := &pushMsg{
 			Type: "article",
@@ -138,6 +127,10 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 				Id:   parent.Id.Hex(),
 				From: user.Id,
 				To:   parent.Author,
+				Body: []models.MsgBody{
+					{Type: "count", Content: strconv.Itoa(parent.CommentCount())},
+					{Type: "image", Content: coverImage},
+				},
 			},
 		}
 		redis.PubMsg("article", parent.Author, msg.Bytes())
@@ -152,6 +145,12 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			}
 		}
 	}
+
+	respData := map[string]interface{}{
+		"articles_without_content": convertArticle(article),
+		"ExpEffect":                awards,
+	}
+	writeResponse(request.RequestURI, resp, respData, nil)
 }
 
 type deleteArticleForm struct {
@@ -203,16 +202,14 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	score := 0
-	action := &models.Action{}
-	action.Find(user.Id, nowDate())
-	if action.Thumb == 0 {
-		score = actionExps[ActThumb]
-	}
-	redis.AddScore(user.Id, score)
-	user.UpdateAction(ActThumb, nowDate())
+	awards := Awards{Physical: 1, Wealth: 1 * models.Satoshi}
 
-	writeResponse(request.RequestURI, resp, map[string]int{"exp_effect": score}, nil)
+	if err := giveAwards(user, &awards, redis); err != nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+		return
+	}
+
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 
 	if form.Status {
 		u := &models.User{Id: article.Author}
@@ -225,6 +222,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 			log.Println(err)
 		}
 
+		_, coverImage := article.Cover()
 		// ws push
 		msg := &pushMsg{
 			Type: "article",
@@ -234,6 +232,10 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 				Id:   article.Id.Hex(),
 				From: user.Id,
 				To:   article.Author,
+				Body: []models.MsgBody{
+					{Type: "count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
+					{Type: "image", Content: coverImage},
+				},
 			},
 		}
 		redis.PubMsg("article", article.Author, msg.Bytes())
@@ -247,6 +249,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 			}
 		}
 	}
+	user.UpdateAction(ActThumb, nowDate())
 }
 
 type articleIsThumbedForm struct {
@@ -272,10 +275,11 @@ func articleIsThumbedHandler(request *http.Request, resp http.ResponseWriter, re
 type articleListForm struct {
 	Token string `form:"access_token"`
 	models.Paging
+	Tag string `form:"article_tag"`
 }
 
 func articleListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
-	_, articles, err := models.GetArticles(&form.Paging)
+	_, articles, err := models.GetArticles(form.Tag, &form.Paging)
 	if err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
@@ -283,7 +287,7 @@ func articleListHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
-		jsonStructs[i] = convertArticle(&articles[i], 0)
+		jsonStructs[i] = convertArticle(&articles[i])
 	}
 
 	respData := make(map[string]interface{})
@@ -309,7 +313,7 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, form ar
 		return
 	}
 
-	jsonStruct := convertArticle(article, 0)
+	jsonStruct := convertArticle(article)
 	writeResponse(request.RequestURI, resp, jsonStruct, nil)
 }
 
@@ -324,7 +328,7 @@ func articleCommentsHandler(request *http.Request, resp http.ResponseWriter, for
 
 	jsonStructs := make([]*articleJsonStruct, len(comments))
 	for i, _ := range comments {
-		jsonStructs[i] = convertArticle(&comments[i], 0)
+		jsonStructs[i] = convertArticle(&comments[i])
 	}
 
 	respData := make(map[string]interface{})

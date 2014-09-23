@@ -10,7 +10,9 @@ import (
 	"gopkg.in/go-martini/martini.v1"
 	"log"
 	"net/http"
-	"sync"
+	"strconv"
+	"strings"
+	//"sync"
 	"time"
 )
 
@@ -20,8 +22,6 @@ var upgrader = websocket.Upgrader{
 }
 
 type wsAuth struct {
-	Lat   string `json:"lat"`
-	Lng   string `json:"lng"`
 	Token string `json:"token"`
 }
 
@@ -31,7 +31,7 @@ type wsAuthResp struct {
 
 type pushData struct {
 	Type string           `json:"type"`
-	Id   string           `json:"id"`
+	Id   string           `json:"pid"`
 	From string           `json:"from"`
 	To   string           `json:"to"`
 	Body []models.MsgBody `json:"body"`
@@ -53,9 +53,9 @@ func BindWSPushApi(m *martini.ClassicMartini) {
 }
 
 func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger *models.RedisLogger) {
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
+	//var wg sync.WaitGroup
+	defer log.Println("ws closed")
+	//defer wg.Wait()
 	conn, err := upgrader.Upgrade(resp, request, nil)
 	if err != nil {
 		conn.WriteJSON(errors.NewError(errors.HttpError, err.Error()))
@@ -86,9 +86,9 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	psc := redisLogger.PubSub(user.Id, redisLogger.Groups(user.Id)...)
 
 	go func(conn *websocket.Conn) {
-		wg.Add(1)
-
-		defer wg.Done()
+		//wg.Add(1)
+		defer log.Println("ws thread closed")
+		//defer wg.Done()
 		defer psc.Close()
 
 		for {
@@ -98,6 +98,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 				//log.Println(err)
 				return
 			}
+			log.Println("recv msg:", msg.Type)
 			switch msg.Type {
 			case "message":
 				m := &models.Message{
@@ -113,6 +114,17 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 					msg.Time = m.Time.Unix()
 
 					redisLogger.PubMsg(m.Type, m.To, msg.Bytes())
+				}
+			case "status":
+				if msg.Push.Type == "loc" && len(msg.Push.Body) > 0 {
+					loc := strings.Split(msg.Push.Body[0].Content, ",")
+					if len(loc) != 2 {
+						break
+					}
+					lat, _ := strconv.ParseFloat(loc[0], 64)
+					lng, _ := strconv.ParseFloat(loc[1], 64)
+					log.Println(lat, lng)
+					user.UpdateLocation(models.Location{Lat: lat, Lng: lng})
 				}
 			default:
 				log.Println("unhandled message type:", msg.Type)

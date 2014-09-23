@@ -99,7 +99,7 @@ func eventDetailHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 	events := []*articleJsonStruct{}
 	for i, _ := range articles {
-		event := convertArticle(&articles[i], 0)
+		event := convertArticle(&articles[i])
 		for _, e := range u.Events {
 			if e.Id == articles[i].Id.Hex() {
 				event.NewReviews = len(e.Reviews)

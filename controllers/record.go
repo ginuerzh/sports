@@ -14,15 +14,18 @@ import (
 func BindRecordApi(m *martini.ClassicMartini) {
 	m.Post("/1/record/new", binding.Json(newRecordForm{}), ErrorHandler, newRecordHandler)
 	m.Get("/1/record/timeline", binding.Form(recTimelineForm{}), ErrorHandler, recTimelineHandler)
-	m.Get("/1/leaderboard/list", binding.Form(leaderboardForm{}), ErrorHandler, leaderboardHandler)
 	m.Get("/1/record/statistics", binding.Form(userRecStatForm{}), ErrorHandler, userRecStatHandler)
+	m.Get("/1/leaderboard/list", binding.Form(leaderboardForm{}), ErrorHandler, leaderboardHandler)
 }
 
 type record struct {
-	Type     string `json:"type"`
-	Time     int64  `json:"action_time"`
-	Duration int64  `json:"duration"`
-	Distance int    `json:"distance"`
+	Type      string   `json:"type"`
+	Time      int64    `json:"action_time"`
+	Duration  int64    `json:"duration"`
+	Distance  int      `json:"distance"`
+	Pics      []string `json:"sport_pics"`
+	GameScore int      `json:"game_score"`
+	GameName  string   `json:"game_name"`
 }
 
 type newRecordForm struct {
@@ -38,12 +41,24 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 	}
 
 	rec := &models.Record{
-		Uid:      user.Id,
-		Type:     form.Record.Type,
-		Time:     time.Unix(form.Record.Time, 0),
-		Duration: form.Record.Duration,
-		Distance: form.Record.Distance,
-		PubTime:  time.Now(),
+		Uid:     user.Id,
+		Type:    form.Record.Type,
+		PubTime: time.Now(),
+	}
+	awards := Awards{Wealth: 1 * models.Satoshi}
+
+	switch form.Record.Type {
+	case "game":
+		rec.Game = &models.GameRecord{Name: form.Record.GameName, Score: form.Record.GameScore}
+		awards.Mental = 1
+	default:
+		rec.Sport = &models.SportRecord{
+			Duration: form.Record.Duration,
+			Distance: form.Record.Distance,
+			Pics:     form.Record.Pics,
+			Time:     time.Unix(form.Record.Time, 0),
+		}
+		awards.Physical = 1
 	}
 	if err := rec.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
@@ -63,13 +78,15 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 		recDiff = redis.MaxDisRecord(user.Id) - maxDis
 	}
 
-	score := actionExps[ActPost]
-	redis.AddScore(user.Id, score)
+	if err := giveAwards(user, &awards, redis); err != nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+		return
+	}
 
-	respData := map[string]int{
+	respData := map[string]interface{}{
 		"leaderboard_effect": rankDiff,
 		"self_record_effect": recDiff,
-		"exp_effect":         score,
+		"ExpEffect":          awards,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
@@ -87,9 +104,15 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter, redis *
 	recs := make([]record, len(records))
 	for i, _ := range records {
 		recs[i].Type = records[i].Type
-		recs[i].Time = records[i].Time.Unix()
-		recs[i].Duration = records[i].Duration
-		recs[i].Distance = records[i].Distance
+		if records[i].Sport != nil {
+			recs[i].Time = records[i].Sport.Time.Unix()
+			recs[i].Duration = records[i].Sport.Duration
+			recs[i].Distance = records[i].Sport.Distance
+		}
+		if records[i].Game != nil {
+			recs[i].GameName = records[i].Game.Name
+			recs[i].GameScore = records[i].Game.Score
+		}
 	}
 	respData := map[string]interface{}{
 		"record_list":   recs,
@@ -103,8 +126,13 @@ type leaderboardResp struct {
 	Userid   string `json:"userid"`
 	Nickname string `json:"nikename"`
 	Profile  string `json:"user_profile_image"`
-	Rank     int    `json:"index"`
+	Rank     int    `json:"index,omitempty"`
 	Score    int    `json:"score"`
+	Level    int    `json:"rankLevel"`
+	Gender   string `json:"sex_type"`
+	Birth    int64  `json:"birthday"`
+	models.Location
+	LastLog int64 `json:"recent_login_time"`
 }
 
 type leaderboardForm struct {
@@ -141,14 +169,6 @@ func leaderboardPaging(paging *models.Paging) (start, stop int) {
 }
 
 func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form leaderboardForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
-
 	if form.Paging.Count == 0 {
 		form.Paging.Count = models.DefaultPageSize
 	}
@@ -157,6 +177,43 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 	stop := 0
 
 	switch form.Type {
+	case "FRIEND":
+		user := redis.OnlineUser(form.Token)
+		if user == nil {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+			return
+		}
+
+		ids := redis.Friends("friend", user.Id)
+		friends, err := models.Users(ids, &form.Paging)
+		if err != nil {
+			writeResponse(request.RequestURI, resp, nil, err)
+			return
+		}
+		lb := make([]leaderboardResp, len(friends))
+		for i, _ := range friends {
+			lb[i].Userid = friends[i].Id
+			lb[i].Score = friends[i].Score
+			lb[i].Level = friends[i].Level
+			lb[i].Profile = friends[i].Profile
+			lb[i].Nickname = friends[i].Nickname
+			lb[i].Gender = friends[i].Gender
+			lb[i].LastLog = friends[i].LastLogin.Unix()
+			lb[i].Birth = friends[i].Birth
+			if friends[i].Loc != nil {
+				lb[i].Location = *friends[i].Loc
+			}
+		}
+
+		respData := map[string]interface{}{
+			"leaderboard_list": lb,
+			"page_frist_id":    form.Paging.First,
+			"page_last_id":     form.Paging.Last,
+		}
+		writeResponse(request.RequestURI, resp, respData, nil)
+
+		return
+
 	case "USER_AROUND":
 		rank := redis.LBDisRank(form.Info)
 		if rank < 0 {
@@ -255,14 +312,14 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 	if maxDisRec != nil {
 		stats.MaxDistance = &record{
 			Type:     maxDisRec.Type,
-			Time:     maxDisRec.Time.Unix(),
-			Duration: maxDisRec.Duration,
-			Distance: maxDisRec.Distance,
+			Time:     maxDisRec.Sport.Time.Unix(),
+			Duration: maxDisRec.Sport.Duration,
+			Distance: maxDisRec.Sport.Distance,
 		}
 	}
-	stats.Score = redis.UserScore(form.Userid)
+	stats.Score = models.UserScore(redis.UserProps(form.Userid))
 	stats.Actor = userActor(user.Actor)
-	stats.Level = userLevel(stats.Score)
+	stats.Level = models.UserLevel(stats.Score)
 	stats.Rank = userRank(stats.Level)
 
 	stats.Index = redis.LBDisRank(form.Userid) + 1

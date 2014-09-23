@@ -78,18 +78,30 @@ func setGroupHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	group := models.Group{
-		Creator: user.Id,
+	group := &models.Group{
+		Gid:     form.Id,
 		Name:    form.Name,
 		Profile: form.Profile,
 		Desc:    form.Desc,
-		Addr:    form.Address,
-		Loc:     models.Addr2Loc(form.Address),
-
-		Time: time.Now(),
+		Creator: user.Id,
+		Time:    time.Now(),
 	}
 
-	err := group.Save()
+	if form.Address.String() != "" {
+		group.Addr = &form.Address
+		loc := models.Addr2Loc(form.Address)
+		group.Loc = &loc
+	}
+
+	var err error
+	if len(form.Id) == 0 {
+		err = group.Save()
+		if err == nil {
+			redis.JoinGroup(user.Id, group.Gid, true)
+		}
+	} else {
+		err = group.Update()
+	}
 
 	writeResponse(request.RequestURI, resp, map[string]string{"group_id": group.Gid}, err)
 }
@@ -114,8 +126,8 @@ func groupInfoHandler(request *http.Request, resp http.ResponseWriter, form grou
 		MemberCount: len(group.Members),
 		Members:     group.Members,
 		Level:       group.Level,
-		Address:     group.Addr,
-		Location:    group.Loc,
+		Address:     *group.Addr,
+		Location:    *group.Loc,
 	}
 
 	writeResponse(request.RequestURI, resp, grp, err)
