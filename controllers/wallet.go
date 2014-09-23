@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	coinAddr = "http://localhost:8088"
+	coinAddr = "http://localhost:8087"
 )
 
 func BindWalletApi(m *martini.ClassicMartini) {

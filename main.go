@@ -26,7 +26,7 @@ func init() {
 
 	flag.StringVar(&staticDir, "static", "public", "static files directory")
 	flag.StringVar(&listenAddr, "l", ":8080", "addr on listen")
-	flag.StringVar(&coinAddr, "cs", ":8088", "coin server address")
+	flag.StringVar(&coinAddr, "cs", ":8087", "coin server address")
 	flag.Parse()
 }
 
