@@ -122,34 +122,25 @@ func addrTxsHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisL
 		return
 	}
 
-	user := &models.Account{}
-	user.FindByWalletAddr(form.Addr)
+	//user := &models.Account{}
+	//user.FindByWalletAddr(form.Addr)
 
 	for i, tx := range txs {
-		var recv, send int64
-
-		for _, out := range tx.Vout {
-			mine := false
-			for _, addr := range user.Wallet.Addrs {
-				if out.Address == addr {
-					mine = true
-					recv += out.Value
-					break
-				}
-			}
-			if !mine {
-				send += out.Value
-			}
+		send := false
+		if tx.Vin[0].PrevOut.Address == form.Addr {
+			send = true
 		}
 
-		txs[i].Amount = recv
-		for _, in := range tx.Vin {
-			if in.PrevOut.Address == form.Addr {
-				txs[i].Amount = -send
-				break
+		for _, out := range tx.Vout {
+			if send && out.Address != tx.Vin[0].PrevOut.Address {
+				txs[i].Amount -= out.Value
+			}
+			if !send && out.Address == form.Addr {
+				txs[i].Amount += out.Value
 			}
 		}
 	}
+
 	writeResponse(r.RequestURI, w, map[string]interface{}{"txs": txs}, nil)
 }
 
