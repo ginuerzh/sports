@@ -6,7 +6,9 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
+	"log"
 	"net/http"
+	"strconv"
 )
 
 const (
@@ -35,20 +37,13 @@ func eventNewsHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 	u := &models.User{}
 	u.FindByUserid(user.Id)
 
-	var chats, comments, thumbs int
-	for _, c := range u.Contacts {
-		chats += c.Count
-	}
-
-	for _, event := range u.Events {
-		comments += len(event.Reviews)
-		thumbs += len(event.Thumbs)
-	}
-
+	counts := redis.EventCount(user.Id)
 	respData := map[string]int{
-		"new_chat_count":    chats,
-		"new_comment_count": comments,
-		"new_thumb_count":   thumbs,
+		"new_chat_count":      counts[0],
+		"new_comment_count":   counts[1],
+		"new_thumb_count":     counts[2],
+		"new_reward_count":    counts[3],
+		"new_attention_count": counts[4],
 	}
 
 	writeResponse(request.RequestURI, resp, respData, nil)
@@ -80,41 +75,68 @@ func eventDetailHandler(request *http.Request, resp http.ResponseWriter, redis *
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 		return
 	}
+	/*
+		u := &models.User{}
+		u.FindByUserid(user.Id)
 
-	u := &models.User{}
-	u.FindByUserid(user.Id)
 
-	contacts := []*contactStruct{}
-	for _, c := range u.Contacts {
-		if c.Count > 0 {
-			contacts = append(contacts, convertContact(&c))
-		}
-	}
-
-	ids := []string{}
-	for _, event := range u.Events {
-		ids = append(ids, event.Id)
-	}
-	articles, _ := models.FindArticles(ids...)
-
-	events := []*articleJsonStruct{}
-	for i, _ := range articles {
-		event := convertArticle(&articles[i])
-		for _, e := range u.Events {
-			if e.Id == articles[i].Id.Hex() {
-				event.NewReviews = len(e.Reviews)
-				event.NewThumbs = len(e.Thumbs)
-				break
+		contacts := []*contactStruct{}
+		for _, c := range u.Contacts {
+			if c.Count > 0 {
+				contacts = append(contacts, convertContact(&c))
 			}
 		}
-		if event.NewReviews > 0 || event.NewThumbs > 0 {
-			events = append(events, event)
+
+
+		ids := []string{}
+		for _, event := range u.Events {
+			ids = append(ids, event.Id)
 		}
+		articles, _ := models.FindArticles(ids...)
+
+		events := []*articleJsonStruct{}
+		for i, _ := range articles {
+			event := convertArticle(&articles[i])
+			for _, e := range u.Events {
+				if e.Id == articles[i].Id.Hex() {
+					event.NewReviews = len(e.Reviews)
+					event.NewThumbs = len(e.Thumbs)
+					break
+				}
+			}
+			if event.NewReviews > 0 || event.NewThumbs > 0 {
+				events = append(events, event)
+			}
+		}
+	*/
+	events, err := models.Events(user.Id)
+	if err != nil {
+		log.Println(err)
+	}
+
+	news := []*models.Event{}
+	m := make(map[string]*models.Event)
+
+	for i, event := range events {
+		key := event.Data.Type + "_" + event.Data.Id
+		if e, ok := m[key]; ok {
+			count, err := strconv.Atoi(e.Data.Body[len(e.Data.Body)-1].Content)
+			if err != nil {
+				log.Println(err)
+			}
+			e.Data.Body[len(e.Data.Body)-1].Content = strconv.Itoa(count + 1)
+		} else {
+			events[i].Data.Body = append(events[i].Data.Body, models.MsgBody{Type: "new_count", Content: "1"})
+			m[key] = &events[i]
+		}
+	}
+
+	for _, v := range m {
+		news = append(news, v)
 	}
 
 	respData := map[string]interface{}{
-		"chat_news":    contacts,
-		"article_news": events,
+		"event_news": news,
 	}
 
 	writeResponse(request.RequestURI, resp, respData, nil)
@@ -134,7 +156,11 @@ func changeEventStatusHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	u := &models.User{Id: user.Id}
-	err := u.MarkRead(form.Type, form.Id)
-	writeResponse(request.RequestURI, resp, nil, err)
+	count := user.ClearEvent(form.Type, form.Id)
+	if form.Type == models.EventChat {
+		u := &models.User{Id: user.Id}
+		u.MarkRead(form.Type, form.Id)
+	}
+	redis.IncrEventCount(user.Id, form.Type, -count)
+	writeResponse(request.RequestURI, resp, nil, nil)
 }

@@ -3,6 +3,7 @@ package models
 
 import (
 	"encoding/json"
+	"github.com/ginuerzh/sports/errors"
 	"github.com/nf/geocode"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -41,7 +42,7 @@ var (
 	recordColl = "records"
 	actionColl = "actions"
 	groupColl  = "groups"
-	//eventColl    = "events"
+	eventColl  = "events"
 	//rateColl     = "rates"
 )
 
@@ -243,7 +244,10 @@ func search(collection string, query interface{}, selector interface{},
 		return qy.All(result)
 	}
 
-	return withCollection(collection, nil, q)
+	if err := withCollection(collection, nil, q); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
 }
 
 func findOne(collection string, query interface{}, sortFields []string, result interface{}) error {
@@ -262,7 +266,10 @@ func findOne(collection string, query interface{}, sortFields []string, result i
 		return qy.One(result)
 	}
 
-	return withCollection(collection, nil, q)
+	if err := withCollection(collection, nil, q); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
 }
 
 func findIds(c string, ids []interface{}, result interface{}) error {
@@ -333,6 +340,33 @@ func removeId(collection, id string, safe bool) error {
 		return withCollection(collection, &mgo.Safe{}, rm)
 	}
 	return withCollection(collection, nil, rm)
+}
+
+func removeAll(collection string, selector interface{}, safe bool) (info *mgo.ChangeInfo, err error) {
+	r := func(c *mgo.Collection) error {
+		info, err = c.RemoveAll(selector)
+		return err
+	}
+	if safe {
+		withCollection(collection, &mgo.Safe{}, r)
+	} else {
+		withCollection(collection, nil, r)
+	}
+	if err != nil {
+		return info, errors.NewError(errors.DbError, err.Error())
+	}
+
+	return
+}
+
+func apply(collection string, selector interface{}, change mgo.Change, result interface{}) (info *mgo.ChangeInfo, err error) {
+	apply := func(c *mgo.Collection) (err error) {
+		info, err = c.Find(selector).Apply(change, result)
+		return err
+	}
+
+	err = withCollection(collection, nil, apply)
+	return
 }
 
 func ensureIndex(collection string, keys ...string) error {

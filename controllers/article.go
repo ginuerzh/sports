@@ -109,32 +109,27 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		}
 
 		u := &models.User{Id: parent.Author}
-		event := &models.Event{
-			Id:      form.Parent,
-			Reviews: []string{article.Id.Hex()},
-		}
-		if err := u.AddEvent(event); err != nil {
-			log.Println(err)
-		}
 
 		_, coverImage := parent.Cover()
 		// ws push
-		msg := &pushMsg{
-			Type: "article",
+		event := &models.Event{
+			Type: models.EventArticle,
 			Time: time.Now().Unix(),
-			Push: pushData{
-				Type: "comment",
+			Data: models.EventData{
+				Type: models.EventComment,
 				Id:   parent.Id.Hex(),
 				From: user.Id,
 				To:   parent.Author,
 				Body: []models.MsgBody{
-					{Type: "count", Content: strconv.Itoa(parent.CommentCount())},
+					{Type: "total_count", Content: strconv.Itoa(parent.CommentCount())},
 					{Type: "image", Content: coverImage},
 				},
 			},
 		}
-		redis.PubMsg("article", parent.Author, msg.Bytes())
-
+		redis.PubMsg(models.EventArticle, parent.Author, event.Bytes())
+		if err := event.Save(); err == nil {
+			redis.IncrEventCount(parent.Author, event.Data.Type, 1)
+		}
 		// apple push
 		devs, enabled, _ := u.Devices()
 		if enabled {
@@ -213,33 +208,28 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 
 	if form.Status {
 		u := &models.User{Id: article.Author}
-		event := &models.Event{
-			Id:     form.Id,
-			Thumbs: []string{user.Id},
-		}
-		//log.Println("add thumb event", article.Author, event)
-		if err := u.AddEvent(event); err != nil {
-			log.Println(err)
-		}
 
 		_, coverImage := article.Cover()
 		// ws push
-		msg := &pushMsg{
-			Type: "article",
+		event := &models.Event{
+			Type: models.EventArticle,
 			Time: time.Now().Unix(),
-			Push: pushData{
-				Type: "thumb",
+			Data: models.EventData{
+				Type: models.EventThumb,
 				Id:   article.Id.Hex(),
 				From: user.Id,
 				To:   article.Author,
 				Body: []models.MsgBody{
-					{Type: "count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
+					{Type: "total_count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
 					{Type: "image", Content: coverImage},
 				},
 			},
 		}
-		redis.PubMsg("article", article.Author, msg.Bytes())
 
+		redis.PubMsg(models.EventArticle, article.Author, event.Bytes())
+		if err := event.Save(); err == nil {
+			redis.IncrEventCount(article.Author, event.Data.Type, 1)
+		}
 		devs, enabled, _ := u.Devices()
 		if enabled {
 			for _, dev := range devs {

@@ -34,20 +34,20 @@ func joinGroupHandler(request *http.Request, resp http.ResponseWriter,
 	redis.JoinGroup(user.Id, form.Gid, !form.Leave)
 	writeResponse(request.RequestURI, resp, nil, nil)
 
-	msg := &pushMsg{
+	event := &models.Event{
 		Type: "message",
-		Push: pushData{
+		Data: models.EventData{
 			From: user.Id,
 			To:   form.Gid,
 		},
 	}
 	if !form.Leave {
-		msg.Push.Type = "subscribe"
+		event.Data.Type = "subscribe"
 	} else {
-		msg.Push.Type = "unsubscribe"
+		event.Data.Type = "unsubscribe"
 	}
 
-	redis.PubMsg(msg.Push.Type, user.Id, msg.Bytes())
+	redis.PubMsg(event.Data.Type, user.Id, event.Bytes())
 }
 
 type Group struct {

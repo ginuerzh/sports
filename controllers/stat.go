@@ -27,7 +27,7 @@ func serverStatHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	respData["top_reviews"] = redis.ArticleTopReview(3)
 	respData["top_thumbs"] = redis.ArticleTopThumb(3)
 	respData["onlines"] = redis.Onlines()
-	respData["users"] = redis.Users()
+	//respData["users"] = redis.Users()
 
 	writeResponse(request.RequestURI, resp, respData, nil)
 }

@@ -29,10 +29,12 @@ type Article struct {
 	Contents []Segment
 	PubTime  time.Time `bson:"pub_time"`
 
-	Views   []string `bson:",omitempty"`
-	Thumbs  []string `bson:",omitempty"`
-	Reviews []string `bson:",omitempty"`
-	Tags    []string `bson:",omitempty"`
+	Views       []string `bson:",omitempty"`
+	Thumbs      []string `bson:",omitempty"`
+	Reviews     []string `bson:",omitempty"`
+	Rewards     []string `bson:",omitempty"`
+	TotalReward int64    `bson:"total_reward"`
+	Tags        []string `bson:",omitempty"`
 }
 
 func (this *Article) Cover() (text string, image string) {
@@ -295,4 +297,20 @@ func (this *Article) Comments(paging *Paging) (int, []Article, error) {
 	}
 
 	return total, articles, nil
+}
+
+func (this *Article) Reward(userid string, amount int64) error {
+	change := mgo.Change{
+		Update: bson.M{
+			"$addToSet": bson.M{
+				"rewards": userid,
+			},
+			"$inc": bson.M{
+				"total_reward": amount,
+			},
+		},
+		ReturnNew: true,
+	}
+	_, err := apply(articleColl, bson.M{"_id": this.Id}, change, this)
+	return err
 }

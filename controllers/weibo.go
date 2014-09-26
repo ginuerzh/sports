@@ -9,12 +9,12 @@ import (
 	"bytes"
 	"io"
 	//"io/ioutil"
+	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
-	//"os"
-	"crypto/tls"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	Proxy = "chnpxy01.cn.ta-mp.com:8080"
+	Proxy = os.Getenv("http_proxy")
 )
 
 type weiboError struct {

@@ -23,11 +23,13 @@ type Contact struct {
 	Last     *Message `bson:",omitempty"`
 }
 
+/*
 type Event struct {
 	Id      string
 	Thumbs  []string `bson:",omitempty"`
 	Reviews []string `bson:",omitempty"`
 }
+*/
 
 type Proof struct {
 	Tid  int
@@ -45,10 +47,10 @@ type User struct {
 	Id string `bson:"_id"`
 
 	Contacts []Contact `bson:",omitempty"`
-	Events   []Event   `bson:",omitempty"`
-	Devs     []string  `bson:",omitempty"`
-	Push     bool
-	Tasks    TaskList
+	//Events   []Event   `bson:",omitempty"`
+	Devs  []string `bson:",omitempty"`
+	Push  bool
+	Tasks TaskList
 }
 
 func (this *User) findOne(query interface{}) (bool, error) {
@@ -141,6 +143,7 @@ func (this *User) Messages(userid string, paging *Paging) (int, []Message, error
 	return total, msgs, nil
 }
 
+/*
 func (this *User) AddEvent(event *Event) error {
 	var change bson.M
 	selector := bson.M{
@@ -192,7 +195,7 @@ func (this *User) AddEvent(event *Event) error {
 
 	return nil
 }
-
+*/
 func (this *User) AddContact(contact *Contact) error {
 	selector := bson.M{
 		"_id":         this.Id,

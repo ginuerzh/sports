@@ -99,21 +99,26 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		log.Println(err)
 	}
 
-	writeResponse(request.RequestURI, resp, map[string]string{"message_id": msg.Id.Hex()}, nil)
-
 	// ws push
-	pm := &pushMsg{
-		Type: "message",
+	event := &models.Event{
+		Type: models.EventMsg,
 		Time: time.Now().Unix(),
-		Push: pushData{
-			Type: "chat",
-			Id:   msg.Id.Hex(),
+		Data: models.EventData{
+			Type: models.EventChat,
+			Id:   user.Id,
 			From: user.Id + "," + user.Nickname,
 			To:   form.To,
-			Body: []models.MsgBody{{Type: form.Type, Content: form.Content}},
+			Body: []models.MsgBody{
+				{Type: "msg_type", Content: form.Type},
+				{Type: "msg_content", Content: form.Content},
+			},
 		},
 	}
-	redis.PubMsg("message", form.To, pm.Bytes())
+
+	redis.PubMsg(models.EventMsg, form.To, event.Bytes())
+	if err := event.Save(); err == nil {
+		redis.IncrEventCount(form.To, event.Data.Type, 1)
+	}
 
 	devs, enabled, _ := u.Devices()
 	if enabled {
@@ -123,6 +128,8 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 			}
 		}
 	}
+
+	writeResponse(request.RequestURI, resp, map[string]string{"message_id": msg.Id.Hex()}, nil)
 }
 
 type msgJsonStruct struct {

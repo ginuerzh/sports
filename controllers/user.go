@@ -14,7 +14,7 @@ import (
 	//"net/url"
 	//"strconv"
 	//"strings"
-	//"time"
+	"time"
 )
 
 func BindUserApi(m *martini.ClassicMartini) {
@@ -127,7 +127,37 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 		return
 	}
 
+	u := &models.Account{}
+	if find, err := u.FindByUserid(form.Userid); !find {
+		if err == nil {
+			err = errors.NewError(errors.NotExistsError)
+		}
+		writeResponse(request.RequestURI, resp, nil, err)
+		return
+	}
+
 	redis.SetFollow(user.Id, form.Userid, form.Follow)
+
+	if form.Follow {
+		event := &models.Event{
+			Type: models.EventMsg,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventSub,
+				Id:   user.Id,
+				From: user.Id,
+				To:   u.Id,
+				Body: []models.MsgBody{
+					{Type: "nikename", Content: u.Nickname},
+					{Type: "image", Content: u.Profile},
+				},
+			},
+		}
+		redis.PubMsg(models.EventMsg, u.Id, event.Bytes())
+		if err := event.Save(); err == nil {
+			redis.IncrEventCount(u.Id, event.Data.Type, 1)
+		}
+	}
 
 	writeResponse(request.RequestURI, resp, nil, nil)
 }

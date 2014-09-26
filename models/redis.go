@@ -18,15 +18,16 @@ const (
 	redisStatPvPrefix       = redisPrefix + ":stat:pv:"        // sorted set per day
 	redisStatRegisterPrefix = redisPrefix + ":stat:registers:" // set per day
 
-	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:"      // set per half an hour
-	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"       // hashs per user
-	redisUserGuest            = redisPrefix + ":user:guest"         // hashes for all guests
-	redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
-	redisUserFollowPrefix     = redisPrefix + ":user:follow:"       // set per user
-	redisUserFollowerPrefix   = redisPrefix + ":user:follower:"     // set per user
-	redisUserWBImportPrefix   = redisPrefix + ":user:import:weibo:" // set per user
-	redisUserGroupPrefix      = redisPrefix + ":user:group:"        // hash per user
-	redisGroupPrefix          = redisPrefix + ":group:"             // set per group
+	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:" // set per half an hour
+	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"  // hashs per user
+	RedisUserInfoPrefix       = redisPrefix + ":user:info:"    // hashs per user
+	//redisUserGuest            = redisPrefix + ":user:guest"    // hashes for all guests
+	//redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
+	redisUserFollowPrefix   = redisPrefix + ":user:follow:"       // set per user
+	redisUserFollowerPrefix = redisPrefix + ":user:follower:"     // set per user
+	redisUserWBImportPrefix = redisPrefix + ":user:import:weibo:" // set per user
+	redisUserGroupPrefix    = redisPrefix + ":user:group:"        // hash per user
+	redisGroupPrefix        = redisPrefix + ":group:"             // set per group
 
 	redisStatArticleViewPrefix = redisPrefix + ":stat:articles:view:"  // sorted set per day
 	redisStatArticleView       = redisPrefix + ":stat:articles:view"   // sorted set
@@ -108,11 +109,12 @@ func (logger *RedisLogger) PubMsg(typ string, to string, msg []byte) {
 	}
 }
 
+/*
 func (logger *RedisLogger) Users() int {
 	count, _ := redis.Int(logger.conn.Do("HLEN", redisUserGuest))
 	return count
 }
-
+*/
 // log register users per day
 func (logger *RedisLogger) LogRegister(userid string) {
 	logger.conn.Do("SADD", redisStatRegisterPrefix+DateString(time.Now()), userid)
@@ -158,7 +160,7 @@ func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
 	conn := logger.conn
 
 	if strings.HasPrefix(accessToken, GuestUserPrefix) {
-		user.Userid, _ = redis.String(conn.Do("HGET", redisUserGuest, accessToken))
+		//user.Userid, _ = redis.String(conn.Do("HGET", redisUserGuest, accessToken))
 	} else {
 		v, err := redis.Values(conn.Do("HGETALL", redisUserOnlineUserPrefix+accessToken))
 		if err != nil {
@@ -222,7 +224,7 @@ func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
 		conn.Send("HMSET", redis.Args{}.Add(redisUserOnlineUserPrefix+accessToken).AddFlat(u)...)
 		conn.Send("EXPIRE", redisUserOnlineUserPrefix+accessToken, onlineUserExpire)
 	} else {
-		conn.Send("HSETNX", redisUserGuest, accessToken, user.Id)
+		//conn.Send("HSETNX", redisUserGuest, accessToken, user.Id)
 	}
 
 	timeStr := onlineTimeString()
@@ -390,6 +392,26 @@ func (logger *RedisLogger) setsCount(key string, days int) []int64 {
 	return counts
 }
 
+func (logger *RedisLogger) EventCount(userid string) (counts []int) {
+	counts = make([]int, 6)
+	conn := logger.conn
+	values, err := redis.Values(conn.Do("HMGET", RedisUserInfoPrefix+userid,
+		"event_chat", "event_comment", "event_thumb", "event_reward", "event_subscribe", "event_tx"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	if err = redis.ScanSlice(values, &counts); err != nil {
+		log.Println(err)
+	}
+	return
+}
+
+func (logger *RedisLogger) IncrEventCount(userid string, eventType string, count int) {
+	logger.conn.Do("HINCRBY", RedisUserInfoPrefix+userid, "event_"+eventType, count)
+}
+
+/*
 func (logger *RedisLogger) LogUserMessages(userid string, msgs ...string) {
 	args := redis.Args{}.Add(redisUserMessagePrefix + userid).AddFlat(msgs)
 	conn := logger.conn
@@ -410,7 +432,7 @@ func (logger *RedisLogger) ClearMessages(userid string) {
 	conn := logger.conn
 	conn.Do("DEL", redisUserMessagePrefix+userid)
 }
-
+*/
 // log unique visitors per day
 func (logger *RedisLogger) LogVisitor(user string) {
 	conn := logger.conn

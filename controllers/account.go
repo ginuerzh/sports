@@ -40,7 +40,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/1/user/getPKPropertiesInfo", binding.Form(scoreDiffForm{}), ErrorHandler, scoreDiffHandler)
 	m.Get("/1/user/getPropertiesValue", binding.Form(getPropsForm{}), getPropsHandler)
 	m.Post("/1/user/updateEquipment", binding.Json(setEquipForm{}), ErrorHandler, setEquipHandler)
-	m.Get("/1/user/searchActiveMembers", binding.Form(searchNearForm{}), ErrorHandler, searchNearHandler)
+	m.Get("/1/user/search", binding.Form(searchForm{}), ErrorHandler, searchHandler)
 }
 
 // user register parameter
@@ -545,19 +545,31 @@ func setEquipHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	writeResponse(request.RequestURI, resp, nil, err)
 }
 
-type searchNearForm struct {
-	Token string `form:"access_token" binding:"required"`
+type searchForm struct {
+	Token    string `form:"access_token"`
+	Nearby   bool   `form:"search_nearby"`
+	Nickname string `form:"search_nickname"`
 	models.Paging
 }
 
-func searchNearHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form searchNearForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
-		return
+func searchHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form searchForm) {
+
+	users := []models.Account{}
+	var err error
+
+	if form.Nearby {
+		user := redis.OnlineUser(form.Token)
+		if user == nil {
+			writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
+			return
+		}
+		form.Paging.Count = 50
+		users, err = user.SearchNear(&form.Paging)
+	} else if len(form.Nickname) > 0 {
+		users, err = models.Search(form.Nickname, &form.Paging)
+	} else {
 	}
-	form.Paging.Count = 50
-	users, err := user.SearchNear(&form.Paging)
+
 	list := make([]leaderboardResp, len(users))
 	for i, _ := range users {
 		list[i].Userid = users[i].Id

@@ -460,7 +460,61 @@ func (this *Account) SetEquip(equip Equip) error {
 }
 
 func searchPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error) {
-	return nil, nil
+	user := &Account{}
+
+	if len(first) > 0 {
+		if err := c.FindId(first).One(user); err != nil {
+			return nil, err
+		}
+		query = bson.M{
+			"reg_time": bson.M{
+				"$gte": user.RegTime,
+			},
+			"_id": bson.M{
+				"$ne": user.Id,
+			},
+		}
+	} else if len(last) > 0 {
+		if err := c.FindId(last).One(user); err != nil {
+			return nil, err
+		}
+		query = bson.M{
+			"reg_time": bson.M{
+				"$lte": user.RegTime,
+			},
+			"_id": bson.M{
+				"$ne": user.Id,
+			},
+		}
+	}
+
+	return
+}
+
+func Search(nickname string, paging *Paging) ([]Account, error) {
+	var users []Account
+	total := 0
+
+	query := bson.M{
+		"nickname": bson.M{
+			"$regex": nickname,
+		},
+	}
+	if err := psearch(accountColl, query, nil, []string{"-reg_time"}, nil, &users, searchPagingFunc, paging); err != nil {
+		if err != mgo.ErrNotFound {
+			return nil, errors.NewError(errors.DbError, err.Error())
+		}
+	}
+
+	paging.First = ""
+	paging.Last = ""
+	paging.Count = 0
+	if len(users) > 0 {
+		paging.First = users[0].Id
+		paging.Last = users[len(users)-1].Id
+		paging.Count = total
+	}
+	return users, nil
 }
 
 func (this *Account) SearchNear(paging *Paging) ([]Account, error) {
@@ -475,7 +529,7 @@ func (this *Account) SearchNear(paging *Paging) ([]Account, error) {
 		},
 	}
 
-	if err := psearch(accountColl, query, nil, nil, nil, &users, searchPagingFunc, paging); err != nil {
+	if err := psearch(accountColl, query, nil, nil, nil, &users, nil, nil); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
 		}
@@ -502,4 +556,12 @@ func (this *Account) AddWalletAddr(addr string) error {
 		return errors.NewError(errors.DbError, err.Error())
 	}
 	return nil
+}
+
+func (this *Account) ClearEvent(eventType string, eventId string) int {
+	info, err := removeAll(eventColl, bson.M{"data.to": this.Id, "data.type": eventType, "data.id": eventId}, true)
+	if err != nil {
+		return 0
+	}
+	return info.Removed
 }

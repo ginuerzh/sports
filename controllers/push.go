@@ -29,25 +29,6 @@ type wsAuthResp struct {
 	Userid string `json:"userid"`
 }
 
-type pushData struct {
-	Type string           `json:"type"`
-	Id   string           `json:"pid"`
-	From string           `json:"from"`
-	To   string           `json:"to"`
-	Body []models.MsgBody `json:"body"`
-}
-
-type pushMsg struct {
-	Type string   `json:"type"`
-	Push pushData `json:"push"`
-	Time int64    `json:"time"`
-}
-
-func (m *pushMsg) Bytes() []byte {
-	b, _ := json.Marshal(m)
-	return b
-}
-
 func BindWSPushApi(m *martini.ClassicMartini) {
 	m.Get("/1/ws", wsPushHandler)
 }
@@ -92,32 +73,32 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		defer psc.Close()
 
 		for {
-			msg := &pushMsg{}
-			err := conn.ReadJSON(msg)
+			event := &models.Event{}
+			err := conn.ReadJSON(event)
 			if err != nil {
 				//log.Println(err)
 				return
 			}
-			log.Println("recv msg:", msg.Type)
-			switch msg.Type {
-			case "message":
+			log.Println("recv msg:", event.Type)
+			switch event.Type {
+			case models.EventMsg:
 				m := &models.Message{
-					From: msg.Push.From,
-					To:   msg.Push.To,
-					Body: msg.Push.Body,
+					From: event.Data.From,
+					To:   event.Data.To,
+					Body: event.Data.Body,
 					Time: time.Now(),
 				}
-				if msg.Push.Type == "chat" || msg.Push.Type == "groupchat" {
-					m.Type = msg.Push.Type
+				if event.Data.Type == models.EventChat || event.Data.Type == models.EventGChat {
+					m.Type = event.Data.Type
 					m.Save()
-					msg.Push.Id = m.Id.Hex()
-					msg.Time = m.Time.Unix()
+					event.Data.Id = m.Id.Hex()
+					event.Time = m.Time.Unix()
 
-					redisLogger.PubMsg(m.Type, m.To, msg.Bytes())
+					redisLogger.PubMsg(m.Type, m.To, event.Bytes())
 				}
 			case "status":
-				if msg.Push.Type == "loc" && len(msg.Push.Body) > 0 {
-					loc := strings.Split(msg.Push.Body[0].Content, ",")
+				if event.Data.Type == "loc" && len(event.Data.Body) > 0 {
+					loc := strings.Split(event.Data.Body[0].Content, ",")
 					if len(loc) != 2 {
 						break
 					}
@@ -127,7 +108,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 					user.UpdateLocation(models.Location{Lat: lat, Lng: lng})
 				}
 			default:
-				log.Println("unhandled message type:", msg.Type)
+				log.Println("unhandled message type:", event.Type)
 			}
 		}
 	}(conn)
@@ -136,22 +117,22 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		switch v := psc.Receive().(type) {
 		case redis.Message:
 			//log.Printf("%s: message: %s\n", v.Channel, v.Data)
-			msg := &pushMsg{}
-			if err := json.Unmarshal(v.Data, msg); err != nil {
+			event := &models.Event{}
+			if err := json.Unmarshal(v.Data, event); err != nil {
 				log.Println("parse push message error:", err)
 				continue
 			}
 
 			// subscribe group
-			if msg.Push.Type == "subscribe" && msg.Push.From == user.Id {
-				if err := redisLogger.Subscribe(psc, msg.Push.To); err != nil {
+			if event.Data.Type == models.EventSub && event.Data.From == user.Id {
+				if err := redisLogger.Subscribe(psc, event.Data.To); err != nil {
 					log.Println(err)
 				}
 				continue
 			}
 			// unsubscribe group
-			if msg.Push.Type == "unsubscribe" && msg.Push.From == user.Id {
-				if err := redisLogger.Unsubscribe(psc, msg.Push.To); err != nil {
+			if event.Data.Type == models.EventUnsub && event.Data.From == user.Id {
+				if err := redisLogger.Unsubscribe(psc, event.Data.To); err != nil {
 					log.Println(err)
 				}
 				continue

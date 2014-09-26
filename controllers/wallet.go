@@ -11,6 +11,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
+	"labix.org/v2/mgo/bson"
 	//"io"
 	"log"
 	"net/http"
@@ -155,6 +156,8 @@ func addrTxsHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisL
 
 type txForm struct {
 	Token    string `json:"access_token" binding:"required"`
+	Type     string `json:"type"`
+	Id       string `json:"article_id"`
 	FromAddr string `json:"from"`
 	ToAddr   string `json:"to" binding:"required"`
 	Value    int64  `json:"value" binding:"required"`
@@ -213,22 +216,46 @@ func txHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger
 	}
 
 	redis.Transaction(user.Id, receiver.Id, form.Value)
-
-	writeResponse(r.RequestURI, w, map[string]string{"txid": txid}, nil)
-
 	// ws push
-	msg := &pushMsg{
-		Type: "wallet",
+	event := &models.Event{
+		Type: models.EventWallet,
 		Time: time.Now().Unix(),
-		Push: pushData{
-			Type: "tx",
-			Id:   txid,
+	}
+	switch form.Type {
+	case "reward":
+		article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
+		article.Reward(user.Id, form.Value)
+
+		event.Data = models.EventData{
+			Type: models.EventReward,
+			Id:   article.Id.Hex(),
 			From: user.Id,
 			To:   receiver.Id,
-			Body: []models.MsgBody{{Type: "recv", Content: strconv.FormatFloat(float64(form.Value)/float64(models.Satoshi), 'f', 8, 64)}},
-		},
+			Body: []models.MsgBody{
+				{Type: "nikename", Content: receiver.Nickname},
+				{Type: "image", Content: receiver.Profile},
+				{Type: "total_count", Content: strconv.FormatInt(article.TotalReward, 64)},
+			},
+		}
+	default:
+		event.Data = models.EventData{
+			Type: models.EventTx,
+			Id:   user.Id,
+			From: user.Id,
+			To:   receiver.Id,
+			Body: []models.MsgBody{
+				{Type: "nikename", Content: receiver.Nickname},
+				{Type: "image", Content: receiver.Profile},
+			},
+		}
 	}
-	redis.PubMsg("wallet", receiver.Id, msg.Bytes())
+
+	redis.PubMsg("wallet", receiver.Id, event.Bytes())
+	if err := event.Save(); err == nil {
+		redis.IncrEventCount(receiver.Id, event.Data.Type, 1)
+	}
+
+	writeResponse(r.RequestURI, w, map[string]string{"txid": txid}, nil)
 }
 
 type Vin struct {
