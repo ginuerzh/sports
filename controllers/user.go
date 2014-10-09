@@ -116,7 +116,7 @@ func pushStatusHandler(request *http.Request, resp http.ResponseWriter,
 
 type followForm struct {
 	Userid string `json:"userid"`
-	Follow bool   `json:"beFriend"`
+	Follow bool   `json:"bAttention"`
 	Token  string `json:"access_token" binding:"required"`
 }
 
@@ -127,9 +127,10 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 		return
 	}
 
-	redis.SetFollow(user.Id, form.Userid, form.Follow)
+	//redis.SetFollow(user.Id, form.Userid, form.Follow)
+	redis.SetRelationship(user.Id, form.Userid, models.RelFollowing, form.Follow)
 
-	writeResponse(request.RequestURI, resp, nil, nil)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }
 
 type getFollowsForm struct {
@@ -144,7 +145,7 @@ func getFollowsHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	//u := &models.User{Id: user.Id}
-	writeResponse(request.RequestURI, resp, redis.Friends("follow", user.Id), nil)
+	writeResponse(request.RequestURI, resp, redis.Friends(models.RelFollowing, user.Id), nil)
 }
 
 func getFollowersHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
@@ -155,7 +156,7 @@ func getFollowersHandler(request *http.Request, resp http.ResponseWriter, redis 
 	}
 
 	//u := &models.User{Id: user.Id}
-	writeResponse(request.RequestURI, resp, redis.Friends("follower", user.Id), nil)
+	writeResponse(request.RequestURI, resp, redis.Friends(models.RelFollower, user.Id), nil)
 }
 
 func getFriendsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
@@ -164,7 +165,7 @@ func getFriendsHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 		return
 	}
-	writeResponse(request.RequestURI, resp, redis.Friends("friend", user.Id), nil)
+	writeResponse(request.RequestURI, resp, redis.Friends(models.RelFriend, user.Id), nil)
 }
 
 func getGroupsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
@@ -196,7 +197,7 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	case "FRIENDS":
 		ids = redis.Friends("friend", user.Id)
 	case "ATTENTION":
-		ids = redis.Friends("follow", user.Id)
+		ids = redis.Friends("following", user.Id)
 	case "FANS":
 		ids = redis.Friends("follower", user.Id)
 	case "WEIBO":
@@ -223,9 +224,9 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	respData := map[string]interface{}{
-		"leaderboard_list": lb,
-		"page_frist_id":    form.Paging.First,
-		"page_last_id":     form.Paging.Last,
+		"members_list":  lb,
+		"page_frist_id": form.Paging.First,
+		"page_last_id":  form.Paging.Last,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 

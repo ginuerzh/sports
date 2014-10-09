@@ -18,7 +18,6 @@ type SportRecord struct {
 	Duration int64
 	Distance int
 	Pics     []string
-	Time     time.Time
 }
 
 type GameRecord struct {
@@ -32,7 +31,8 @@ type Record struct {
 	Type    string
 	Sport   *SportRecord `bson:",omitempty"`
 	Game    *GameRecord  `bson:",omitempty"`
-	PubTime time.Time    `bson:"pub_time"`
+	Time    time.Time
+	PubTime time.Time `bson:"pub_time"`
 }
 
 func (this *Record) findOne(query interface{}) (bool, error) {

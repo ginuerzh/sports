@@ -269,7 +269,9 @@ func (this *Account) ChangeProfile(profile string) error {
 func (this *Account) AddPhotos(photos []string) error {
 	change := bson.M{
 		"$addToSet": bson.M{
-			"photos": photos,
+			"photos": bson.M{
+				"$each": photos,
+			},
 		},
 	}
 	if err := update(accountColl, bson.M{"_id": this.Id}, change, true); err != nil {

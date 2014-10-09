@@ -246,10 +246,10 @@ type userJsonStruct struct {
 	Weight  int    `json:"weight"`
 	Birth   int64  `json:"birthday"`
 
-	Actor    string `json:"actor"`
-	Rank     string `json:"rankName"`
-	Followed bool   `json:"beFriend"`
-	Online   bool   `json:"beOnline"`
+	Actor string `json:"actor"`
+	Rank  string `json:"rankName"`
+	//Followed bool   `json:"beFriend"`
+	Online bool `json:"beOnline"`
 
 	Props *models.Props `json:"proper_info"`
 
@@ -263,6 +263,9 @@ type userJsonStruct struct {
 
 	Photos []string     `json:"user_images"`
 	Equips models.Equip `json:"user_equipInfo"`
+
+	Wallet   string `json:"wallet"`
+	Relation string `json:"relation"`
 }
 
 func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getInfoForm) {
@@ -300,7 +303,13 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		Props: redis.UserProps(user.Id),
 
 		Photos: user.Photos,
+
+		Wallet: user.Wallet.Addr,
 	}
+	if user.Equips != nil {
+		info.Equips = *user.Equips
+	}
+
 	if user.Addr != nil {
 		info.Addr = user.Addr.String()
 	}
@@ -308,14 +317,22 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		info.Location = *user.Loc
 	}
 
-	loginer := ""
-	if user := redis.OnlineUser(form.Token); user != nil {
-		loginer = user.Id
-	}
-	info.Followed = redis.Followed(loginer, user.Id)
-
 	if user.Equips != nil {
 		info.Equips = *user.Equips
+	}
+
+	if u := redis.OnlineUser(form.Token); u != nil {
+		relation := redis.Relationship(u.Id, user.Id)
+		switch relation {
+		case models.RelFriend:
+			info.Relation = "FRIENDS"
+		case models.RelFollowing:
+			info.Relation = "ATTENTION"
+		case models.RelFollower:
+			info.Relation = "FANS"
+		case models.RelBlacklist:
+			info.Relation = "DEFRIEND"
+		}
 	}
 
 	writeResponse(request.RequestURI, resp, info, nil)
@@ -403,12 +420,14 @@ func setProfileHandler(request *http.Request, resp http.ResponseWriter, redis *m
 
 	err := user.ChangeProfile(form.ImageId)
 	redis.LogOnlineUser(form.Token, user)
-	score := 0
-	if len(user.Profile) == 0 && err == nil {
-		score = actionExps[ActProfile]
-		//redis.AddScore(user.Id, score)
-	}
-	writeResponse(request.RequestURI, resp, map[string]int{"exp_effect": score}, err)
+	/*
+		score := 0
+		if len(user.Profile) == 0 && err == nil {
+			score = actionExps[ActProfile]
+			//redis.AddScore(user.Id, score)
+		}
+	*/
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }
 
 type setPhotosForm struct {
@@ -423,7 +442,7 @@ func setPhotosHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 		return
 	}
 	err := user.AddPhotos(form.Pics)
-	writeResponse(request.RequestURI, resp, nil, err)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }
 
 type delPhotoForm struct {
@@ -542,7 +561,7 @@ func setEquipHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	}
 
 	err := user.SetEquip(form.Equips)
-	writeResponse(request.RequestURI, resp, nil, err)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }
 
 type searchNearForm struct {
@@ -627,5 +646,5 @@ func importFriendsHandler(r *http.Request, w http.ResponseWriter, redis *models.
 		}
 	default:
 	}
-	writeResponse(r.RequestURI, w, nil, nil)
+	writeResponse(r.RequestURI, w, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }

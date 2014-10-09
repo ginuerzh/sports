@@ -24,6 +24,7 @@ const (
 	redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
 	redisUserFollowPrefix     = redisPrefix + ":user:follow:"       // set per user
 	redisUserFollowerPrefix   = redisPrefix + ":user:follower:"     // set per user
+	redisUserBlacklistPrefix  = redisPrefix + ":user:blacklist:"    // set per user
 	redisUserWBImportPrefix   = redisPrefix + ":user:import:weibo:" // set per user
 	redisUserGroupPrefix      = redisPrefix + ":user:group:"        // hash per user
 	redisGroupPrefix          = redisPrefix + ":group:"             // set per group
@@ -231,6 +232,58 @@ func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
 	conn.Do("EXEC")
 }
 
+func (logger *RedisLogger) Relationship(userid, peer string) string {
+	if userid == peer || len(userid) == 0 || len(peer) == 0 {
+		return ""
+	}
+
+	following, _ := redis.Bool(logger.conn.Do("SISMEMBER", redisUserFollowPrefix+userid, peer))
+	follower, _ := redis.Bool(logger.conn.Do("SISMEMBER", redisUserFollowerPrefix+userid, peer))
+	if following && follower {
+		return RelFriend
+	} else if following {
+		return RelFollowing
+	} else if follower {
+		return RelFollower
+	}
+	if black, _ := redis.Bool(logger.conn.Do("SISMEMBER", redisUserBlacklistPrefix+userid, peer)); black {
+		return RelBlacklist
+	}
+
+	return ""
+}
+
+func (logger *RedisLogger) SetRelationship(userid, peer string, relation string, enable bool) {
+	if userid == peer || len(userid) == 0 || len(peer) == 0 {
+		return
+	}
+	conn := logger.conn
+	conn.Send("MULTI")
+
+	switch relation {
+	case RelFollowing:
+		if enable {
+			conn.Send("SADD", redisUserFollowPrefix+userid, peer)
+			conn.Send("SADD", redisUserFollowerPrefix+peer, userid)
+		} else {
+			conn.Send("SREM", redisUserFollowPrefix+userid, peer)
+			conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
+		}
+	case RelBlacklist:
+		if enable {
+			conn.Send("SREM", redisUserFollowPrefix+userid, peer)
+			conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
+			conn.Send("SADD", redisUserBlacklistPrefix+userid, peer)
+		} else {
+			conn.Send("SREM", redisUserBlacklistPrefix+userid, peer)
+		}
+	default:
+	}
+
+	conn.Do("EXEC")
+}
+
+/*
 func (logger *RedisLogger) Followed(userid, following string) bool {
 	if len(userid) == 0 || len(following) == 0 {
 		return false
@@ -238,6 +291,7 @@ func (logger *RedisLogger) Followed(userid, following string) bool {
 	followed, _ := redis.Bool(logger.conn.Do("SISMEMBER", redisUserFollowPrefix+userid, following))
 	return followed
 }
+
 
 func (logger *RedisLogger) SetFollow(userid, following string, follow bool) {
 	if len(userid) == 0 || len(following) == 0 {
@@ -254,28 +308,30 @@ func (logger *RedisLogger) SetFollow(userid, following string, follow bool) {
 	}
 	conn.Do("EXEC")
 }
-
+*/
 func (logger *RedisLogger) SetWBImport(userid, wb string) {
 	logger.conn.Do("SADD", redisUserWBImportPrefix+userid, wb)
 }
 
 func (logger *RedisLogger) ImportFriend(userid, friend string) {
 	conn := logger.conn
-	logger.SetFollow(userid, friend, true)
+	logger.SetRelationship(userid, friend, RelFollowing, true)
 	conn.Do("SREM", redisUserWBImportPrefix+friend, userid)
 }
 
 func (logger *RedisLogger) Friends(typ string, userid string) (users []string) {
 	var key string
 	switch typ {
-	case "following":
+	case RelFollowing:
 		key = redisUserFollowPrefix + userid
-	case "follower":
+	case RelFollower:
 		key = redisUserFollowerPrefix + userid
-	case "friend":
+	case RelFriend:
 		users, _ = redis.Strings(logger.conn.Do("SINTER",
 			redisUserFollowerPrefix+userid, redisUserFollowPrefix+userid))
 		return
+	case RelBlacklist:
+		key = redisUserBlacklistPrefix + userid
 	case "weibo":
 		key = redisUserWBImportPrefix + userid
 	default:
