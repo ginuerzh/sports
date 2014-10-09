@@ -31,6 +31,13 @@ const (
 	ScoreWealth   = "wealth"
 )
 
+const (
+	RelFriend    = "friend"
+	RelFollowing = "following"
+	RelFollower  = "follower"
+	RelBlacklist = "blacklist"
+)
+
 var (
 	databaseName = "sports"
 	accountColl  = "accounts"

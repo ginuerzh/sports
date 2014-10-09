@@ -43,6 +43,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 	rec := &models.Record{
 		Uid:     user.Id,
 		Type:    form.Record.Type,
+		Time:    time.Unix(form.Record.Time, 0),
 		PubTime: time.Now(),
 	}
 	awards := Awards{Wealth: 1 * models.Satoshi}
@@ -56,7 +57,6 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 			Duration: form.Record.Duration,
 			Distance: form.Record.Distance,
 			Pics:     form.Record.Pics,
-			Time:     time.Unix(form.Record.Time, 0),
 		}
 		awards.Physical = 1
 	}
@@ -105,7 +105,7 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter, redis *
 	for i, _ := range records {
 		recs[i].Type = records[i].Type
 		if records[i].Sport != nil {
-			recs[i].Time = records[i].Sport.Time.Unix()
+			recs[i].Time = records[i].Time.Unix()
 			recs[i].Duration = records[i].Sport.Duration
 			recs[i].Distance = records[i].Sport.Distance
 		}
@@ -312,7 +312,7 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 	if maxDisRec != nil {
 		stats.MaxDistance = &record{
 			Type:     maxDisRec.Type,
-			Time:     maxDisRec.Sport.Time.Unix(),
+			Time:     maxDisRec.Time.Unix(),
 			Duration: maxDisRec.Sport.Duration,
 			Distance: maxDisRec.Sport.Distance,
 		}

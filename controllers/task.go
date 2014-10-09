@@ -98,7 +98,7 @@ func getTasksHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	respData := map[string]interface{}{
 		"week_id":   week + 1,
 		"task_list": list,
-		"task_desc": tips[r.Int()%len(tips)],
+		"week_desc": tips[r.Int()%len(tips)],
 	}
 
 	writeResponse(request.RequestURI, resp, respData, nil)
@@ -152,5 +152,5 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter, redis 
 	u := &models.User{Id: user.Id}
 	err := u.AddTask(form.Tid, form.Proofs)
 
-	writeResponse(request.RequestURI, resp, nil, err)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }
