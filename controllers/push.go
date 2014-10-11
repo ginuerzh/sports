@@ -34,9 +34,6 @@ func BindWSPushApi(m *martini.ClassicMartini) {
 }
 
 func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger *models.RedisLogger) {
-	//var wg sync.WaitGroup
-	defer log.Println("ws closed")
-	//defer wg.Wait()
 	conn, err := upgrader.Upgrade(resp, request, nil)
 	if err != nil {
 		conn.WriteJSON(errors.NewError(errors.HttpError, err.Error()))
@@ -63,6 +60,9 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	if user == nil {
 		return
 	}
+
+	redisLogger.SetOnline(user.Id)
+	redisLogger.LogVisitor(user.Id)
 
 	psc := redisLogger.PubSub(user.Id, redisLogger.Groups(user.Id)...)
 

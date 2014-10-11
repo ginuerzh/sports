@@ -63,7 +63,7 @@ type Account struct {
 	Nickname    string    `bson:",omitempty" json:"nickname,omitempty"`
 	Password    string    `bson:",omitempty" json:"password,omitempty"`
 	Profile     string    `bson:",omitempty" json:"profile,omitempty"`
-	RegTime     time.Time `bson:"reg_time,omitempty" json:"reg_time,omitempty"`
+	RegTime     time.Time `bson:"reg_time,omitempty" json:"-"`
 	Role        string    `bson:",omitempty" json:"-"`
 	Hobby       string    `bson:",omitempty" json:"hobby,omitempty"`
 	Height      int       `bson:",omitempty" json:"height,omitempty"`
@@ -499,7 +499,11 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 
 	query := bson.M{
 		"nickname": bson.M{
-			"$regex": nickname,
+			"$regex":   nickname,
+			"$options": "i",
+		},
+		"reg_time": bson.M{
+			"$gt": time.Unix(0, 0),
 		},
 	}
 	if err := psearch(accountColl, query, nil, []string{"-reg_time"}, nil, &users, searchPagingFunc, paging); err != nil {

@@ -85,7 +85,7 @@ func newAddrHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisL
 
 	writeResponse(r.RequestURI, w, k, nil)
 
-	redis.LogOnlineUser(form.Token, user)
+	redis.SetOnlineUser(form.Token, user, false)
 }
 
 func balanceHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form walletForm) {
@@ -147,7 +147,7 @@ func addrTxsHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisL
 
 type txForm struct {
 	Token    string `json:"access_token" binding:"required"`
-	Type     string `json:"type"`
+	Type     string `json:"trade_type"`
 	Id       string `json:"article_id"`
 	FromAddr string `json:"from"`
 	ToAddr   string `json:"to" binding:"required"`
@@ -212,7 +212,10 @@ func txHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger
 		Type: models.EventWallet,
 		Time: time.Now().Unix(),
 	}
-	switch form.Type {
+
+	log.Println("tx type:", strings.ToLower(form.Type))
+
+	switch strings.ToLower(form.Type) {
 	case "reward":
 		article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
 		article.Reward(user.Id, form.Value)
@@ -223,9 +226,9 @@ func txHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger
 			From: user.Id,
 			To:   receiver.Id,
 			Body: []models.MsgBody{
-				{Type: "nikename", Content: receiver.Nickname},
-				{Type: "image", Content: receiver.Profile},
-				{Type: "total_count", Content: strconv.FormatInt(article.TotalReward, 64)},
+				{Type: "nikename", Content: user.Nickname},
+				{Type: "image", Content: user.Profile},
+				{Type: "total_count", Content: strconv.FormatInt(article.TotalReward, 10)},
 			},
 		}
 	default:
@@ -235,8 +238,9 @@ func txHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger
 			From: user.Id,
 			To:   receiver.Id,
 			Body: []models.MsgBody{
-				{Type: "nikename", Content: receiver.Nickname},
-				{Type: "image", Content: receiver.Profile},
+				{Type: "nikename", Content: user.Nickname},
+				{Type: "image", Content: user.Profile},
+				{Type: "total_count", Content: strconv.FormatInt(form.Value, 10)},
 			},
 		}
 	}

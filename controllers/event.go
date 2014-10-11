@@ -42,7 +42,7 @@ func eventNewsHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 		"new_chat_count":      counts[0],
 		"new_comment_count":   counts[1],
 		"new_thumb_count":     counts[2],
-		"new_reward_count":    counts[3],
+		"new_reward_count":    counts[3] + counts[5],
 		"new_attention_count": counts[4],
 	}
 

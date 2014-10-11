@@ -58,6 +58,12 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
+	if redis.Relationship(user.Id, form.To) == models.RelBlacklist ||
+		redis.Relationship(form.To, user.Id) == models.RelBlacklist {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+
 	touser := &models.Account{}
 	if find, err := touser.FindByUserid(form.To); !find {
 		if err == nil {
@@ -106,11 +112,12 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		Data: models.EventData{
 			Type: models.EventChat,
 			Id:   user.Id,
-			From: user.Id + "," + user.Nickname,
+			From: user.Id,
 			To:   form.To,
 			Body: []models.MsgBody{
 				{Type: "msg_type", Content: form.Type},
 				{Type: "msg_content", Content: form.Content},
+				{Type: "nikename", Content: user.Nickname},
 			},
 		},
 	}

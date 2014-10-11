@@ -104,10 +104,11 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter, redis *
 	recs := make([]record, len(records))
 	for i, _ := range records {
 		recs[i].Type = records[i].Type
+		recs[i].Time = records[i].Time.Unix()
 		if records[i].Sport != nil {
-			recs[i].Time = records[i].Time.Unix()
 			recs[i].Duration = records[i].Sport.Duration
 			recs[i].Distance = records[i].Sport.Distance
+			recs[i].Pics = records[i].Sport.Pics[:1]
 		}
 		if records[i].Game != nil {
 			recs[i].GameName = records[i].Game.Name
@@ -206,9 +207,9 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 		}
 
 		respData := map[string]interface{}{
-			"leaderboard_list": lb,
-			"page_frist_id":    form.Paging.First,
-			"page_last_id":     form.Paging.Last,
+			"members_list":  lb,
+			"page_frist_id": form.Paging.First,
+			"page_last_id":  form.Paging.Last,
 		}
 		writeResponse(request.RequestURI, resp, respData, nil)
 
@@ -268,9 +269,9 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 	}
 
 	respData := map[string]interface{}{
-		"leaderboard_list": lb,
-		"page_frist_id":    strconv.Itoa(page_first),
-		"page_last_id":     strconv.Itoa(page_last),
+		"members_list":  lb,
+		"page_frist_id": strconv.Itoa(page_first),
+		"page_last_id":  strconv.Itoa(page_last),
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
@@ -311,10 +312,12 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 	maxDisRec, _ := models.MaxDistanceRecord(form.Userid)
 	if maxDisRec != nil {
 		stats.MaxDistance = &record{
-			Type:     maxDisRec.Type,
-			Time:     maxDisRec.Time.Unix(),
-			Duration: maxDisRec.Sport.Duration,
-			Distance: maxDisRec.Sport.Distance,
+			Type: maxDisRec.Type,
+			Time: maxDisRec.Time.Unix(),
+		}
+		if maxDisRec.Sport != nil {
+			stats.MaxDistance.Duration = maxDisRec.Sport.Duration
+			stats.MaxDistance.Distance = maxDisRec.Sport.Distance
 		}
 	}
 	stats.Score = models.UserScore(redis.UserProps(form.Userid))

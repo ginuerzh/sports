@@ -22,7 +22,8 @@ func BindUserApi(m *martini.ClassicMartini) {
 	m.Post("/1/user/send_device_token", binding.Json(sendDevForm{}), ErrorHandler, sendDevHandler)
 	m.Post("/1/user/set_push_enable", binding.Json(setPushForm{}), ErrorHandler, setPushHandler)
 	m.Get("/1/user/is_push_enabled", binding.Form(pushStatusForm{}), ErrorHandler, pushStatusHandler)
-	m.Post("/1/user/enableAttention", binding.Json(followForm{}), ErrorHandler, followHandler)
+	m.Post("/1/user/enableAttention", binding.Json(relationshipForm{}), ErrorHandler, followHandler)
+	m.Post("/1/user/enableDefriend", binding.Json(relationshipForm{}), ErrorHandler, blacklistHandler)
 	m.Get("/1/user/getAttentionFriendsList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowsHandler)
 	m.Get("/1/user/getAttentedMembersList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowersHandler)
 	m.Get("/1/user/getJoinedGroupsList", binding.Form(getFollowsForm{}), ErrorHandler, getGroupsHandler)
@@ -114,13 +115,14 @@ func pushStatusHandler(request *http.Request, resp http.ResponseWriter,
 	writeResponse(request.RequestURI, resp, map[string]bool{"is_enabled": enabled}, err)
 }
 
-type followForm struct {
-	Userid string `json:"userid"`
-	Follow bool   `json:"bAttention"`
-	Token  string `json:"access_token" binding:"required"`
+type relationshipForm struct {
+	Userid    string `json:"userid"`
+	Follow    bool   `json:"bAttention"`
+	Blacklist bool   `json:"bDefriend"`
+	Token     string `json:"access_token" binding:"required"`
 }
 
-func followHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form followForm) {
+func followHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form relationshipForm) {
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -136,7 +138,6 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 		return
 	}
 
-	//redis.SetFollow(user.Id, form.Userid, form.Follow)
 	redis.SetRelationship(user.Id, form.Userid, models.RelFollowing, form.Follow)
 
 	if form.Follow {
@@ -149,8 +150,8 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 				From: user.Id,
 				To:   u.Id,
 				Body: []models.MsgBody{
-					{Type: "nikename", Content: u.Nickname},
-					{Type: "image", Content: u.Profile},
+					{Type: "nikename", Content: user.Nickname},
+					{Type: "image", Content: user.Profile},
 				},
 			},
 		}
@@ -158,7 +159,31 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 		if err := event.Save(); err == nil {
 			redis.IncrEventCount(u.Id, event.Data.Type, 1)
 		}
+	} else {
+		count := u.ClearEvent(models.EventSub, user.Id)
+		redis.IncrEventCount(u.Id, models.EventSub, -count)
 	}
+
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
+}
+
+func blacklistHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form relationshipForm) {
+	user := redis.OnlineUser(form.Token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+
+	u := &models.Account{}
+	if find, err := u.FindByUserid(form.Userid); !find {
+		if err == nil {
+			err = errors.NewError(errors.NotExistsError)
+		}
+		writeResponse(request.RequestURI, resp, nil, err)
+		return
+	}
+
+	redis.SetRelationship(user.Id, form.Userid, models.RelBlacklist, form.Blacklist)
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }
@@ -225,11 +250,13 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	var ids []string
 	switch form.Type {
 	case "FRIENDS":
-		ids = redis.Friends("friend", user.Id)
+		ids = redis.Friends(models.RelFriend, user.Id)
 	case "ATTENTION":
-		ids = redis.Friends("following", user.Id)
+		ids = redis.Friends(models.RelFollowing, user.Id)
 	case "FANS":
-		ids = redis.Friends("follower", user.Id)
+		ids = redis.Friends(models.RelFollower, user.Id)
+	case "DEFRIEND":
+		ids = redis.Friends(models.RelBlacklist, user.Id)
 	case "WEIBO":
 		ids = redis.Friends("weibo", user.Id)
 	}
@@ -248,6 +275,7 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		lb[i].Nickname = users[i].Nickname
 		lb[i].Gender = users[i].Gender
 		lb[i].LastLog = users[i].LastLogin.Unix()
+		lb[i].Birth = users[i].Birth
 		if users[i].Loc != nil {
 			lb[i].Location = *users[i].Loc
 		}

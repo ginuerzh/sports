@@ -71,13 +71,12 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	if err := user.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
 	} else {
-		token := Uuid()
-		data := map[string]string{"access_token": token}
-		writeResponse(request.RequestURI, resp, data, nil)
+		//token := Uuid()
+		//data := map[string]string{"access_token": token}
+		writeResponse(request.RequestURI, resp, nil, nil)
 
 		redis.LogRegister(user.Id)
-		redis.LogOnlineUser(token, user)
-		redis.LogVisitor(user.Id)
+		//redis.SetOnlineUser(token, user, true)
 	}
 }
 
@@ -99,11 +98,6 @@ type loginForm struct {
 }
 
 func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.Account, error) {
-	weiboUser, err := GetWeiboUserInfo(uid, password)
-	if err != nil {
-		return false, nil, err
-	}
-
 	user := &models.Account{Id: strings.ToLower(uid)}
 	exists, err := user.Exists()
 	if err != nil {
@@ -118,6 +112,10 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 			user.ChangePassword(p)
 		}
 		return false, user, nil
+	}
+	weiboUser, err := GetWeiboUserInfo(uid, password)
+	if err != nil {
+		return false, nil, err
 	}
 
 	user.Nickname = weiboUser.ScreenName
@@ -213,8 +211,7 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 	writeResponse(request.RequestURI, resp, data, nil)
 
 	user.UpdateAction(ActLogin, d)
-	redis.LogOnlineUser(token, user)
-	redis.LogVisitor(user.Id)
+	redis.SetOnlineUser(token, user, true)
 }
 
 type logoutForm struct {
@@ -266,6 +263,7 @@ type userJsonStruct struct {
 
 	Wallet   string `json:"wallet"`
 	Relation string `json:"relation"`
+	LastLog  int64  `json:"last_login_time"`
 }
 
 func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getInfoForm) {
@@ -304,8 +302,12 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 
 		Photos: user.Photos,
 
-		Wallet: user.Wallet.Addr,
+		Wallet:  user.Wallet.Addr,
+		LastLog: user.LastLogin.Unix(),
 	}
+
+	info.Follows, info.Followers, _, _ = redis.FriendCount(user.Id)
+
 	if user.Equips != nil {
 		info.Equips = *user.Equips
 	}
@@ -349,11 +351,12 @@ func friendCountHandler(request *http.Request, resp http.ResponseWriter, redis *
 		return
 	}
 
-	follows, followers, friends := redis.FriendCount(user.Id)
+	follows, followers, friends, blacklist := redis.FriendCount(user.Id)
 	respData := map[string]int{
 		"friend_count":    friends,
 		"attention_count": follows,
 		"fans_count":      followers,
+		"defriend_count":  blacklist,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
@@ -403,7 +406,7 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{Wealth: int64(score)}}, err)
 
 	user.UpdateAction(ActInfo, nowDate())
-	redis.LogOnlineUser(form.Token, user)
+	redis.SetOnlineUser(form.Token, user, false)
 }
 
 type setProfileForm struct {
@@ -419,7 +422,7 @@ func setProfileHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	err := user.ChangeProfile(form.ImageId)
-	redis.LogOnlineUser(form.Token, user)
+	redis.SetOnlineUser(form.Token, user, false)
 	/*
 		score := 0
 		if len(user.Profile) == 0 && err == nil {

@@ -312,5 +312,8 @@ func (this *Article) Reward(userid string, amount int64) error {
 		ReturnNew: true,
 	}
 	_, err := apply(articleColl, bson.M{"_id": this.Id}, change, this)
+
+	this.TotalReward += amount
+
 	return err
 }

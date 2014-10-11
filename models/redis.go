@@ -55,8 +55,8 @@ const (
 )
 
 const (
-	onlineUserExpire = 60 * 60  // 15m online user timeout
-	onlinesExpire    = 120 * 60 // 60m online set timeout
+	onlineUserExpire = 30 * 24 * 60 * 60 // 1mon online user timeout
+	onlinesExpire    = 120 * 60          // 60m online set timeout
 )
 
 type RedisLogger struct {
@@ -194,12 +194,10 @@ func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
 	}
 }
 
-func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
+func (logger *RedisLogger) SetOnlineUser(accessToken string, user *Account, login bool) {
 	if user == nil {
 		return
 	}
-
-	conn := logger.conn
 
 	u := &redisUser{
 		Userid:    user.Id,
@@ -220,17 +218,19 @@ func (logger *RedisLogger) LogOnlineUser(accessToken string, user *Account) {
 		u.Lng = user.Loc.Lng
 	}
 
-	conn.Send("MULTI")
-	if !strings.HasPrefix(accessToken, GuestUserPrefix) {
-		conn.Send("HMSET", redis.Args{}.Add(redisUserOnlineUserPrefix+accessToken).AddFlat(u)...)
-		conn.Send("EXPIRE", redisUserOnlineUserPrefix+accessToken, onlineUserExpire)
-	} else {
-		//conn.Send("HSETNX", redisUserGuest, accessToken, user.Id)
-	}
+	logger.conn.Do("HMSET", redis.Args{}.Add(redisUserOnlineUserPrefix+accessToken).AddFlat(u)...)
 
-	timeStr := onlineTimeString()
-	conn.Send("SADD", redisUserOnlinesPrefix+timeStr, user.Id)
-	conn.Send("EXPIRE", redisUserOnlinesPrefix+timeStr, onlinesExpire)
+	if login {
+		logger.conn.Do("EXPIRE", redisUserOnlineUserPrefix+accessToken, onlineUserExpire)
+	}
+}
+
+func (logger *RedisLogger) SetOnline(userid string) {
+	conn := logger.conn
+	t := onlineTimeString()
+	conn.Send("MULTI")
+	conn.Send("SADD", redisUserOnlinesPrefix+t, userid)
+	conn.Send("EXPIRE", redisUserOnlinesPrefix+t, onlinesExpire)
 	conn.Do("EXEC")
 }
 
@@ -285,32 +285,6 @@ func (logger *RedisLogger) SetRelationship(userid, peer string, relation string,
 	conn.Do("EXEC")
 }
 
-/*
-func (logger *RedisLogger) Followed(userid, following string) bool {
-	if len(userid) == 0 || len(following) == 0 {
-		return false
-	}
-	followed, _ := redis.Bool(logger.conn.Do("SISMEMBER", redisUserFollowPrefix+userid, following))
-	return followed
-}
-
-
-func (logger *RedisLogger) SetFollow(userid, following string, follow bool) {
-	if len(userid) == 0 || len(following) == 0 {
-		return
-	}
-	conn := logger.conn
-	conn.Send("MULTI")
-	if follow {
-		conn.Send("SADD", redisUserFollowPrefix+userid, following)
-		conn.Send("SADD", redisUserFollowerPrefix+following, userid)
-	} else {
-		conn.Send("SREM", redisUserFollowPrefix+userid, following)
-		conn.Send("SREM", redisUserFollowerPrefix+following, userid)
-	}
-	conn.Do("EXEC")
-}
-*/
 func (logger *RedisLogger) SetWBImport(userid, wb string) {
 	logger.conn.Do("SADD", redisUserWBImportPrefix+userid, wb)
 }
@@ -344,18 +318,19 @@ func (logger *RedisLogger) Friends(typ string, userid string) (users []string) {
 	return
 }
 
-func (logger *RedisLogger) FriendCount(userid string) (follows int, followers int, friends int) {
+func (logger *RedisLogger) FriendCount(userid string) (follows, followers, friends, blacklist int) {
 	conn := logger.conn
 
 	conn.Send("MULTI")
 	conn.Send("SCARD", redisUserFollowPrefix+userid)
 	conn.Send("SCARD", redisUserFollowerPrefix+userid)
+	conn.Send("SCARD", redisUserBlacklistPrefix+userid)
 	values, err := redis.Values(conn.Do("EXEC"))
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	counts := make([]int, 2)
+	counts := make([]int, 3)
 
 	if err := redis.ScanSlice(values, &counts); err != nil {
 		log.Println(err)
@@ -364,6 +339,7 @@ func (logger *RedisLogger) FriendCount(userid string) (follows int, followers in
 
 	follows = counts[0]
 	followers = counts[1]
+	blacklist = counts[2]
 	friends = len(logger.Friends("friend", userid))
 	return
 }
@@ -464,6 +440,9 @@ func (logger *RedisLogger) EventCount(userid string) (counts []int) {
 }
 
 func (logger *RedisLogger) IncrEventCount(userid string, eventType string, count int) {
+	if len(userid) == 0 || count == 0 {
+		return
+	}
 	logger.conn.Do("HINCRBY", RedisUserInfoPrefix+userid, "event_"+eventType, count)
 }
 

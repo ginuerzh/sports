@@ -293,7 +293,7 @@ type articleInfoForm struct {
 	Token string `form:"access_token"`
 }
 
-func articleInfoHandler(request *http.Request, resp http.ResponseWriter, form articleInfoForm) {
+func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form articleInfoForm) {
 	article := &models.Article{}
 	if find, err := article.FindById(form.Id); !find {
 		if err == nil {
@@ -301,6 +301,17 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, form ar
 		}
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
+	}
+
+	if user := redis.OnlineUser(form.Token); user != nil && user.Id == article.Author {
+		count := user.ClearEvent(models.EventThumb, article.Id.Hex())
+		redis.IncrEventCount(user.Id, models.EventThumb, -count)
+
+		count = user.ClearEvent(models.EventComment, article.Id.Hex())
+		redis.IncrEventCount(user.Id, models.EventComment, -count)
+
+		count = user.ClearEvent(models.EventReward, article.Id.Hex())
+		redis.IncrEventCount(user.Id, models.EventReward, -count)
 	}
 
 	jsonStruct := convertArticle(article)

@@ -11,6 +11,12 @@ import (
 )
 
 const (
+	TaskRunning = "PHYSIQUE"
+	TaskPost    = "LITERATURE"
+	TaskGame    = "MAGIC"
+)
+
+const (
 	TaskCompleted = iota
 	TaskUncompleted
 )
@@ -32,13 +38,15 @@ type Event struct {
 */
 
 type Proof struct {
-	Tid  int
-	Pics []string
+	Tid    int
+	Pics   []string
+	Result string `bson:",omitempty"`
 }
 
 type TaskList struct {
 	Completed   []int
 	Uncompleted []int
+	Waited      []int
 	Proofs      []Proof
 	Last        time.Time
 }
@@ -360,18 +368,36 @@ func (this *User) GetTasks() (TaskList, error) {
 	return this.Tasks, err
 }
 
-func (this *User) AddTask(tid int, proofs []string) error {
+func (this *User) AddTask(typ string, tid int, proofs []string) error {
 	selector := bson.M{
 		"_id": this.Id,
 	}
-	change := bson.M{
-		"$addToSet": bson.M{
-			"tasks.uncompleted": tid,
-			"tasks.proofs":      Proof{Tid: tid, Pics: proofs},
-		},
-		"$set": bson.M{
-			"tasks.last": time.Now(),
-		},
+
+	update(userColl, selector, bson.M{"$pull": bson.M{"tasks.proofs": bson.M{"tid": tid}}}, true)
+
+	var change bson.M
+	if typ == TaskRunning {
+		change = bson.M{
+			"$pull": bson.M{
+				"tasks.uncompleted": tid,
+			},
+			"$addToSet": bson.M{
+				"tasks.waited": tid,
+				"tasks.proofs": Proof{Tid: tid, Pics: proofs},
+			},
+			"$set": bson.M{
+				"tasks.last": time.Now(),
+			},
+		}
+	} else {
+		change = bson.M{
+			"$addToSet": bson.M{
+				"tasks.completed": tid,
+			},
+			"$set": bson.M{
+				"tasks.last": time.Now(),
+			},
+		}
 	}
 
 	if err := update(userColl, selector, change, true); err != nil {
@@ -387,7 +413,7 @@ func (this *User) SetTaskComplete(tid int) error {
 
 	change := bson.M{
 		"$pull": bson.M{
-			"tasks.uncompleted": tid,
+			"tasks.waited": tid,
 		},
 		"$addToSet": bson.M{
 			"tasks.completed": tid,
