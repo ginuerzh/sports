@@ -46,7 +46,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 // user register parameter
 type userRegForm struct {
 	Email    string `json:"email" binding:"required"`
-	Nickname string `json:"nikename" binding:"required"`
+	Nickname string `json:"nikename"`
 	Password string `json:"password" binding:"required"`
 	//Role     string `json:"role"`
 }
