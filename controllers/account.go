@@ -71,9 +71,9 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	if err := user.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
 	} else {
-		//token := Uuid()
-		//data := map[string]string{"access_token": token}
-		writeResponse(request.RequestURI, resp, nil, nil)
+		token := Uuid()
+		data := map[string]string{"access_token": token}
+		writeResponse(request.RequestURI, resp, data, nil)
 
 		redis.LogRegister(user.Id)
 		//redis.SetOnlineUser(token, user, true)
