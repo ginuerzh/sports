@@ -587,9 +587,8 @@ func searchHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLo
 		}
 		form.Paging.Count = 50
 		users, err = user.SearchNear(&form.Paging)
-	} else if len(form.Nickname) > 0 {
-		users, err = models.Search(form.Nickname, &form.Paging)
 	} else {
+		users, err = models.Search(form.Nickname, &form.Paging)
 	}
 
 	list := make([]leaderboardResp, len(users))

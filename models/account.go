@@ -498,13 +498,16 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 	total := 0
 
 	query := bson.M{
-		"nickname": bson.M{
-			"$regex":   nickname,
-			"$options": "i",
-		},
 		"reg_time": bson.M{
 			"$gt": time.Unix(0, 0),
 		},
+	}
+
+	if len(nickname) > 0 {
+		query["nickname"] = bson.M{
+			"$regex":   nickname,
+			"$options": "i",
+		}
 	}
 	if err := psearch(accountColl, query, nil, []string{"-reg_time"}, nil, &users, searchPagingFunc, paging); err != nil {
 		if err != mgo.ErrNotFound {
