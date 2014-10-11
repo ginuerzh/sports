@@ -21,6 +21,7 @@ func init() {
 	ensureIndex(accountColl, "-score")
 	ensureIndex(accountColl, "nickname")
 	ensureIndex(accountColl, "-reg_time")
+	ensureIndex(accountColl, "-lastlogin")
 	ensureIndex2D(accountColl, "loc")
 }
 
@@ -469,8 +470,8 @@ func searchPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			return nil, err
 		}
 		query = bson.M{
-			"reg_time": bson.M{
-				"$gte": user.RegTime,
+			"lastlogin": bson.M{
+				"$gte": user.LastLogin,
 			},
 			"_id": bson.M{
 				"$ne": user.Id,
@@ -481,8 +482,8 @@ func searchPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			return nil, err
 		}
 		query = bson.M{
-			"reg_time": bson.M{
-				"$lte": user.RegTime,
+			"lastlogin": bson.M{
+				"$lte": user.LastLogin,
 			},
 			"_id": bson.M{
 				"$ne": user.Id,
@@ -509,7 +510,7 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 			"$options": "i",
 		}
 	}
-	if err := psearch(accountColl, query, nil, []string{"-reg_time"}, nil, &users, searchPagingFunc, paging); err != nil {
+	if err := psearch(accountColl, query, nil, []string{"-lastlogin"}, nil, &users, searchPagingFunc, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
 		}
