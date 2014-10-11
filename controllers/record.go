@@ -108,7 +108,7 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter, redis *
 		if records[i].Sport != nil {
 			recs[i].Duration = records[i].Sport.Duration
 			recs[i].Distance = records[i].Sport.Distance
-			recs[i].Pics = records[i].Sport.Pics[:1]
+			recs[i].Pics = records[i].Sport.Pics
 		}
 		if records[i].Game != nil {
 			recs[i].GameName = records[i].Game.Name
