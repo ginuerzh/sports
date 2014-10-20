@@ -58,6 +58,9 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 			Distance: form.Record.Distance,
 			Pics:     form.Record.Pics,
 		}
+		if form.Record.Duration > 0 {
+			rec.Sport.Speed = float64(form.Record.Distance) / float64(form.Record.Duration)
+		}
 		awards.Physical = 1
 	}
 	if err := rec.Save(); err != nil {
@@ -310,16 +313,26 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 	stats.RecCount, _ = models.TotalRecords(form.Userid)
 	stats.TotalDistance, stats.TotalDuration = redis.RecStats(form.Userid)
 	maxDisRec, _ := models.MaxDistanceRecord(form.Userid)
-	if maxDisRec != nil {
-		stats.MaxDistance = &record{
-			Type: maxDisRec.Type,
-			Time: maxDisRec.Time.Unix(),
-		}
-		if maxDisRec.Sport != nil {
-			stats.MaxDistance.Duration = maxDisRec.Sport.Duration
-			stats.MaxDistance.Distance = maxDisRec.Sport.Distance
-		}
+	maxSpeedRec, _ := models.MaxSpeedRecord(form.Userid)
+
+	stats.MaxDistance = &record{
+		Type: maxDisRec.Type,
+		Time: maxDisRec.Time.Unix(),
 	}
+	if maxDisRec.Sport != nil {
+		stats.MaxDistance.Duration = maxDisRec.Sport.Duration
+		stats.MaxDistance.Distance = maxDisRec.Sport.Distance
+	}
+
+	stats.MaxSpeed = &record{
+		Type: maxSpeedRec.Type,
+		Time: maxSpeedRec.Time.Unix(),
+	}
+	if maxSpeedRec.Sport != nil {
+		stats.MaxSpeed.Duration = maxSpeedRec.Sport.Duration
+		stats.MaxSpeed.Distance = maxSpeedRec.Sport.Distance
+	}
+
 	stats.Score = models.UserScore(redis.UserProps(form.Userid))
 	stats.Actor = userActor(user.Actor)
 	stats.Level = models.UserLevel(stats.Score)

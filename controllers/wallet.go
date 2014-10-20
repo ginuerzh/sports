@@ -21,8 +21,8 @@ import (
 	"time"
 )
 
-const (
-	coinAddr = "http://localhost:8087"
+var (
+	CoinAddr = "http://localhost:8087"
 )
 
 func BindWalletApi(m *martini.ClassicMartini) {
@@ -285,7 +285,7 @@ func getAddrTxs(addr string) ([]Tx, error) {
 	if len(addr) == 0 {
 		return txs, nil
 	}
-	resp, err := http.Get(coinAddr + "/addr_txs?addr=" + addr)
+	resp, err := http.Get(CoinAddr + "/addr_txs?addr=" + addr)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ type txResp struct {
 }
 
 func sendRawTx(rawtx string) (txid string, err error) {
-	resp, err := http.PostForm(coinAddr+"/pushtx", url.Values{"rawtx": {rawtx}})
+	resp, err := http.PostForm(CoinAddr+"/pushtx", url.Values{"rawtx": {rawtx}})
 	if err != nil {
 		return
 	}
@@ -344,7 +344,7 @@ func getUnspent(addr string, keys []*key, value int64) (outputs []output, amount
 	if _, ok := keyMap[addr]; ok {
 		addrs = []string{addr}
 	}
-	resp, err := http.Get(coinAddr + "/unspent?addr=" + strings.Join(addrs, "|"))
+	resp, err := http.Get(CoinAddr + "/unspent?addr=" + strings.Join(addrs, "|"))
 	if err != nil {
 		return
 	}
@@ -380,7 +380,7 @@ func getBalance(addrs []string) (b *balanceAddrs, err error) {
 	if len(addrs) == 0 {
 		return
 	}
-	resp, err := http.Get(coinAddr + "/multiaddr?addr=" + strings.Join(addrs, "|"))
+	resp, err := http.Get(CoinAddr + "/multiaddr?addr=" + strings.Join(addrs, "|"))
 	if err != nil {
 		log.Println(err)
 		return
@@ -440,7 +440,7 @@ func (w *wallet) AddKey(k *key) {
 }
 
 func getWallet(id, sharedKey string) (*wallet, error) {
-	resp, err := http.Get(coinAddr + "/wallet?wallet_id=" + id)
+	resp, err := http.Get(CoinAddr + "/wallet?wallet_id=" + id)
 	if err != nil {
 		return nil, err
 	}
@@ -463,7 +463,7 @@ func saveWallet(id string, w *wallet) (string, error) {
 		return id, err
 	}
 
-	resp, err := http.PostForm(coinAddr+"/wallet", url.Values{"wallet_id": {id}, "payload": {s}})
+	resp, err := http.PostForm(CoinAddr+"/wallet", url.Values{"wallet_id": {id}, "payload": {s}})
 	if err != nil {
 		return id, err
 	}

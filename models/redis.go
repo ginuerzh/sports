@@ -16,11 +16,12 @@ const (
 	redisPrefix             = "sports"
 	redisStatVisitorPrefix  = redisPrefix + ":stat:visitors:"  // set per day
 	redisStatPvPrefix       = redisPrefix + ":stat:pv:"        // sorted set per day
-	redisStatRegisterPrefix = redisPrefix + ":stat:registers:" // set per day
+	redisStatRegisterPrefix = redisPrefix + ":stat:registers:" // set per day, register users per day
+	redisStatLoginPrefix    = redisPrefix + ":stat:logins:"    // set per day, login users per day
 
-	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:" // set per half an hour
-	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"  // hashs per user
-	RedisUserInfoPrefix       = redisPrefix + ":user:info:"    // hashs per user
+	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:" // set per half an hour, current online users
+	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"  // hashs per user, online user info
+	RedisUserInfoPrefix       = redisPrefix + ":user:info:"    // hashs per user, user's event box at now
 	//redisUserGuest            = redisPrefix + ":user:guest"    // hashes for all guests
 	//redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
 	redisUserFollowPrefix    = redisPrefix + ":user:follow:"       // set per user
@@ -123,6 +124,10 @@ func (logger *RedisLogger) LogRegister(userid string) {
 
 func (logger *RedisLogger) RegisterCount(days int) []int64 {
 	return logger.setsCount(redisStatRegisterPrefix, days)
+}
+
+func (logger *RedisLogger) LogLogin(userid string) {
+	logger.conn.Do("SADD", redisStatLoginPrefix+DateString(time.Now()), userid)
 }
 
 func onlineTimeString() string {
@@ -274,7 +279,9 @@ func (logger *RedisLogger) SetRelationship(userid, peer string, relation string,
 	case RelBlacklist:
 		if enable {
 			conn.Send("SREM", redisUserFollowPrefix+userid, peer)
+			conn.Send("SREM", redisUserFollowPrefix+peer, userid)
 			conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
+			conn.Send("SREM", redisUserFollowerPrefix+userid, peer)
 			conn.Send("SADD", redisUserBlacklistPrefix+userid, peer)
 		} else {
 			conn.Send("SREM", redisUserBlacklistPrefix+userid, peer)

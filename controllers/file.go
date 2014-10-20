@@ -21,7 +21,8 @@ const (
 )
 
 var (
-	weedfs = weedo.NewClient("localhost:9334")
+	Weedfs *weedo.Client
+	//weedfs = weedo.NewClient("localhost:9334")
 )
 
 func BindFileApi(m *martini.ClassicMartini) {
@@ -66,7 +67,7 @@ func fileUploadHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	fid, length, err := weedfs.Master().Submit(header.Filename, header.Header.Get("Content-Type"), filedata)
+	fid, length, err := Weedfs.Master().Submit(header.Filename, header.Header.Get("Content-Type"), filedata)
 	if err != nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
 		return
@@ -88,7 +89,7 @@ func fileUploadHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	url, _, _ := weedfs.GetUrl(fid)
+	url, _, _ := Weedfs.GetUrl(fid)
 	respData := map[string]interface{}{"fileid": fid, "fileurl": url}
 
 	writeResponse(request.RequestURI, resp, respData, nil)

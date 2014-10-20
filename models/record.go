@@ -17,6 +17,7 @@ func init() {
 type SportRecord struct {
 	Duration int64
 	Distance int
+	Speed    float64
 	Pics     []string
 }
 
@@ -55,13 +56,18 @@ func TotalRecords(userid string) (int, error) {
 	return total, err
 }
 
-func MaxDistanceRecord(userid string) (rec *Record, err error) {
-	var records []Record
-	err = search(recordColl, bson.M{"uid": userid}, nil, 0, 1, []string{"-sport.distance"}, nil, &records)
-	if len(records) > 0 {
-		rec = &records[0]
-	}
-	return
+func MaxDistanceRecord(userid string) (*Record, error) {
+	record := &Record{}
+	err := findOne(recordColl, bson.M{"uid": userid}, []string{"-sport.distance"}, record)
+
+	return record, err
+}
+
+func MaxSpeedRecord(userid string) (*Record, error) {
+	record := &Record{}
+	err := findOne(recordColl, bson.M{"uid": userid}, []string{"-sport.speed"}, record)
+
+	return record, err
 }
 
 func (this *Record) Save() error {

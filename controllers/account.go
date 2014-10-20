@@ -182,6 +182,10 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 		return
 	}
 
+	//user.UpdateAction(ActLogin, d)
+	redis.SetOnlineUser(token, user, true)
+	redis.LogLogin(user.Id)
+
 	lastlog := time.Now()
 	d := nowDate()
 	count := user.LoginCount
@@ -209,9 +213,6 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 		"ExpEffect":       awards,
 	}
 	writeResponse(request.RequestURI, resp, data, nil)
-
-	user.UpdateAction(ActLogin, d)
-	redis.SetOnlineUser(token, user, true)
 }
 
 type logoutForm struct {

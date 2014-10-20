@@ -5,12 +5,15 @@ import (
 	"flag"
 	"github.com/garyburd/redigo/redis"
 	"github.com/ginuerzh/sports/controllers"
-	//"github.com/martini-contrib/gzip"
+	"github.com/ginuerzh/sports/models"
 	"github.com/zhengying/apns"
+	//"github.com/martini-contrib/gzip"
+	"gopkg.in/ginuerzh/weedo.v0"
 	"gopkg.in/go-martini/martini.v1"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	//"strconv"
 	"time"
 )
@@ -18,7 +21,8 @@ import (
 var (
 	staticDir  string
 	listenAddr string
-	coinAddr   string
+	redisAddr  string
+	weedfsAddr string
 )
 
 func init() {
@@ -26,8 +30,16 @@ func init() {
 
 	flag.StringVar(&staticDir, "static", "public", "static files directory")
 	flag.StringVar(&listenAddr, "l", ":8080", "addr on listen")
-	flag.StringVar(&coinAddr, "cs", ":8087", "coin server address")
+	flag.StringVar(&redisAddr, "redis", "localhost:6379", "redis server")
+	flag.StringVar(&models.MongoAddr, "mongo", "localhost:27017", "mongodb server")
+	flag.StringVar(&controllers.CoinAddr, "cs", "localhost:8087", "coin server")
+	flag.StringVar(&weedfsAddr, "weed", "localhost:9334", "weed-fs server")
 	flag.Parse()
+
+	if !strings.HasPrefix(controllers.CoinAddr, "http") {
+		controllers.CoinAddr = "http://" + controllers.CoinAddr
+	}
+	controllers.Weedfs = weedo.NewClient(weedfsAddr)
 }
 
 func classic() *martini.ClassicMartini {
@@ -62,7 +74,7 @@ func main() {
 	controllers.BindTaskApi(m)
 
 	//m.Run()
-	http.ListenAndServe(listenAddr, m)
+	log.Fatal(http.ListenAndServe(listenAddr, m))
 }
 
 func redisPool() *redis.Pool {
@@ -70,7 +82,7 @@ func redisPool() *redis.Pool {
 		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", "localhost:6379")
+			c, err := redis.Dial("tcp", redisAddr)
 			if err != nil {
 				log.Println(err)
 				return nil, err

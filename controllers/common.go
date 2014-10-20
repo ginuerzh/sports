@@ -160,7 +160,7 @@ func decodeJson(r io.Reader, v interface{}) error {
 }
 
 func sendCoin(toAddr string, amount int64) (string, error) {
-	resp, err := http.PostForm(coinAddr+"/send", url.Values{"to": {toAddr}, "amount": {strconv.FormatInt(amount, 10)}})
+	resp, err := http.PostForm(CoinAddr+"/send", url.Values{"to": {toAddr}, "amount": {strconv.FormatInt(amount, 10)}})
 	if err != nil {
 		return "", err
 	}

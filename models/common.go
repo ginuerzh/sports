@@ -57,6 +57,10 @@ var (
 	GuestUserPrefix = "guest:"
 )
 
+var (
+	MongoAddr string
+)
+
 const (
 	Satoshi = 100000000
 )
@@ -144,7 +148,7 @@ type PagingFunc func(c *mgo.Collection, first, last string, args ...interface{})
 func getSession() *mgo.Session {
 	if mgoSession == nil {
 		var err error
-		mgoSession, err = mgo.Dial("localhost")
+		mgoSession, err = mgo.Dial(MongoAddr)
 		if err != nil {
 			log.Println(err) // no, not really
 		}
