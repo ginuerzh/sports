@@ -58,7 +58,7 @@ var (
 )
 
 var (
-	MongoAddr string
+	MongoAddr = "localhost:27017"
 )
 
 const (
@@ -149,6 +149,7 @@ func getSession() *mgo.Session {
 	if mgoSession == nil {
 		var err error
 		mgoSession, err = mgo.Dial(MongoAddr)
+		//log.Println(MongoAddr)
 		if err != nil {
 			log.Println(err) // no, not really
 		}
