@@ -68,6 +68,34 @@ func (this *Message) Save() error {
 	return nil
 }
 
+func (this *Message) RemoveId() error {
+	if err := removeId(msgColl, this.Id, true); err != nil {
+		if e, ok := err.(*mgo.LastError); ok {
+			return errors.NewError(errors.DbError, e.Error())
+		}
+	}
+	return nil
+}
+
+func (this *Message) Delete(from, to string, start, end time.Time) (count int, err error) {
+	selector := bson.M{
+		"$or": []bson.M{
+			bson.M{"from": from, "to": to},
+			bson.M{"from": to, "to": from},
+		},
+		"time": bson.M{
+			"$lte": end,
+			"$gte": start,
+		},
+	}
+	info, err := removeAll(msgColl, selector, true)
+	if info != nil {
+		count = info.Removed
+	}
+
+	return
+}
+
 func msgPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error) {
 	msg := &Message{}
 

@@ -10,17 +10,6 @@ import (
 	"time"
 )
 
-const (
-	TaskRunning = "PHYSIQUE"
-	TaskPost    = "LITERATURE"
-	TaskGame    = "MAGIC"
-)
-
-const (
-	TaskCompleted = iota
-	TaskUncompleted
-)
-
 type Contact struct {
 	Id       string
 	Profile  string
@@ -49,6 +38,35 @@ type TaskList struct {
 	Waited      []int
 	Proofs      []Proof
 	Last        time.Time
+}
+
+func (tl *TaskList) TaskStatus(tid int) (status string) {
+	for i := len(tl.Completed) - 1; i >= 0; i-- {
+		if tid == tl.Completed[i] {
+			return "FINISH"
+		}
+	}
+	for _, id := range tl.Waited {
+		if tid == id {
+			return "AUTHENTICATION"
+		}
+	}
+	for _, id := range tl.Uncompleted {
+		if tid == id {
+			return "UNFINISH"
+		}
+	}
+
+	return "NORMAL"
+}
+
+func (tl *TaskList) GetProof(tid int) Proof {
+	for _, proof := range tl.Proofs {
+		if proof.Tid == tid {
+			return proof
+		}
+	}
+	return Proof{}
 }
 
 type User struct {
@@ -92,7 +110,7 @@ func (this *User) Articles(typ string, paging *Paging) (int, []Article, error) {
 		query = bson.M{"author": this.Id}
 	}
 
-	if err := psearch(articleColl, query, nil, []string{"-pub_time"}, nil, &articles,
+	if err := psearch(articleColl, query, nil, []string{"-pub_time"}, &total, &articles,
 		articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -101,6 +119,9 @@ func (this *User) Articles(typ string, paging *Paging) (int, []Article, error) {
 		return total, nil, e
 	}
 
+	paging.First = ""
+	paging.Last = ""
+	paging.Count = 0
 	if len(articles) > 0 {
 		paging.First = articles[0].Id.Hex()
 		paging.Last = articles[len(articles)-1].Id.Hex()
@@ -130,7 +151,7 @@ func (this *User) Messages(userid string, paging *Paging) (int, []Message, error
 		},
 	}
 
-	if err := psearch(msgColl, query, nil, []string{"-time"}, nil, &msgs,
+	if err := psearch(msgColl, query, nil, []string{"-time"}, &total, &msgs,
 		msgPagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -406,18 +427,38 @@ func (this *User) AddTask(typ string, tid int, proofs []string) error {
 	return nil
 }
 
-func (this *User) SetTaskComplete(tid int) error {
+func (this *User) SetTaskComplete(tid int, completed bool, reason string) error {
+	if len(reason) > 0 {
+		selector := bson.M{
+			"_id":              this.Id,
+			"tasks.proofs.tid": tid,
+		}
+		update(userColl, selector, bson.M{"$set": bson.M{"tasks.proofs.$.result": reason}}, true)
+	}
+
 	selector := bson.M{
 		"_id": this.Id,
 	}
+	var change bson.M
 
-	change := bson.M{
-		"$pull": bson.M{
-			"tasks.waited": tid,
-		},
-		"$addToSet": bson.M{
-			"tasks.completed": tid,
-		},
+	if completed {
+		change = bson.M{
+			"$pull": bson.M{
+				"tasks.waited": tid,
+			},
+			"$addToSet": bson.M{
+				"tasks.completed": tid,
+			},
+		}
+	} else {
+		change = bson.M{
+			"$pull": bson.M{
+				"tasks.waited": tid,
+			},
+			"$addToSet": bson.M{
+				"tasks.uncompleted": tid,
+			},
+		}
 	}
 
 	if err := update(userColl, selector, change, true); err != nil {

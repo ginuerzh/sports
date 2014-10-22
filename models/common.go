@@ -20,7 +20,7 @@ const (
 	ThumbRateMask  = 5 // 101
 	ReviewRateMask = 3 // 011
 
-	DefaultPageSize = 10
+	DefaultPageSize = 20
 	TimeFormat      = "2006-01-02 15:04:05"
 )
 
@@ -181,6 +181,15 @@ func exists(collection string, query interface{}) (bool, error) {
 // search with paging
 func psearch(collection string, query, selector interface{}, sortFields []string,
 	total *int, result interface{}, pagingFunc PagingFunc, paging *Paging, args ...interface{}) (err error) {
+
+	defer func() {
+		if paging != nil {
+			paging.Count = 0
+			paging.First = ""
+			paging.Last = ""
+		}
+	}()
+
 	q := func(c *mgo.Collection) error {
 		var pquery bson.M
 		if pagingFunc != nil {
@@ -260,6 +269,18 @@ func search(collection string, query interface{}, selector interface{},
 		return errors.NewError(errors.DbError, err.Error())
 	}
 	return nil
+}
+
+func count(collection string, query interface{}) (count int, err error) {
+	q := func (c *mgo.Collection) (err error) {
+		count, err = c.Find(query).Count()
+		return
+	}
+
+	if e := withCollection(collection, nil, q); e != nil {
+		err = errors.NewError(errors.DbError, e.Error())
+	}
+	return
 }
 
 func findOne(collection string, query interface{}, sortFields []string, result interface{}) error {
@@ -344,9 +365,9 @@ func remove(collection string, selector interface{}, safe bool) error {
 	return withCollection(collection, nil, rm)
 }
 
-func removeId(collection, id string, safe bool) error {
+func removeId(collection string, id interface{}, safe bool) error {
 	rm := func(c *mgo.Collection) error {
-		return c.RemoveId(bson.ObjectIdHex(id))
+		return c.RemoveId(id)
 	}
 	if safe {
 		return withCollection(collection, &mgo.Safe{}, rm)

@@ -129,6 +129,15 @@ func (this *Article) Save() error {
 	return nil
 }
 
+func (this *Article) RemoveId() error {
+	if err := removeId(articleColl, this.Id, true); err != nil {
+		if e, ok := err.(*mgo.LastError); ok {
+			return errors.NewError(errors.DbError, e.Error())
+		}
+	}
+	return nil
+}
+
 func (this *Article) Remove() error {
 	find, err := this.findOne(bson.M{"author": this.Author, "_id": this.Id})
 	if !find {
@@ -279,7 +288,7 @@ func (this *Article) Comments(paging *Paging) (int, []Article, error) {
 	total := 0
 
 	if err := psearch(articleColl, bson.M{"parent": this.Id.Hex()}, nil,
-		[]string{"-pub_time"}, nil, &articles, articlePagingFunc, paging); err != nil {
+		[]string{"-pub_time"}, &total, &articles, articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
 			e = errors.NewError(errors.NotFoundError, err.Error())
@@ -316,4 +325,9 @@ func (this *Article) Reward(userid string, amount int64) error {
 	this.TotalReward += amount
 
 	return err
+}
+
+func PostCount(start, end time.Time) int {
+	c, _ := count(articleColl, bson.M{"pub_time":bson.M{"$gte": start, "$lt": end}})
+	return c
 }

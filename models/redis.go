@@ -121,13 +121,16 @@ func (logger *RedisLogger) Users() int {
 func (logger *RedisLogger) LogRegister(userid string) {
 	logger.conn.Do("SADD", redisStatRegisterPrefix+DateString(time.Now()), userid)
 }
+func (logger *RedisLogger) LogLogin(userid string) {
+	logger.conn.Do("SADD", redisStatLoginPrefix+DateString(time.Now()), userid)
+}
 
 func (logger *RedisLogger) RegisterCount(days int) []int64 {
 	return logger.setsCount(redisStatRegisterPrefix, days)
 }
 
-func (logger *RedisLogger) LogLogin(userid string) {
-	logger.conn.Do("SADD", redisStatLoginPrefix+DateString(time.Now()), userid)
+func (logger *RedisLogger) LoginCount(days int) []int64 {
+	return logger.setsCount(redisStatLoginPrefix, days)
 }
 
 func onlineTimeString() string {

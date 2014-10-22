@@ -419,6 +419,11 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 	return
 }
 
+func UserCount() (count int) {
+	search(accountColl, bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}, nil, 0, 0, nil, &count, nil)
+	return
+}
+
 func Users(ids []string, paging *Paging) ([]Account, error) {
 	var users []Account
 	total := 0

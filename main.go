@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 	//"strconv"
+	"github.com/ginuerzh/sports/controllers/admin"
 	"time"
 )
 
@@ -72,6 +73,9 @@ func main() {
 	controllers.BindGroupApi(m)
 	controllers.BindWalletApi(m)
 	controllers.BindTaskApi(m)
+	admin.BindArticleApi(m)
+	admin.BindTaskApi(m)
+	admin.BindStatApi(m)
 
 	//m.Run()
 	log.Fatal(http.ListenAndServe(listenAddr, m))
