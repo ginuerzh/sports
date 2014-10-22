@@ -77,3 +77,166 @@ func (this *Record) Save() error {
 	}
 	return nil
 }
+
+// This function returns records of type recType between fromTime and toTime, at same time if nextCursor or  preCursor is not nil, the records should after
+// the cursor. The count is the max count it returns this time.
+func GetRecords(id, recType string, nextCursor, preCursor string, count int, fromTime, toTime int64) (int, []Record, error) {
+	var records []Record
+	total := 0
+
+	ft := time.Unix(0, 0)
+	if fromTime > 0 {
+		ft = time.Unix(fromTime, 0)
+	}
+
+	tt := time.Now()
+	if toTime > 0 {
+		tt = time.Unix(toTime, 0)
+	}
+
+	sortby := "-pub_time"
+
+	var pc, nc bson.ObjectId
+	var pcValid, ncValid bool
+	if len(nextCursor) > 0 {
+		if bson.IsObjectIdHex(nextCursor) {
+			nc = bson.ObjectIdHex(nextCursor)
+			ncValid = true
+		}
+	}
+
+	if len(preCursor) > 0 {
+		if bson.IsObjectIdHex(preCursor) {
+			pc = bson.ObjectIdHex(preCursor)
+			pcValid = true
+			sortby = "pub_time"
+		}
+	}
+
+	var query bson.M
+	if len(recType) > 0 {
+		if ncValid {
+			query = bson.M{
+				"_id": bson.M{
+					"$ne": nc,
+				},
+				"uid":  id,
+				"type": recType,
+				"pub_time": bson.M{
+					"$gt": ft,
+					"$lt": tt,
+				},
+			}
+		} else if pcValid {
+			query = bson.M{
+				"_id": bson.M{
+					"$ne": pc,
+				},
+				"uid":  id,
+				"type": recType,
+				"pub_time": bson.M{
+					"$gt": ft,
+					"$lt": tt,
+				},
+			}
+
+		} else {
+			query = bson.M{
+				"uid":  id,
+				"type": recType,
+				"pub_time": bson.M{
+					"$gt": ft,
+					"$lt": tt,
+				},
+			}
+
+		}
+	} else {
+		if ncValid {
+			query = bson.M{
+				"_id": bson.M{
+					"$ne": nc,
+				},
+				"uid": id,
+				"pub_time": bson.M{
+					"$gt": ft,
+					"$lt": tt,
+				},
+			}
+		} else if pcValid {
+			query = bson.M{
+				"_id": bson.M{
+					"$ne": pc,
+				},
+				"uid": id,
+				"pub_time": bson.M{
+					"$gt": ft,
+					"$lt": tt,
+				},
+			}
+
+		} else {
+			query = bson.M{
+				"uid": id,
+				"pub_time": bson.M{
+					"$gt": ft,
+					"$lt": tt,
+				},
+			}
+
+		}
+	}
+
+	if err := search(recordColl, query, nil, 0, 0, []string{sortby}, &total, &records); err != nil {
+		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	return total, records, nil
+}
+
+// This function removes the recType records between fromTime and toTime of  user "id".
+func RemoveRecordsByID(id, recType string, fromTime, toTime int64) (int, error) {
+	total := 0
+	var records []Record
+
+	ft := time.Unix(0, 0)
+	if fromTime > 0 {
+		ft = time.Unix(fromTime, 0)
+	}
+
+	tt := time.Now()
+	if toTime > 0 {
+		tt = time.Unix(toTime, 0)
+	}
+	var rm bson.M
+	if len(recType) > 0 {
+		rm = bson.M{
+			"uid":  id,
+			"type": recType,
+			"pub_time": bson.M{
+				"$gt": ft,
+				"$lt": tt,
+			},
+		}
+	} else {
+		rm = bson.M{
+			"uid": id,
+			"pub_time": bson.M{
+				"$gt": ft,
+				"$lt": tt,
+			},
+		}
+	}
+	err := search(recordColl, rm, nil, 0, 0, nil, &total, &records)
+	if err != nil {
+		return 0, err
+	}
+	if total == 0 {
+		return 0, nil
+	}
+	err = remove(recordColl, rm, true)
+	if err != nil {
+		return 0, err
+	}
+	return total, err
+}
