@@ -301,6 +301,334 @@ func UserList(skip, limit int) (total int, users []Account, err error) {
 	return
 }
 
+// This function returns users after preCursor or nextCursor sorted by sortOrder. The return count total should not be more than limit.
+func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
+	user := &Account{}
+	var query bson.M
+	var sortby string
+
+	if len(nextCursor) > 0 {
+		user.findOne(bson.M{"_id": nextCursor})
+	} else if len(preCursor) > 0 {
+		user.findOne(bson.M{"_id": preCursor})
+	}
+
+	switch sortOrder {
+	case "logintime":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"lastlogin": bson.M{
+					"$lte": user.LastLogin,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "-lastlogin"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"lastlogin": bson.M{
+					"$gte": user.LastLogin,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "lastlogin"
+		} else {
+			query = bson.M{}
+			sortby = "-lastlogin"
+		}
+
+	case "userid":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"_id": bson.M{
+					"$gt": user.Id,
+				},
+			}
+			sortby = "_id"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"_id": bson.M{
+					"$lt": user.Id,
+				},
+			}
+			sortby = "-_id"
+		} else {
+			query = bson.M{}
+			sortby = "_id"
+		}
+
+	case "nickname":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"nickname": bson.M{
+					"$gte": user.Nickname,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "nickname"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"nickname": bson.M{
+					"$lte": user.Nickname,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "-nickname"
+		} else {
+			query = bson.M{}
+			sortby = "nickname"
+		}
+
+	case "score":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"score": bson.M{
+					"$lte": user.Score,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "-score"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"score": bson.M{
+					"$gte": user.Score,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "score"
+		} else {
+			query = bson.M{}
+			sortby = "-score"
+		}
+
+	case "regtime":
+		log.Println("regtime")
+		fallthrough
+	default:
+		log.Println("default")
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"reg_time": bson.M{
+					"$lte": user.RegTime,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "-reg_time"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"reg_time": bson.M{
+					"$gte": user.RegTime,
+				},
+				"_id": bson.M{
+					"$ne": user.Id,
+				},
+			}
+			sortby = "reg_time"
+		} else {
+			query = bson.M{}
+			sortby = "-reg_time"
+		}
+	}
+
+	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
+		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	return
+}
+
+// This function returns the friends list of the user. Return users after preCursor or nextCursor and sorted by sortOrder.
+// The return count total should not be more than limit
+func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
+	user := &Account{}
+	var query bson.M
+	var sortby string
+	var uids []string
+
+	if len(nextCursor) > 0 {
+		user.findOne(bson.M{"_id": nextCursor})
+	} else if len(preCursor) > 0 {
+		user.findOne(bson.M{"_id": preCursor})
+	} else {
+		user.Id = ""
+	}
+
+	for i := 0; i < len(ids); i++ {
+		if ids[i] != user.Id {
+			uids = append(uids, ids[i])
+		}
+	}
+
+	switch sortOrder {
+	case "logintime":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"lastlogin": bson.M{
+					"$lte": user.LastLogin,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "-lastlogin"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"lastlogin": bson.M{
+					"$gte": user.LastLogin,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "lastlogin"
+		} else {
+			query = bson.M{
+				"_id": bson.M{
+					"$in": ids,
+				},
+			}
+			sortby = "-lastlogin"
+		}
+
+	case "userid":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "_id"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "-_id"
+		} else {
+			query = bson.M{
+				"_id": bson.M{
+					"$in": ids,
+				},
+			}
+			sortby = "_id"
+		}
+
+	case "nickname":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"nickname": bson.M{
+					"$gte": user.Nickname,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "nickname"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"nickname": bson.M{
+					"$lte": user.Nickname,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "-nickname"
+		} else {
+			query = bson.M{
+				"_id": bson.M{
+					"$in": ids,
+				},
+			}
+			sortby = "nickname"
+		}
+
+	case "score":
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"score": bson.M{
+					"$lte": user.Score,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "-score"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"score": bson.M{
+					"$gte": user.Score,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "score"
+		} else {
+			query = bson.M{
+				"_id": bson.M{
+					"$in": ids,
+				},
+			}
+			sortby = "-score"
+		}
+
+	case "regtime":
+		log.Println("regtime")
+		fallthrough
+	default:
+		log.Println("default")
+		if len(nextCursor) > 0 {
+			query = bson.M{
+				"reg_time": bson.M{
+					"$lte": user.RegTime,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "-reg_time"
+		} else if len(preCursor) > 0 {
+			query = bson.M{
+				"reg_time": bson.M{
+					"$gte": user.RegTime,
+				},
+				"_id": bson.M{
+					"$in": uids,
+				},
+			}
+			sortby = "reg_time"
+		} else {
+			query = bson.M{
+				"_id": bson.M{
+					"$in": ids,
+				},
+			}
+			sortby = "-reg_time"
+		}
+	}
+
+	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
+		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	return
+}
+
 func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error) {
 	record := &Record{}
 

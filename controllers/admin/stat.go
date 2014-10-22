@@ -5,6 +5,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/jinzhu/now"
 	"github.com/martini-contrib/binding"
+	"gopkg.in/go-martini/martini.v1"
 	"net/http"
 	"time"
 )
@@ -48,7 +49,7 @@ func summaryHandler(w http.ResponseWriter, redis *models.RedisLogger, form summa
 }
 
 type retentionForm struct {
-	Date int64 `form:"date"`
+	Date  int64  `form:"date"`
 	Token string `form:"access_token"`
 }
 
@@ -61,5 +62,4 @@ func retentionHandler(w http.ResponseWriter, redis *models.RedisLogger, form ret
 		}
 	*/
 
-	
 }
