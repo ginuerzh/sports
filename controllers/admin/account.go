@@ -20,6 +20,10 @@ import (
 
 var defaultCount = 20
 
+type adminError struct {
+	Error error `json:"error"`
+}
+
 type response struct {
 	ReqPath  string      `json:"req_path"`
 	RespData interface{} `json:"response_data"`
@@ -45,7 +49,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 
 	u4, err := uuid.NewV4()
 	if err != nil {
-		writeResponse(resp, nil)
+		writeResponse(resp, &adminError{Error: err})
 		return
 	}
 	token := u4.String()
@@ -63,7 +67,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	if err != nil {
-		writeResponse(resp, nil)
+		writeResponse(resp, &adminError{Error: err})
 		return
 	}
 
@@ -143,7 +147,7 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		if err == nil {
 			err = errors.NewError(errors.NotExistsError, "user '"+form.Userid+"' not exists")
 		}
-		writeResponse(resp, nil)
+		writeResponse(resp, &adminError{Error: errors.NewError(errors.NotExistsError)})
 		return
 	}
 
@@ -221,13 +225,13 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 	log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
 	count, users, err := models.GetUserListBySort(0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
 	if err != nil {
-		writeResponse(resp, nil)
+		writeResponse(resp, &adminError{Error: err})
 		return
 	}
 	log.Println("count is :", count)
 
 	if count == 0 {
-		writeResponse(resp, nil)
+		writeResponse(resp, &adminError{Error: err})
 		return
 	}
 
@@ -344,18 +348,18 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 
 	if getCount == 0 {
-		writeResponse(resp, nil)
+		writeResponse(resp, errors.NewError(errors.NotExistsError))
 		return
 	}
 
 	count, users, err := models.GetFriendsListBySort(0, getCount, userids, form.Sort, form.PrevCursor, form.NextCursor)
 	if err != nil {
-		writeResponse(resp, nil)
+		writeResponse(resp, &adminError{Error: err})
 		return
 	}
 	log.Println("count is :", count)
 	if count == 0 {
-		writeResponse(resp, nil)
+		writeResponse(resp, errors.NewError(errors.DbError))
 		return
 	}
 

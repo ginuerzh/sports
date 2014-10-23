@@ -1,7 +1,7 @@
 package admin
 
 import (
-	//"github.com/ginuerzh/sports/errors"
+	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -10,6 +10,10 @@ import (
 )
 
 var defaultRecordsCount = 20
+
+type recordError struct {
+	Error error `json:"error"`
+}
 
 func BindRecordsApi(m *martini.ClassicMartini) {
 	m.Get("/admin/record/timeline", binding.Form(getRecordsForm{}), adminErrorHandler, getRecordsListHandler)
@@ -54,11 +58,11 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 
 	tn, records, err := models.GetRecords(form.Userid, form.Type, form.NextCursor, form.PrevCursor, form.Count, form.FromTime, form.ToTime)
 	if err != nil {
-		writeResponse(resp, nil)
+		writeResponse(resp, &recordError{Error: err})
 		return
 	}
 	if tn == 0 {
-		writeResponse(resp, nil)
+		writeResponse(resp, &recordError{Error: errors.NewError(errors.NotExistsError)})
 		return
 
 	}
@@ -98,7 +102,7 @@ type deleteRecordsForm struct {
 func deleteRecordsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form deleteRecordsForm) {
 	count, err := models.RemoveRecordsByID(form.Userid, form.Type, form.FromTime, form.ToTime)
 	if err != nil {
-		writeResponse(resp, nil)
+		writeResponse(resp, &recordError{Error: err})
 		return
 	}
 
