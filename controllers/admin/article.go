@@ -18,6 +18,8 @@ func BindArticleApi(m *martini.ClassicMartini) {
 	m.Get("/admin/article/comments", binding.Form(articleListForm{}), adminErrorHandler, articleCommentsHandler)
 	m.Post("/admin/article/post", binding.Json(postForm{}), adminErrorHandler, articlePostHandler)
 	m.Post("/admin/article/delete", binding.Json(delArticleForm{}), adminErrorHandler, delArticleHandler)
+	m.Get("/admin/article/search", binding.Form(articleSearchForm{}), adminErrorHandler, articleSearchHandler)
+	m.Post("/admin/article/update", binding.Json(articleUpdateForm{}), adminErrorHandler, articleUpdateHandler)
 }
 
 type articleInfo struct {
@@ -199,6 +201,84 @@ func delArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form de
 	}
 
 	if err := article.RemoveId(); err != nil {
+		writeResponse(w, err)
+		return
+	}
+
+	writeResponse(w, map[string]interface{}{})
+}
+
+type articleSearchForm struct {
+	Keyword string `form:"keyword" binding:"required"`
+	AdminPaging
+	Token string `form:"access_token"`
+}
+
+func articleSearchHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleSearchForm) {
+	/*
+		user := redis.OnlineUser(form.Token)
+		if user == nil {
+			writeResponse(w, errors.NewError(errors.AccessError))
+			return
+		}
+	*/
+
+	paging := &models.Paging{First: form.Pre, Last: form.Next, Count: form.Count}
+	total, articles, err := models.SearchArticle(form.Keyword, paging)
+
+	if err != nil {
+		writeResponse(w, err)
+	}
+
+	list := make([]*articleInfo, len(articles))
+	for i, _ := range articles {
+		list[i] = convertArticle(&articles[i])
+	}
+
+	resp := map[string]interface{}{
+		"articles":     list,
+		"next_cursor":  paging.Last,
+		"prev_cursor":  paging.First,
+		"total_number": total,
+	}
+	writeResponse(w, resp)
+}
+
+type articleUpdateForm struct {
+	Id       string           `json:"article_id" binding:"required"`
+	Author   string           `json:"author,omitempty"`
+	Time     int64            `json:"time,omitempty"`
+	Tags     []string         `json:"tags,omitempty"`
+	Contents []models.MsgBody `json:"contents,omitempty"`
+	Token    string           `json:"access_token"`
+}
+
+func articleUpdateHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleUpdateForm) {
+	/*
+		user := redis.OnlineUser(form.Token)
+		if user == nil {
+			writeResponse(w, errors.NewError(errors.AccessError))
+			return
+		}
+	*/
+
+	var contents []models.Segment
+	for _, content := range form.Contents {
+		contents = append(contents, models.Segment{
+			ContentType: content.Type,
+			ContentText: content.Content,
+		})
+	}
+
+	article := &models.Article{
+		Id:       bson.ObjectIdHex(form.Id),
+		Author:   form.Author,
+		Contents: contents,
+		PubTime:  time.Unix(form.Time, 0),
+		Tags:     form.Tags,
+	}
+
+	if err := article.Update(); err != nil {
 		writeResponse(w, err)
 		return
 	}

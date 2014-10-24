@@ -12,6 +12,7 @@ import (
 
 func BindStatApi(m *martini.ClassicMartini) {
 	m.Get("/admin/stat/summary", binding.Form(summaryForm{}), adminErrorHandler, summaryHandler)
+	m.Get("/admin/stat/retention", binding.Form(retentionForm{}), adminErrorHandler, retentionHandler)
 }
 
 type summaryForm struct {
@@ -61,5 +62,10 @@ func retentionHandler(w http.ResponseWriter, redis *models.RedisLogger, form ret
 			return
 		}
 	*/
-
+	date := time.Now()
+	if form.Date > 0 {
+		date = time.Unix(form.Date, 0)
+	}
+	r := redis.Retention(date)
+	writeResponse(w, map[string]interface{}{"retention": r})
 }

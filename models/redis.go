@@ -133,6 +133,23 @@ func (logger *RedisLogger) LoginCount(days int) []int64 {
 	return logger.setsCount(redisStatLoginPrefix, days)
 }
 
+func (logger *RedisLogger) Retention(date time.Time) []int {
+	conn := logger.conn
+
+	counts := make([]int, 8)
+
+	counts[0], _ = redis.Int(conn.Do("SCARD", redisStatRegisterPrefix+DateString(date)))
+	d := date.AddDate(0, 0, 1)
+	for i := 0; i < 7; i++ {
+		s, _ := redis.Strings(conn.Do("SINTER", redisStatRegisterPrefix+DateString(date),
+			redisStatLoginPrefix+DateString(d)))
+		counts[i+1] = len(s)
+		d = d.AddDate(0, 0, 1)
+	}
+
+	return counts
+}
+
 func onlineTimeString() string {
 	now := time.Now()
 	min := now.Minute()
@@ -808,17 +825,17 @@ func (logger *RedisLogger) UserProps(userid string) *Props {
 	conn.Send("ZSCORE", redisScoreWealthLB, userid)
 	values, _ := redis.Values(conn.Do("EXEC"))
 
-	var scores []int64
+	var scores []float64
 	if err := redis.ScanSlice(values, &scores); err != nil {
 		log.Println(err)
 		return nil
 	}
 
 	props := &Props{
-		Physical: scores[0],
-		Literal:  scores[1],
-		Mental:   scores[2],
-		Wealth:   scores[3],
+		Physical: int64(scores[0]),
+		Literal:  int64(scores[1]),
+		Mental:   int64(scores[2]),
+		Wealth:   int64(scores[3]),
 	}
 
 	props.Score = int64(UserScore(props))

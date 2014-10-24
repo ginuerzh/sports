@@ -18,6 +18,7 @@ type AdminPaging struct {
 
 func writeResponse(w http.ResponseWriter, data interface{}) []byte {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	//w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	b, _ := json.Marshal(data)
 	fmt.Println(string(b))

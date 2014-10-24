@@ -181,6 +181,32 @@ func (this *Article) Remove() error {
 	return nil
 }
 
+func (article *Article) Update() error {
+	m := bson.M{}
+
+	if len(article.Author) > 0 {
+		m["author"] = article.Author
+	}
+	if len(article.Contents) > 0 {
+		m["contents"] = article.Contents
+	}
+	if len(article.Tags) > 0 {
+		m["tags"] = article.Tags
+	}
+	if article.PubTime.Unix() > 0 {
+		m["pub_time"] = article.PubTime
+	}
+
+	change := bson.M{
+		"$set": m,
+	}
+
+	if err := updateId(articleColl, article.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
 func (this *Article) SetThumb(userid string, thumb bool) error {
 
 	var m bson.M
@@ -328,6 +354,36 @@ func (this *Article) Reward(userid string, amount int64) error {
 }
 
 func PostCount(start, end time.Time) int {
-	c, _ := count(articleColl, bson.M{"pub_time":bson.M{"$gte": start, "$lt": end}})
+	c, _ := count(articleColl, bson.M{"pub_time": bson.M{"$gte": start, "$lt": end}})
 	return c
+}
+
+func SearchArticle(keyword string, paging *Paging) (int, []Article, error) {
+	var articles []Article
+	total := 0
+
+	query := bson.M{
+		"contents.seg_content": bson.M{
+			"$regex":   keyword,
+			"$options": "i",
+		},
+	}
+
+	if err := psearch(articleColl, query, nil, []string{"-pub_time"}, &total, &articles,
+		articlePagingFunc, paging); err != nil {
+		if err != mgo.ErrNotFound {
+			return total, nil, errors.NewError(errors.DbError, err.Error())
+		}
+	}
+
+	paging.First = ""
+	paging.Last = ""
+	paging.Count = 0
+	if len(articles) > 0 {
+		paging.First = articles[0].Id.Hex()
+		paging.Last = articles[len(articles)-1].Id.Hex()
+		paging.Count = total
+	}
+
+	return total, articles, nil
 }
