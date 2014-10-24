@@ -11,10 +11,6 @@ import (
 
 var defaultRecordsCount = 20
 
-type recordError struct {
-	Error error `json:"error"`
-}
-
 func BindRecordsApi(m *martini.ClassicMartini) {
 	m.Get("/admin/record/timeline", binding.Form(getRecordsForm{}), adminErrorHandler, getRecordsListHandler)
 	m.Post("/admin/record/delete", binding.Json(deleteRecordsForm{}), adminErrorHandler, deleteRecordsHandler)
@@ -51,6 +47,12 @@ type recordsListJsonStruct struct {
 }
 
 func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getRecordsForm) {
+	valid, errT := checkToken(redis, form.Token)
+	if !valid {
+		writeResponse(resp, errT)
+		return
+	}
+
 	getCount := form.Count
 	if getCount > defaultRecordsCount {
 		getCount = defaultRecordsCount
@@ -58,11 +60,11 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 
 	tn, records, err := models.GetRecords(form.Userid, form.Type, form.NextCursor, form.PrevCursor, form.Count, form.FromTime, form.ToTime)
 	if err != nil {
-		writeResponse(resp, &recordError{Error: err})
+		writeResponse(resp, err)
 		return
 	}
 	if tn == 0 {
-		writeResponse(resp, &recordError{Error: errors.NewError(errors.NotExistsError)})
+		writeResponse(resp, errors.NewError(errors.NotExistsError))
 		return
 
 	}
@@ -100,9 +102,15 @@ type deleteRecordsForm struct {
 }
 
 func deleteRecordsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form deleteRecordsForm) {
+	valid, errT := checkToken(redis, form.Token)
+	if !valid {
+		writeResponse(resp, errT)
+		return
+	}
+
 	count, err := models.RemoveRecordsByID(form.Userid, form.Type, form.FromTime, form.ToTime)
 	if err != nil {
-		writeResponse(resp, &recordError{Error: err})
+		writeResponse(resp, err)
 		return
 	}
 

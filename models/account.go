@@ -88,6 +88,8 @@ type Account struct {
 	Level int `json:"-"`
 
 	Equips *Equip `bson:",omitempty" json:"-"`
+
+	TimeLimit int64 `bson:"timelimit" json:"timelimit"`
 }
 
 func (this *Account) Exists() (bool, error) {
@@ -907,4 +909,11 @@ func (this *Account) ClearEvent(eventType string, eventId string) int {
 		return 0
 	}
 	return info.Removed
+}
+
+func (this *Account) UpdateInfo(change bson.M) error {
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
 }
