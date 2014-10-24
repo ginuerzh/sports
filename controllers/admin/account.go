@@ -567,222 +567,126 @@ type userInfoForm struct {
 }
 */
 
-func updateUserInfoToDB(m map[string]interface{}, u *models.Account) {
+func updateUserInfoToDB(r *models.RedisLogger, m map[string]interface{}, u *models.Account) error {
 	ss := []string{"userid", "access_token", "nickname", "equips_shoes", "equips_hardwares", "equips_softwares",
 		"phone", "role", "about", "profile", "hobby", "height", "weight", "birthday", "physique_value", "literature_value",
 		"magic_value", "coin_value", "address", "loc_latitude", "loc_longitude", "gender", "photos"}
+	changeFields := map[string]interface{}{}
+	propChanged := false
+	var prop1, prop2 *models.Props
 	for _, vv := range ss {
 		log.Println("vv is :", vv)
-		if key, exists := m[vv]; exists {
-			log.Println("key is :", key)
+		if value, exists := m[vv]; exists {
+			log.Println("value is :", value)
 			switch vv {
 			case "nickname":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"nickname": v.String(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["nickname"] = value
 			case "equips_shoes":
-				v := reflect.ValueOf(key)
-				k := v.Kind()
-				var shoes []string
-				if k == reflect.Slice || k == reflect.Array {
-					log.Println("v.Len() is :", v.Len())
-					for i := 0; i < v.Len(); i++ {
-						e := v.Index(i).Interface()
-						val := reflect.ValueOf(e)
-						log.Println("val is :", val.String())
-						shoes = append(shoes, val.String())
-					}
-				}
-				log.Println("shoes  is :", shoes)
-				change := bson.M{
-					"$set": bson.M{
-						"equips.shoes": shoes,
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["equips.shoes"] = value
 			case "equips_hardwares":
-				v := reflect.ValueOf(key)
-				k := v.Kind()
-				var hws []string
-				if k == reflect.Slice || k == reflect.Array {
-					log.Println("v.Len() is :", v.Len())
-					for i := 0; i < v.Len(); i++ {
-						e := v.Index(i).Interface()
-						val := reflect.ValueOf(e)
-						log.Println("val is :", val.String())
-						hws = append(hws, val.String())
-					}
-				}
-				log.Println("hws  is :", hws)
-				change := bson.M{
-					"$set": bson.M{
-						"equips.electronics": hws,
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["equips.electronics"] = value
 			case "equips_softwares":
-				v := reflect.ValueOf(key)
-				k := v.Kind()
-				var sws []string
-				if k == reflect.Slice || k == reflect.Array {
-					log.Println("v.Len() is :", v.Len())
-					for i := 0; i < v.Len(); i++ {
-						e := v.Index(i).Interface()
-						val := reflect.ValueOf(e)
-						log.Println("val is :", val.String())
-						sws = append(sws, val.String())
-					}
-				}
-				log.Println("sws  is :", sws)
-				change := bson.M{
-					"$set": bson.M{
-						"equips.softwares": sws,
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["equips.softwares"] = value
 			case "phone":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"phone": v.String(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["phone"] = value
 			case "role":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"role": v.String(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["role"] = value
 			case "about":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"about": v.String(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["about"] = value
 			case "profile":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"profile": v.String(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["profile"] = value
 			case "hobby":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"hobby": v.String(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["hobby"] = value
 			case "height":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"height": int(v.Int()),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["height"] = value
 			case "weight":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"weight": int(v.Int()),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["weight"] = value
 			case "birthday":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"birth": v.Int(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["birth"] = value
 			case "physique_value":
+				v, _ := value.(float64)
+				//v := reflect.ValueOf(value).Int()
+				if !propChanged {
+					propChanged = true
+					prop1 = r.UserProps(u.Id)
+				}
+				if int64(v)-prop1.Physical != 0 {
+					if prop2 == nil {
+						prop2 = new(models.Props)
+					}
+					prop2.Physical = int64(v) - prop1.Physical
+				}
 			case "literature_value":
+				v, _ := value.(float64)
+				//v := reflect.ValueOf(value).Int()
+				if !propChanged {
+					propChanged = true
+					prop1 = r.UserProps(u.Id)
+				}
+				if int64(v)-prop1.Literal != 0 {
+					if prop2 == nil {
+						prop2 = new(models.Props)
+					}
+					prop2.Literal = int64(v) - prop1.Literal
+				}
 			case "magic_value":
+				v, _ := value.(float64)
+				//v := reflect.ValueOf(value).Int()
+				if !propChanged {
+					propChanged = true
+					prop1 = r.UserProps(u.Id)
+				}
+				if int64(v)-prop1.Mental != 0 {
+					if prop2 == nil {
+						prop2 = new(models.Props)
+					}
+					prop2.Mental = int64(v) - prop1.Mental
+				}
 			case "coin_value":
 				/*
-					pps := *redis.UserProps(user.Id)
-					list[i].Physical = pps.Physical
-					list[i].Literal = pps.Literal
-					list[i].Mental = pps.Mental
-					list[i].Wealth = pps.Wealth
-					list[i].Score = pps.Score
-					list[i].Level = pps.Level
+					v, _ := value.(float64)
+							//v := reflect.ValueOf(value).Int()
+						if !propChanged {
+							propChanged = true
+							prop1 = r.UserProps(u.Id)
+						}
+							if int64(v)-prop1.Wealth != 0 {
+								if prop2 == nil {
+									prop2 = new(models.Props)
+								}
+								prop2.Wealth = int64(v) - prop1.Wealth
+							}
 				*/
 			case "address":
-				v := reflect.ValueOf(key)
+				v := reflect.ValueOf(value)
 				var Addr = new(models.Address)
 				Addr.Country = ""
 				Addr.Province = ""
 				Addr.City = ""
 				Addr.Area = ""
 				Addr.Desc = v.String()
-				change := bson.M{
-					"$set": bson.M{
-						"addr": Addr,
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["addr"] = Addr
 			case "loc_latitude":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"loc.latitude": v.Float(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["loc.latitude"] = value
 			case "loc_longitude":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"loc.longitude": v.Float(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["loc.longitude"] = value
 			case "gender":
-				v := reflect.ValueOf(key)
-				change := bson.M{
-					"$set": bson.M{
-						"gender": v.String(),
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["gender"] = value
 			case "photos":
-				v := reflect.ValueOf(key)
-				k := v.Kind()
-				var pics []string
-				if k == reflect.Slice || k == reflect.Array {
-					log.Println("v.Len() is :", v.Len())
-					for i := 0; i < v.Len(); i++ {
-						e := v.Index(i).Interface()
-						val := reflect.ValueOf(e)
-						log.Println("val is :", val.String())
-						pics = append(pics, val.String())
-					}
-				}
-				log.Println("pics  is :", pics)
-
-				change := bson.M{
-					"$set": bson.M{
-						"photos": pics,
-					},
-				}
-				u.UpdateInfo(change)
+				changeFields["photos"] = value
 			}
 		}
 	}
+	if prop2 != nil {
+		_, err := r.AddProps(u.Id, prop2)
+		return err
+	}
+
+	change := bson.M{
+		"$set": changeFields,
+	}
+	u.UpdateInfo(change)
+	return nil
 }
 
 func updateUserInfo(r *models.RedisLogger, req *http.Request, u *models.Account) (err error) {
@@ -827,7 +731,7 @@ func updateUserInfo(r *models.RedisLogger, req *http.Request, u *models.Account)
 					err = errors.NewError(errors.NotExistsError, "user '"+userid+"' not exists")
 					return
 				}
-				updateUserInfoToDB(m, u)
+				err = updateUserInfoToDB(r, m, u)
 			}
 		}
 	}
