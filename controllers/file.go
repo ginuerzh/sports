@@ -26,7 +26,7 @@ var (
 )
 
 func BindFileApi(m *martini.ClassicMartini) {
-	m.Post("/1/file/upload", binding.Form(fileUploadForm{}), ErrorHandler, fileUploadHandler)
+	m.Post("/1/file/upload", binding.Form(fileUploadForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, fileUploadHandler)
 	//m.Post("/1/file/upload", binding.MultipartForm(fileUploadForm2{}), ErrorHandler, fileUploadHandler2)
 	//m.Get(ImageDownloadV1Uri, binding.Form(imageDownloadForm{}), ErrorHandler, imageDownloadHandler)
 	//m.Post(FileDeleteV1Uri, binding.Json(fileDeleteForm{}), ErrorHandler, fileDeleteHandler)
@@ -35,6 +35,10 @@ func BindFileApi(m *martini.ClassicMartini) {
 type fileUploadForm struct {
 	AccessToken string `form:"access_token" binding:"required"`
 	//user        models.User `form:"-"`
+}
+
+func (this fileUploadForm) getTokenId() string {
+	return this.AccessToken
 }
 
 func (form *fileUploadForm) Validate(e *binding.Errors, req *http.Request) {
@@ -53,7 +57,8 @@ func fileUploadHandler2(request *http.Request, resp http.ResponseWriter, redis *
 	log.Println(form.File.Filename)
 }
 
-func fileUploadHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form fileUploadForm) {
+func fileUploadHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(fileUploadForm)
 	user := redis.OnlineUser(form.AccessToken)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))

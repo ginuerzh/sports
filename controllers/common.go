@@ -12,7 +12,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 	"github.com/zhengying/apns"
 	"io"
-	//"log"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -99,6 +99,49 @@ func ErrorHandler(err binding.Errors, request *http.Request, resp http.ResponseW
 		}
 		s += " " + e.Message
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.JsonError, s))
+	}
+}
+
+type GetToken interface {
+	getTokenId() string
+}
+
+func CheckHandler(getT GetToken, redis *models.RedisLogger, request *http.Request, resp http.ResponseWriter) {
+	token := getT.getTokenId()
+	user := redis.OnlineUser(token)
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+	}
+	log.Println("user.TimeLimit is :", user.TimeLimit, "cur time is:", time.Now().Unix())
+	if user.TimeLimit > time.Now().Unix() {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+	}
+}
+
+type getUser interface {
+	getUserId() string
+}
+
+func CheckUserIDHandler(getU getUser, redis *models.RedisLogger, request *http.Request, resp http.ResponseWriter) {
+	uid := getU.getUserId()
+	user := &models.Account{}
+	if find, err := user.FindByUserid(uid); !find {
+		if err == nil {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.NotExistsError, "user '"+uid+"' not exists"))
+			return
+		}
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.NotExistsError))
+		return
+	}
+
+	if user == nil {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
+	}
+	log.Println("user.TimeLimit is :", user.TimeLimit, "cur time is:", time.Now().Unix())
+	if user.TimeLimit > time.Now().Unix() {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		return
 	}
 }
 

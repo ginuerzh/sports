@@ -14,7 +14,7 @@ import (
 
 func BindChatApi(m *martini.ClassicMartini) {
 	m.Get("/1/chat/recent_chat_infos", binding.Form(contactsForm{}), ErrorHandler, contactsHandler)
-	m.Post("/1/chat/send_message", binding.Json(sendMsgForm{}), ErrorHandler, sendMsgHandler)
+	m.Post("/1/chat/send_message", binding.Json(sendMsgForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, sendMsgHandler)
 	m.Get("/1/chat/get_list", binding.Form(msgListForm{}), ErrorHandler, msgListHandler)
 }
 
@@ -50,8 +50,13 @@ type sendMsgForm struct {
 	Content string `json:"content" binding:"required"`
 }
 
+func (this sendMsgForm) getTokenId() string {
+	return this.Token
+}
+
 func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, form sendMsgForm) {
+	client *apns.Client, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(sendMsgForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))

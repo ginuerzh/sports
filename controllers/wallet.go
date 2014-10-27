@@ -29,7 +29,7 @@ func BindWalletApi(m *martini.ClassicMartini) {
 	m.Get("/1/wallet/get", binding.Form(walletForm{}), ErrorHandler, getWalletHandler)
 	m.Get("/1/wallet/balance", binding.Form(walletForm{}), ErrorHandler, balanceHandler)
 	m.Get("/1/wallet/newaddr", binding.Form(walletForm{}), ErrorHandler, newAddrHandler)
-	m.Post("/1/wallet/send", binding.Json(txForm{}), ErrorHandler, txHandler)
+	m.Post("/1/wallet/send", binding.Json(txForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, txHandler)
 	m.Get("/1/wallet/txs", binding.Form(addrTxsForm{}), addrTxsHandler)
 }
 
@@ -154,7 +154,12 @@ type txForm struct {
 	Value    int64  `json:"value" binding:"required"`
 }
 
-func txHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form txForm) {
+func (this txForm) getTokenId() string {
+	return this.Token
+}
+
+func txHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(txForm)
 	log.Println(form)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {

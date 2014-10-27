@@ -176,6 +176,7 @@ type redisUser struct {
 	Addrs     string  `redis:"addrs"`
 	Score     int     `redis:"score"`
 	Level     int     `redis:"level"`
+	TimeLimit int64   `redis:"timelimit"`
 }
 
 func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
@@ -206,16 +207,17 @@ func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
 	addrs := strings.Split(user.Addrs, ",")
 
 	return &Account{
-		Id:       user.Userid,
-		Nickname: user.Nickname,
-		Profile:  user.Profile,
-		RegTime:  time.Unix(user.RegTime, 0),
-		Role:     user.Role,
-		Loc:      &Location{Lng: user.Lng, Lat: user.Lat},
-		Setinfo:  user.SetInfo,
-		Wallet:   DbWallet{Id: user.WalletId, Addrs: addrs, Addr: addrs[0], Key: user.Sharedkey},
-		Score:    user.Score,
-		Level:    user.Level,
+		Id:        user.Userid,
+		Nickname:  user.Nickname,
+		Profile:   user.Profile,
+		RegTime:   time.Unix(user.RegTime, 0),
+		Role:      user.Role,
+		Loc:       &Location{Lng: user.Lng, Lat: user.Lat},
+		Setinfo:   user.SetInfo,
+		Wallet:    DbWallet{Id: user.WalletId, Addrs: addrs, Addr: addrs[0], Key: user.Sharedkey},
+		Score:     user.Score,
+		Level:     user.Level,
+		TimeLimit: user.TimeLimit,
 	}
 }
 
@@ -237,6 +239,7 @@ func (logger *RedisLogger) SetOnlineUser(accessToken string, user *Account, logi
 		Addrs:     strings.Join(user.Wallet.Addrs, ","),
 		Score:     user.Score,
 		Level:     user.Level,
+		TimeLimit: user.TimeLimit,
 	}
 	if user.Loc != nil {
 		u.Lat = user.Loc.Lat

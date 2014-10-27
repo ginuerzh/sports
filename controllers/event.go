@@ -20,7 +20,7 @@ const (
 func BindEventApi(m *martini.ClassicMartini) {
 	m.Get("/1/event/news", binding.Form(eventNewsForm{}), ErrorHandler, eventNewsHandler)
 	m.Get("/1/event/news_details", binding.Form(eventNewsForm{}), ErrorHandler, eventDetailHandler)
-	m.Post("/1/event/change_status_read", binding.Json(changeEventStatusForm{}), ErrorHandler, changeEventStatusHandler)
+	m.Post("/1/event/change_status_read", binding.Json(changeEventStatusForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, changeEventStatusHandler)
 }
 
 type eventNewsForm struct {
@@ -148,8 +148,13 @@ type changeEventStatusForm struct {
 	Id    string `json:"id" binding:"required"`
 }
 
+func (this changeEventStatusForm) getTokenId() string {
+	return this.Token
+}
+
 func changeEventStatusHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form changeEventStatusForm) {
+	redis *models.RedisLogger, getT GetToken) {
+	form := getT.(changeEventStatusForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))

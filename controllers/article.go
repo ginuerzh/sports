@@ -19,13 +19,13 @@ import (
 )
 
 func BindArticleApi(m *martini.ClassicMartini) {
-	m.Post("/1/article/new", binding.Json(newArticleForm{}), ErrorHandler, newArticleHandler)
-	m.Post("/1/article/delete", binding.Json(deleteArticleForm{}), ErrorHandler, deleteArticleHandler)
-	m.Post("/1/article/thumb", binding.Json(articleThumbForm{}), ErrorHandler, articleThumbHandler)
+	m.Post("/1/article/new", binding.Json(newArticleForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, newArticleHandler)
+	m.Post("/1/article/delete", binding.Json(deleteArticleForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, deleteArticleHandler)
+	m.Post("/1/article/thumb", binding.Json(articleThumbForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, articleThumbHandler)
 	m.Get("/1/article/is_thumbed", binding.Form(articleIsThumbedForm{}), ErrorHandler, articleIsThumbedHandler)
 	m.Get("/1/article/timelines", binding.Form(articleListForm{}), ErrorHandler, articleListHandler)
 	m.Get("/1/article/get", binding.Form(articleInfoForm{}), ErrorHandler, articleInfoHandler)
-	m.Post("/1/article/comments", binding.Json(articleCommentsForm{}), ErrorHandler, articleCommentsHandler)
+	m.Post("/1/article/comments", binding.Json(articleCommentsForm{}), ErrorHandler, CheckHandler, articleCommentsHandler)
 }
 
 type articleJsonStruct struct {
@@ -68,8 +68,13 @@ type newArticleForm struct {
 	Token    string           `json:"access_token" binding:"required"`
 }
 
+func (this newArticleForm) getTokenId() string {
+	return this.Token
+}
+
 func newArticleHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, form newArticleForm) {
+	client *apns.Client, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(newArticleForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -153,7 +158,12 @@ type deleteArticleForm struct {
 	Token string `json:"access_token" binding:"required"`
 }
 
-func deleteArticleHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form deleteArticleForm) {
+func (this deleteArticleForm) getTokenId() string {
+	return this.Token
+}
+
+func deleteArticleHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(deleteArticleForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -174,8 +184,13 @@ type articleThumbForm struct {
 	Token  string `json:"access_token" binding:"required"`
 }
 
+func (this articleThumbForm) getTokenId() string {
+	return this.Token
+}
+
 func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, form articleThumbForm) {
+	client *apns.Client, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(articleThumbForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))

@@ -34,6 +34,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Post("/admin/logout", binding.Json(adminLogoutForm{}), adminErrorHandler, adminLogoutHandler)
 	m.Get("/admin/user/info", binding.Form(getUserInfoForm{}), adminErrorHandler, singleUserInfoHandler)
 	m.Get("/admin/user/list", binding.Form(getUserListForm{}), adminErrorHandler, getUserListHandler)
+	m.Get("/admin/user/search", binding.Form(getSearchListForm{}), adminErrorHandler, getSearchListHandler)
 	m.Get("/admin/user/friendship", binding.Form(getUserFriendsForm{}), adminErrorHandler, getUserFriendsHandler)
 	m.Post("/admin/user/ban", binding.Json(banUserForm{}), adminErrorHandler, banUserHandler)
 	m.Post("/admin/user/update", updateUserInfoHandler)
@@ -263,15 +264,15 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		writeResponse(resp, err)
 		return
 	}
-	count = len(users)
-	log.Println("count is :", count)
+	countvalid := len(users)
+	log.Println("countvalid is :", countvalid)
 
-	if count == 0 {
+	if countvalid == 0 {
 		writeResponse(resp, err)
 		return
 	}
 
-	list := make([]userInfoJsonStruct, count)
+	list := make([]userInfoJsonStruct, countvalid)
 	for i, user := range users {
 		list[i].Userid = user.Id
 		list[i].Nickname = user.Nickname
@@ -342,7 +343,100 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 	*/
 	info := &userListJsonStruct{
 		Users:       list,
-		NextCursor:  list[count-1].Userid,
+		NextCursor:  list[countvalid-1].Userid,
+		PrevCursor:  list[0].Userid,
+		TotalNumber: count,
+	}
+
+	writeResponse(resp, info)
+}
+
+type getSearchListForm struct {
+	Userid     string `form:"userid"`
+	NickName   string `form:"nickname"`
+	Count      int    `form:"count"`
+	Sort       string `form:"sort"`
+	NextCursor string `form:"next_cursor"`
+	PrevCursor string `form:"prev_cursor"`
+	Token      string `form:"access_token" binding:"required"`
+}
+
+func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getSearchListForm) {
+	valid, errT := checkToken(redis, form.Token)
+	if !valid {
+		writeResponse(resp, errT)
+		return
+	}
+
+	getCount := form.Count
+	if getCount == 0 {
+		getCount = defaultCount
+	}
+	log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
+	count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, 0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
+	if err != nil {
+		writeResponse(resp, err)
+		return
+	}
+	countvalid := len(users)
+	log.Println("countvalid is :", countvalid)
+
+	if countvalid == 0 {
+		writeResponse(resp, err)
+		return
+	}
+
+	list := make([]userInfoJsonStruct, countvalid)
+	for i, user := range users {
+		list[i].Userid = user.Id
+		list[i].Nickname = user.Nickname
+		list[i].Phone = user.Phone
+		list[i].Type = user.Role
+		list[i].About = user.About
+		list[i].Profile = user.Profile
+		list[i].RegTime = user.RegTime.Unix()
+		list[i].Hobby = user.Hobby
+		list[i].Height = user.Height
+		list[i].Weight = user.Weight
+		list[i].Birth = user.Birth
+		list[i].Gender = user.Gender
+		list[i].Posts = user.ArticleCount()
+		list[i].Photos = user.Photos
+		list[i].Wallet = user.Wallet.Addr
+		list[i].LastLog = user.LastLogin.Unix()
+		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
+		pups := redis.UserProps(user.Id)
+		if pups != nil {
+			ups := *pups
+			list[i].Physical = ups.Physical
+			list[i].Literal = ups.Literal
+			list[i].Mental = ups.Mental
+			list[i].Wealth = ups.Wealth
+			list[i].Score = ups.Score
+			list[i].Level = ups.Level
+		}
+
+		if user.Equips != nil {
+			eq := *user.Equips
+			list[i].Equip.Shoes = eq.Shoes
+			list[i].Equip.Electronics = eq.Electronics
+			list[i].Equip.Softwares = eq.Softwares
+			//info.Equips = *user.Equips
+		}
+
+		if user.Addr != nil {
+			list[i].Addr = user.Addr.String()
+		}
+		if user.Loc != nil {
+			loction := *user.Loc
+			list[i].Lat = loction.Lat
+			list[i].Lng = loction.Lng
+		}
+	}
+
+	info := &userListJsonStruct{
+		Users:       list,
+		NextCursor:  list[countvalid-1].Userid,
 		PrevCursor:  list[0].Userid,
 		TotalNumber: count,
 	}
@@ -402,14 +496,14 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		writeResponse(resp, err)
 		return
 	}
-	count = len(users)
-	log.Println("count is :", count)
-	if count == 0 {
+	countvalid := len(users)
+	log.Println("countvalid is :", countvalid)
+	if countvalid == 0 {
 		writeResponse(resp, errors.NewError(errors.DbError))
 		return
 	}
 
-	list := make([]userInfoJsonStruct, count)
+	list := make([]userInfoJsonStruct, countvalid)
 	for i, user := range users {
 		list[i].Userid = user.Id
 		list[i].Nickname = user.Nickname
@@ -477,7 +571,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 	*/
 	info := &userListJsonStruct{
 		Users:       list,
-		NextCursor:  list[count-1].Userid,
+		NextCursor:  list[countvalid-1].Userid,
 		PrevCursor:  list[0].Userid,
 		TotalNumber: count,
 	}

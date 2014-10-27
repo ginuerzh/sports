@@ -19,11 +19,11 @@ import (
 
 func BindUserApi(m *martini.ClassicMartini) {
 	m.Get("/1/user/articles", binding.Form(userArticlesForm{}), ErrorHandler, userArticlesHandler)
-	m.Post("/1/user/send_device_token", binding.Json(sendDevForm{}), ErrorHandler, sendDevHandler)
-	m.Post("/1/user/set_push_enable", binding.Json(setPushForm{}), ErrorHandler, setPushHandler)
+	m.Post("/1/user/send_device_token", binding.Json(sendDevForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, sendDevHandler)
+	m.Post("/1/user/set_push_enable", binding.Json(setPushForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setPushHandler)
 	m.Get("/1/user/is_push_enabled", binding.Form(pushStatusForm{}), ErrorHandler, pushStatusHandler)
-	m.Post("/1/user/enableAttention", binding.Json(relationshipForm{}), ErrorHandler, followHandler)
-	m.Post("/1/user/enableDefriend", binding.Json(relationshipForm{}), ErrorHandler, blacklistHandler)
+	m.Post("/1/user/enableAttention", binding.Json(relationshipForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, followHandler)
+	m.Post("/1/user/enableDefriend", binding.Json(relationshipForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, blacklistHandler)
 	m.Get("/1/user/getAttentionFriendsList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowsHandler)
 	m.Get("/1/user/getAttentedMembersList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowersHandler)
 	m.Get("/1/user/getJoinedGroupsList", binding.Form(getFollowsForm{}), ErrorHandler, getGroupsHandler)
@@ -64,9 +64,14 @@ type sendDevForm struct {
 	Dev   string `json:"device_token" binding:"required"`
 }
 
-func sendDevHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form sendDevForm) {
+func (this sendDevForm) getTokenId() string {
+	return this.Token
+}
 
+func sendDevHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, getT GetToken) {
+
+	form := getT.(sendDevForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -83,9 +88,14 @@ type setPushForm struct {
 	Enabled bool   `json:"is_enabled"`
 }
 
-func setPushHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form setPushForm) {
+func (this setPushForm) getTokenId() string {
+	return this.Token
+}
 
+func setPushHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, getT GetToken) {
+
+	form := getT.(setPushForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -122,7 +132,12 @@ type relationshipForm struct {
 	Token     string `json:"access_token" binding:"required"`
 }
 
-func followHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form relationshipForm) {
+func (this relationshipForm) getTokenId() string {
+	return this.Token
+}
+
+func followHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(relationshipForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -167,7 +182,8 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }
 
-func blacklistHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form relationshipForm) {
+func blacklistHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(relationshipForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))

@@ -11,8 +11,8 @@ import (
 )
 
 func BindGroupApi(m *martini.ClassicMartini) {
-	m.Post("/1/user/joinGroup", binding.Json(joinGroupForm{}), ErrorHandler, joinGroupHandler)
-	m.Post("/1/user/newGroup", binding.Json(setGroupForm{}), ErrorHandler, setGroupHandler)
+	m.Post("/1/user/joinGroup", binding.Json(joinGroupForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, joinGroupHandler)
+	m.Post("/1/user/newGroup", binding.Json(setGroupForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setGroupHandler)
 	m.Get("/1/user/getGroupInfo", binding.Form(groupInfoForm{}), ErrorHandler, groupInfoHandler)
 	m.Get("/1/user/deleteGroup", binding.Json(groupDelForm{}), ErrorHandler, delGroupHandler)
 }
@@ -23,8 +23,13 @@ type joinGroupForm struct {
 	Token string `json:"access_token" binding:"required"`
 }
 
+func (this joinGroupForm) getTokenId() string {
+	return this.Token
+}
+
 func joinGroupHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form joinGroupForm) {
+	redis *models.RedisLogger, getT GetToken) {
+	form := getT.(joinGroupForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -69,9 +74,13 @@ type setGroupForm struct {
 	Token string `json:"access_token" binding:"required"`
 }
 
-func setGroupHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form setGroupForm) {
+func (this setGroupForm) getTokenId() string {
+	return this.Token
+}
 
+func setGroupHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, getT GetToken) {
+	form := getT.(setGroupForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))

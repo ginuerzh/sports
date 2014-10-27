@@ -12,7 +12,7 @@ import (
 )
 
 func BindRecordApi(m *martini.ClassicMartini) {
-	m.Post("/1/record/new", binding.Json(newRecordForm{}), ErrorHandler, newRecordHandler)
+	m.Post("/1/record/new", binding.Json(newRecordForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, newRecordHandler)
 	m.Get("/1/record/timeline", binding.Form(recTimelineForm{}), ErrorHandler, recTimelineHandler)
 	m.Get("/1/record/statistics", binding.Form(userRecStatForm{}), ErrorHandler, userRecStatHandler)
 	m.Get("/1/leaderboard/list", binding.Form(leaderboardForm{}), ErrorHandler, leaderboardHandler)
@@ -33,7 +33,12 @@ type newRecordForm struct {
 	Token  string  `json:"access_token" binding:"required"`
 }
 
-func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form newRecordForm) {
+func (this newRecordForm) getTokenId() string {
+	return this.Token
+}
+
+func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(newRecordForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))

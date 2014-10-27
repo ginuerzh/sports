@@ -25,7 +25,7 @@ var tips = []string{
 func BindTaskApi(m *martini.ClassicMartini) {
 	m.Get("/1/tasks/getList", binding.Form(getTasksForm{}), ErrorHandler, getTasksHandler)
 	m.Get("/1/tasks/getInfo", binding.Form(getTaskInfoForm{}), ErrorHandler, getTaskInfoHandler)
-	m.Post("/1/tasks/execute", binding.Json(completeTaskForm{}), ErrorHandler, completeTaskHandler)
+	m.Post("/1/tasks/execute", binding.Json(completeTaskForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, completeTaskHandler)
 }
 
 type getTasksForm struct {
@@ -100,7 +100,12 @@ type completeTaskForm struct {
 	Proofs []string `json:"task_pics"`
 }
 
-func completeTaskHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form completeTaskForm) {
+func (this completeTaskForm) getTokenId() string {
+	return this.Token
+}
+
+func completeTaskHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
+	form := getT.(completeTaskForm)
 	user := redis.OnlineUser(form.Token)
 	if user == nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
