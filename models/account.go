@@ -330,7 +330,6 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 
 	switch sortOrder {
 	case "logintime":
-		sortby = "-lastlogin"
 		if len(nextCursor) > 0 {
 			query = bson.M{
 				"lastlogin": bson.M{
@@ -340,6 +339,7 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
+			sortby = "-lastlogin"
 		} else if len(preCursor) > 0 {
 			query = bson.M{
 				"lastlogin": bson.M{
@@ -349,40 +349,39 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
-			//			sortby = "lastlogin"
+			sortby = "lastlogin"
 		} else {
 			query = bson.M{}
-			//			sortby = "-lastlogin"
+			sortby = "-lastlogin"
 		}
 		query["reg_time"] = bson.M{
 			"$gt": time.Unix(0, 0),
 		}
 
 	case "userid":
-		sortby = "_id"
 		if len(nextCursor) > 0 {
 			query = bson.M{
 				"_id": bson.M{
 					"$gt": user.Id,
 				},
 			}
+			sortby = "_id"
 		} else if len(preCursor) > 0 {
 			query = bson.M{
 				"_id": bson.M{
 					"$lt": user.Id,
 				},
 			}
-			//			sortby = "-_id"
+			sortby = "-_id"
 		} else {
 			query = bson.M{}
-			//			sortby = "_id"
+			sortby = "_id"
 		}
 		query["reg_time"] = bson.M{
 			"$gt": time.Unix(0, 0),
 		}
 
 	case "nickname":
-		sortby = "nickname"
 		if len(nextCursor) > 0 {
 			query = bson.M{
 				"nickname": bson.M{
@@ -392,6 +391,7 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
+			sortby = "nickname"
 		} else if len(preCursor) > 0 {
 			query = bson.M{
 				"nickname": bson.M{
@@ -401,17 +401,16 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
-			//			sortby = "-nickname"
+			sortby = "-nickname"
 		} else {
 			query = bson.M{}
-			//			sortby = "nickname"
+			sortby = "nickname"
 		}
 		query["reg_time"] = bson.M{
 			"$gt": time.Unix(0, 0),
 		}
 
 	case "score":
-		sortby = "-score"
 		if len(nextCursor) > 0 {
 			query = bson.M{
 				"score": bson.M{
@@ -421,6 +420,7 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
+			sortby = "-score"
 		} else if len(preCursor) > 0 {
 			query = bson.M{
 				"score": bson.M{
@@ -430,10 +430,10 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
-			//			sortby = "score"
+			sortby = "score"
 		} else {
 			query = bson.M{}
-			//			sortby = "-score"
+			sortby = "-score"
 		}
 		query["reg_time"] = bson.M{
 			"$gt": time.Unix(0, 0),
@@ -444,7 +444,6 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 		fallthrough
 	default:
 		log.Println("default")
-		sortby = "-reg_time"
 		if len(nextCursor) > 0 {
 			query = bson.M{
 				"reg_time": bson.M{
@@ -455,6 +454,7 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
+			sortby = "-reg_time"
 		} else if len(preCursor) > 0 {
 			query = bson.M{
 				"reg_time": bson.M{
@@ -464,14 +464,14 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 					"$ne": user.Id,
 				},
 			}
-			//			sortby = "reg_time"
+			sortby = "reg_time"
 		} else {
 			query = bson.M{
 				"reg_time": bson.M{
 					"$gt": time.Unix(0, 0),
 				},
 			}
-			//			sortby = "-reg_time"
+			sortby = "-reg_time"
 		}
 	}
 
@@ -497,6 +497,12 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
+	if len(preCursor) > 0 {
+		totalCount := len(users)
+		for i := 0; i < totalCount/2; i++ {
+			users[i], users[totalCount-1-i] = users[totalCount-1-i], users[i]
+		}
+	}
 	return
 }
 
@@ -534,8 +540,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 					"$ne": user.Id,
 				},
 			}
-			//sortby = "lastlogin"
-			sortby = "-lastlogin"
+			sortby = "lastlogin"
 		} else {
 			query = bson.M{}
 			sortby = "-lastlogin"
@@ -558,8 +563,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 					"$lt": user.Id,
 				},
 			}
-			//			sortby = "-_id"
-			sortby = "_id"
+			sortby = "-_id"
 		} else {
 			query = bson.M{}
 			sortby = "_id"
@@ -588,8 +592,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 					"$ne": user.Id,
 				},
 			}
-			//sortby = "-nickname"
-			sortby = "nickname"
+			sortby = "-nickname"
 		} else {
 			query = bson.M{}
 			sortby = "nickname"
@@ -618,8 +621,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 					"$ne": user.Id,
 				},
 			}
-			//sortby = "score"
-			sortby = "-score"
+			sortby = "score"
 		} else {
 			query = bson.M{}
 			sortby = "-score"
@@ -653,8 +655,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 					"$ne": user.Id,
 				},
 			}
-			//sortby = "reg_time"
-			sortby = "-reg_time"
+			sortby = "reg_time"
 		} else {
 			query = bson.M{
 				"reg_time": bson.M{
@@ -719,6 +720,13 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
+	if len(preCursor) > 0 {
+		totalCount := len(users)
+		for i := 0; i < totalCount/2; i++ {
+			users[i], users[totalCount-1-i] = users[totalCount-1-i], users[i]
+		}
+	}
+
 	return
 }
 
@@ -765,8 +773,7 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 					"$in": uids,
 				},
 			}
-			//sortby = "lastlogin"
-			sortby = "-lastlogin"
+			sortby = "lastlogin"
 		} else {
 			query = bson.M{
 				"_id": bson.M{
@@ -793,8 +800,7 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 					"$in": uids,
 				},
 			}
-			//sortby = "-_id"
-			sortby = "_id"
+			sortby = "-_id"
 		} else {
 			query = bson.M{
 				"_id": bson.M{
@@ -827,8 +833,7 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 					"$in": uids,
 				},
 			}
-			//sortby = "-nickname"
-			sortby = "nickname"
+			sortby = "-nickname"
 		} else {
 			query = bson.M{
 				"_id": bson.M{
@@ -861,8 +866,7 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 					"$in": uids,
 				},
 			}
-			//sortby = "score"
-			sortby = "-score"
+			sortby = "score"
 		} else {
 			query = bson.M{
 				"_id": bson.M{
@@ -900,8 +904,7 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 					"$in": uids,
 				},
 			}
-			sortby = "-reg_time"
-			//sortby = "reg_time"
+			sortby = "reg_time"
 		} else {
 			query = bson.M{
 				"_id": bson.M{
@@ -935,6 +938,13 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 
 	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	if len(preCursor) > 0 {
+		totalCount := len(users)
+		for i := 0; i < totalCount/2; i++ {
+			users[i], users[totalCount-1-i] = users[totalCount-1-i], users[i]
+		}
 	}
 
 	return
