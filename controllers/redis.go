@@ -7,6 +7,7 @@ import (
 	"gopkg.in/go-martini/martini.v1"
 	"net/http"
 	//"strings"
+	"fmt"
 )
 
 func RedisLoggerHandler(request *http.Request, c martini.Context, pool *redis.Pool) {
@@ -19,6 +20,7 @@ func RedisLoggerHandler(request *http.Request, c martini.Context, pool *redis.Po
 			logger.LogVisitor(s[0])
 		}
 	*/
+	fmt.Println(request.URL)
 	//logger.LogPV(request.URL.Path)
 
 	c.Map(logger)

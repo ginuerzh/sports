@@ -22,6 +22,7 @@ type message struct {
 	From     string           `json:"from"`
 	To       string           `json:"to"`
 	Time     int64            `json:"time"`
+	TimeStr  string           `json:"time_str"`
 	Contents []models.MsgBody `json:"contents"`
 }
 
@@ -31,6 +32,7 @@ func convertMsg(msg *models.Message) *message {
 		From:     msg.From,
 		To:       msg.To,
 		Time:     msg.Time.Unix(),
+		TimeStr:  msg.Time.Format("2006-01-02 15:04:05"),
 		Contents: msg.Body,
 	}
 }

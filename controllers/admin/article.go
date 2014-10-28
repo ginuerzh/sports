@@ -28,6 +28,7 @@ type articleInfo struct {
 	Image       string           `json:"cover_image"`
 	Title       string           `json:"cover_text"`
 	Time        int64            `json:"time"`
+	TimeStr     string           `json:"time_str"`
 	Thumbs      int              `json:"thumbs_count"`
 	Comments    int              `json:"comments_count"`
 	Rewards     int64            `json:"rewards_value"`
@@ -41,6 +42,7 @@ func convertArticle(article *models.Article) *articleInfo {
 	info.Id = article.Id.Hex()
 	info.Author = article.Author
 	info.Time = article.PubTime.Unix()
+	info.TimeStr = article.PubTime.Format("2006-01-02 15:04:05")
 	info.Thumbs = len(article.Thumbs)
 	info.Comments = len(article.Reviews)
 	info.Rewards = article.TotalReward

@@ -110,7 +110,14 @@ func (this *User) Articles(typ string, paging *Paging) (int, []Article, error) {
 		query = bson.M{"author": this.Id}
 	}
 
-	if err := psearch(articleColl, query, nil, []string{"-pub_time"}, &total, &articles,
+	pageUp := false
+	sortFields := []string{"-pub_time"}
+	if len(paging.First) > 0 {
+		pageUp = true
+		sortFields = []string{"pub_time"}
+	}
+
+	if err := psearch(articleColl, query, nil, sortFields, &total, &articles,
 		articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -123,6 +130,13 @@ func (this *User) Articles(typ string, paging *Paging) (int, []Article, error) {
 	paging.Last = ""
 	paging.Count = 0
 	if len(articles) > 0 {
+		if pageUp {
+			for i := 0; i < len(articles)/2; i++ {
+				t := articles[i]
+				articles[i] = articles[len(articles)-i-1]
+				articles[len(articles)-i-1] = t
+			}
+		}
 		paging.First = articles[0].Id.Hex()
 		paging.Last = articles[len(articles)-1].Id.Hex()
 		paging.Count = total
@@ -151,7 +165,14 @@ func (this *User) Messages(userid string, paging *Paging) (int, []Message, error
 		},
 	}
 
-	if err := psearch(msgColl, query, nil, []string{"-time"}, &total, &msgs,
+	pageUp := false
+	sortFields := []string{"-time"}
+	if len(paging.First) > 0 {
+		pageUp = true
+		sortFields = []string{"time"}
+	}
+
+	if err := psearch(msgColl, query, nil, sortFields, &total, &msgs,
 		msgPagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -164,6 +185,13 @@ func (this *User) Messages(userid string, paging *Paging) (int, []Message, error
 	paging.Last = ""
 	paging.Count = 0
 	if len(msgs) > 0 {
+		if pageUp {
+			for i := 0; i < len(msgs)/2; i++ {
+				t := msgs[i]
+				msgs[i] = msgs[len(msgs)-i-1]
+				msgs[len(msgs)-i-1] = t
+			}
+		}
 		paging.First = msgs[0].Id.Hex()
 		paging.Last = msgs[len(msgs)-1].Id.Hex()
 		paging.Count = total

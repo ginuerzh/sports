@@ -986,8 +986,15 @@ func (this *Account) Records(paging *Paging) (int, []Record, error) {
 	var records []Record
 	total := 0
 
+	pageUp := false
+	sortFields := []string{"-time"}
+	if len(paging.First) > 0 {
+		pageUp = true
+		sortFields = []string{"time"}
+	}
+
 	if err := psearch(recordColl, bson.M{"uid": this.Id}, nil,
-		[]string{"-time"}, nil, &records, recordPagingFunc, paging); err != nil {
+		sortFields, nil, &records, recordPagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
 			e = errors.NewError(errors.NotFoundError, err.Error())
@@ -999,6 +1006,13 @@ func (this *Account) Records(paging *Paging) (int, []Record, error) {
 	paging.Last = ""
 	paging.Count = 0
 	if len(records) > 0 {
+		if pageUp {
+			for i := 0; i < len(records)/2; i++ {
+				t := records[i]
+				records[i] = records[len(records)-i-1]
+				records[len(records)-i-1] = t
+			}
+		}
 		paging.First = records[0].Id.Hex()
 		paging.Last = records[len(records)-1].Id.Hex()
 		paging.Count = total
@@ -1077,7 +1091,14 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 	var users []Account
 	total := 0
 
-	if err := psearch(accountColl, nil, nil, []string{"-score"}, nil, &users, friendsPagingFunc, paging, ids); err != nil {
+	pageUp := false
+	sortFields := []string{"-score"}
+	if len(paging.First) > 0 {
+		pageUp = true
+		sortFields = []string{"score"}
+	}
+
+	if err := psearch(accountColl, nil, nil, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
 			e = errors.NewError(errors.NotFoundError, err.Error())
@@ -1089,6 +1110,13 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 	paging.Last = ""
 	paging.Count = 0
 	if len(users) > 0 {
+		if pageUp {
+			for i := 0; i < len(users)/2; i++ {
+				t := users[i]
+				users[i] = users[len(users)-i-1]
+				users[len(users)-i-1] = t
+			}
+		}
 		paging.First = users[0].Id
 		paging.Last = users[len(users)-1].Id
 		paging.Count = total
@@ -1164,7 +1192,15 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 			"$options": "i",
 		}
 	}
-	if err := psearch(accountColl, query, nil, []string{"-lastlogin"}, nil, &users, searchPagingFunc, paging); err != nil {
+
+	pageUp := false
+	sortFields := []string{"-lastlogin"}
+	if len(paging.First) > 0 {
+		pageUp = true
+		sortFields = []string{"lastlogin"}
+	}
+
+	if err := psearch(accountColl, query, nil, sortFields, nil, &users, searchPagingFunc, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
 		}
@@ -1174,6 +1210,14 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 	paging.Last = ""
 	paging.Count = 0
 	if len(users) > 0 {
+		if pageUp {
+			for i := 0; i < len(users)/2; i++ {
+				t := users[i]
+				users[i] = users[len(users)-i-1]
+				users[len(users)-i-1] = t
+			}
+		}
+
 		paging.First = users[0].Id
 		paging.Last = users[len(users)-1].Id
 		paging.Count = total
