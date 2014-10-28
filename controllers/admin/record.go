@@ -28,15 +28,17 @@ type getRecordsForm struct {
 }
 
 type record struct {
-	ID        string   `json:"record_id”`
-	Type      string   `json:"type"`
-	Duration  int      `json:"duration"`
-	Distance  int      `json:"distance"`
-	Images    []string `json:"images"`
-	GameName  string   `json:"game_name"`
-	GameScore int      `json:"game_score"`
-	RecTime   int64    `json:"time"`
-	PubTime   int64    `json:"pub_time"`
+	ID         string   `json:"record_id”`
+	Type       string   `json:"type"`
+	Duration   int      `json:"duration"`
+	Distance   int      `json:"distance"`
+	Images     []string `json:"images"`
+	GameName   string   `json:"game_name"`
+	GameScore  int      `json:"game_score"`
+	RecTime    int64    `json:"time"`
+	PubTime    int64    `json:"pub_time"`
+	RecTimeStr string   `json:"time_str"`
+	PubTimeStr string   `json:"pub_time_str"`
 }
 
 type recordsListJsonStruct struct {
@@ -68,11 +70,13 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 		return
 
 	}
-	recs := make([]record, tn)
+	tnvalid := len(records)
+	recs := make([]record, tnvalid)
 	for i, _ := range records {
 		recs[i].ID = records[i].Uid
 		recs[i].Type = records[i].Type
 		recs[i].RecTime = records[i].Time.Unix()
+		recs[i].RecTimeStr = records[i].Time.Format("2006-01-02 15:04:05")
 		if records[i].Sport != nil {
 			recs[i].Duration = int(records[i].Sport.Duration)
 			recs[i].Distance = records[i].Sport.Distance
@@ -83,10 +87,11 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 			recs[i].GameScore = records[i].Game.Score
 		}
 		recs[i].PubTime = records[i].PubTime.Unix()
+		recs[i].PubTimeStr = records[i].PubTime.Format("2006-01-02 15:04:05")
 	}
 	respData := &recordsListJsonStruct{
 		Records:     recs,
-		NextCursor:  records[tn-1].Id.String(),
+		NextCursor:  records[tnvalid-1].Id.String(),
 		PrevCursor:  records[0].Id.String(),
 		TotalNumber: tn,
 	}

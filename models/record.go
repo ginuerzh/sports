@@ -3,6 +3,7 @@ package models
 
 import (
 	"github.com/ginuerzh/sports/errors"
+	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"time"
 )
@@ -187,10 +188,32 @@ func GetRecords(id, recType string, nextCursor, preCursor string, count int, fro
 		}
 	}
 
-	if err := search(recordColl, query, nil, 0, 0, []string{sortby}, &total, &records); err != nil {
+	var err error
+	q := func(c *mgo.Collection) error {
+		pq := bson.M{
+			"uid": id}
+		qy := c.Find(pq)
+
+		if total, err = qy.Count(); err != nil {
+			return err
+		}
+		return err
+	}
+
+	if err = withCollection(recordColl, nil, q); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
+	if err = search(recordColl, query, nil, 0, 0, []string{sortby}, nil, &records); err != nil {
+		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	if pcValid {
+		totalCount := len(records)
+		for i := 0; i < totalCount/2; i++ {
+			records[i], records[totalCount-1-i] = records[totalCount-1-i], records[i]
+		}
+	}
 	return total, records, nil
 }
 
