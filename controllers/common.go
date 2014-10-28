@@ -113,7 +113,7 @@ func CheckHandler(getT GetToken, redis *models.RedisLogger, request *http.Reques
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 	}
 	log.Println("user.TimeLimit is :", user.TimeLimit, "cur time is:", time.Now().Unix())
-	if user.TimeLimit > time.Now().Unix() {
+	if user.TimeLimit == -1 || user.TimeLimit > time.Now().Unix() {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 	}
 }
@@ -139,7 +139,7 @@ func CheckUserIDHandler(getU getUser, redis *models.RedisLogger, request *http.R
 		return
 	}
 	log.Println("user.TimeLimit is :", user.TimeLimit, "cur time is:", time.Now().Unix())
-	if user.TimeLimit > time.Now().Unix() {
+	if user.TimeLimit == -1 || user.TimeLimit > time.Now().Unix() {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 		return
 	}

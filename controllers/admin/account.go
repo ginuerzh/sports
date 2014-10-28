@@ -14,8 +14,8 @@ import (
 	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
-	//"strconv"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 	//errs "errors"
@@ -159,8 +159,12 @@ type userInfoJsonStruct struct {
 	//Equips models.Equip `json:"user_equipInfo"`
 	Equip equips `json:"equips"`
 
-	Wallet  string `json:"wallet"`
-	LastLog int64  `json:"last_login_time"`
+	Wallet     string `json:"wallet"`
+	LastLog    int64  `json:"last_login_time"`
+	BanTime    int64  `json:"ban_time,omitempty"`
+	BanTimeStr string `json:"ban_time_str,omitempty"`
+	RegTimeStr string `json:"reg_time_str"`
+	LastLogStr string `json:"last_login_time_str"`
 }
 
 func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserInfoForm) {
@@ -182,17 +186,18 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 
 	info := &userInfoJsonStruct{
-		Userid:   user.Id,
-		Nickname: user.Nickname,
-		Phone:    user.Phone,
-		Type:     user.Role,
-		About:    user.About,
-		Profile:  user.Profile,
-		RegTime:  user.RegTime.Unix(),
-		Hobby:    user.Hobby,
-		Height:   user.Height,
-		Weight:   user.Weight,
-		Birth:    user.Birth,
+		Userid:     user.Id,
+		Nickname:   user.Nickname,
+		Phone:      user.Phone,
+		Type:       user.Role,
+		About:      user.About,
+		Profile:    user.Profile,
+		RegTime:    user.RegTime.Unix(),
+		RegTimeStr: user.RegTime.Format("2006-01-02 15:04:05"),
+		Hobby:      user.Hobby,
+		Height:     user.Height,
+		Weight:     user.Weight,
+		Birth:      user.Birth,
 
 		Physical: redis.UserProps(user.Id).Physical,
 		Literal:  redis.UserProps(user.Id).Literal,
@@ -206,8 +211,9 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 
 		Photos: user.Photos,
 
-		Wallet:  user.Wallet.Addr,
-		LastLog: user.LastLogin.Unix(),
+		Wallet:     user.Wallet.Addr,
+		LastLog:    user.LastLogin.Unix(),
+		LastLogStr: user.LastLogin.Format("2006-01-02 15:04:05"),
 	}
 
 	info.Follows, info.Followers, info.FriendsCount, info.BlacklistsCount = redis.FriendCount(user.Id)
@@ -281,6 +287,7 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		list[i].About = user.About
 		list[i].Profile = user.Profile
 		list[i].RegTime = user.RegTime.Unix()
+		list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
 		list[i].Hobby = user.Hobby
 		list[i].Height = user.Height
 		list[i].Weight = user.Weight
@@ -290,6 +297,13 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		list[i].Photos = user.Photos
 		list[i].Wallet = user.Wallet.Addr
 		list[i].LastLog = user.LastLogin.Unix()
+		list[i].BanTime = user.TimeLimit
+		if user.TimeLimit > 0 {
+			list[i].BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
+		} else {
+			list[i].BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
+		}
+		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
 		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
 		pups := redis.UserProps(user.Id)
 		if pups != nil {
@@ -395,6 +409,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].About = user.About
 		list[i].Profile = user.Profile
 		list[i].RegTime = user.RegTime.Unix()
+		list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
 		list[i].Hobby = user.Hobby
 		list[i].Height = user.Height
 		list[i].Weight = user.Weight
@@ -404,6 +419,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].Photos = user.Photos
 		list[i].Wallet = user.Wallet.Addr
 		list[i].LastLog = user.LastLogin.Unix()
+		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
 		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
 		pups := redis.UserProps(user.Id)
 		if pups != nil {
@@ -512,6 +528,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].About = user.About
 		list[i].Profile = user.Profile
 		list[i].RegTime = user.RegTime.Unix()
+		list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
 		list[i].Hobby = user.Hobby
 		list[i].Height = user.Height
 		list[i].Weight = user.Weight
@@ -521,6 +538,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].Photos = user.Photos
 		list[i].Wallet = user.Wallet.Addr
 		list[i].LastLog = user.LastLogin.Unix()
+		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
 		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
 		pps := *redis.UserProps(user.Id)
 		list[i].Physical = pps.Physical
@@ -615,7 +633,7 @@ func banUserHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		return
 	}
 
-	err := user.Update()
+	err := user.UpdateBanTime(user.TimeLimit)
 	if err != nil {
 		writeResponse(resp, err)
 		return

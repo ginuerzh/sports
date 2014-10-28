@@ -181,6 +181,19 @@ func (this *Account) Update() error {
 	return nil
 }
 
+func (this *Account) UpdateBanTime(banTime int64) error {
+	change := bson.M{
+		"$set": bson.M{
+			"timelimit": banTime,
+		},
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
 func (this *Account) UpdateLevel(score int, level int) error {
 	change := bson.M{
 		"$set": bson.M{
@@ -341,6 +354,9 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 			query = bson.M{}
 			sortby = "-lastlogin"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "userid":
 		if len(nextCursor) > 0 {
@@ -360,6 +376,9 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 		} else {
 			query = bson.M{}
 			sortby = "_id"
+		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
 		}
 
 	case "nickname":
@@ -387,6 +406,9 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 			query = bson.M{}
 			sortby = "nickname"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "score":
 		if len(nextCursor) > 0 {
@@ -413,6 +435,9 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 			query = bson.M{}
 			sortby = "-score"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "regtime":
 		log.Println("regtime")
@@ -423,6 +448,7 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 			query = bson.M{
 				"reg_time": bson.M{
 					"$lte": user.RegTime,
+					"$gt":  time.Unix(0, 0),
 				},
 				"_id": bson.M{
 					"$ne": user.Id,
@@ -440,12 +466,34 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 			}
 			sortby = "reg_time"
 		} else {
-			query = bson.M{}
+			query = bson.M{
+				"reg_time": bson.M{
+					"$gt": time.Unix(0, 0),
+				},
+			}
 			sortby = "-reg_time"
 		}
 	}
 
-	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
+	q := func(c *mgo.Collection) error {
+		pq := bson.M{
+			"reg_time": bson.M{
+				"$gt": time.Unix(0, 0),
+			},
+		}
+		qy := c.Find(pq)
+
+		if total, err = qy.Count(); err != nil {
+			return err
+		}
+		return err
+	}
+
+	if err = withCollection(accountColl, nil, q); err != nil {
+		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
@@ -459,6 +507,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 	var sortby string
 
 	if len(nextCursor) > 0 {
+
 		user.findOne(bson.M{"_id": nextCursor})
 	} else if len(preCursor) > 0 {
 		user.findOne(bson.M{"_id": preCursor})
@@ -472,9 +521,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 					"$lte": user.LastLogin,
 				},
 				"_id": bson.M{
-					"$ne":      user.Id,
-					"$regex":   nickname,
-					"$options": "i",
+					"$ne": user.Id,
 				},
 			}
 			sortby = "-lastlogin"
@@ -492,6 +539,9 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 			query = bson.M{}
 			sortby = "-lastlogin"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "userid":
 		if len(nextCursor) > 0 {
@@ -511,6 +561,9 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 		} else {
 			query = bson.M{}
 			sortby = "_id"
+		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
 		}
 
 	case "nickname":
@@ -538,6 +591,9 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 			query = bson.M{}
 			sortby = "nickname"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "score":
 		if len(nextCursor) > 0 {
@@ -564,6 +620,9 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 			query = bson.M{}
 			sortby = "-score"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "regtime":
 		log.Println("regtime")
@@ -574,6 +633,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 			query = bson.M{
 				"reg_time": bson.M{
 					"$lte": user.RegTime,
+					"$gt":  time.Unix(0, 0),
 				},
 				"_id": bson.M{
 					"$ne": user.Id,
@@ -591,7 +651,11 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 			}
 			sortby = "reg_time"
 		} else {
-			query = bson.M{}
+			query = bson.M{
+				"reg_time": bson.M{
+					"$gt": time.Unix(0, 0),
+				},
+			}
 			sortby = "-reg_time"
 		}
 	}
@@ -628,7 +692,25 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 		}
 	}
 
-	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
+	q := func(c *mgo.Collection) error {
+		pq := bson.M{
+			"reg_time": bson.M{
+				"$gt": time.Unix(0, 0),
+			},
+		}
+		qy := c.Find(pq)
+
+		if total, err = qy.Count(); err != nil {
+			return err
+		}
+		return err
+	}
+
+	if err = withCollection(accountColl, nil, q); err != nil {
+		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
@@ -687,6 +769,9 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 			}
 			sortby = "-lastlogin"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "userid":
 		if len(nextCursor) > 0 {
@@ -710,6 +795,9 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 				},
 			}
 			sortby = "_id"
+		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
 		}
 
 	case "nickname":
@@ -741,6 +829,9 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 			}
 			sortby = "nickname"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "score":
 		if len(nextCursor) > 0 {
@@ -771,6 +862,9 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 			}
 			sortby = "-score"
 		}
+		query["reg_time"] = bson.M{
+			"$gt": time.Unix(0, 0),
+		}
 
 	case "regtime":
 		log.Println("regtime")
@@ -781,6 +875,7 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 			query = bson.M{
 				"reg_time": bson.M{
 					"$lte": user.RegTime,
+					"$gt":  time.Unix(0, 0),
 				},
 				"_id": bson.M{
 					"$in": uids,
@@ -801,13 +896,34 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 			query = bson.M{
 				"_id": bson.M{
 					"$in": ids,
+					"reg_time": bson.M{
+						"$gt": time.Unix(0, 0),
+					},
 				},
 			}
 			sortby = "-reg_time"
 		}
 	}
 
-	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
+	q := func(c *mgo.Collection) error {
+		pq := bson.M{
+			"reg_time": bson.M{
+				"$gt": time.Unix(0, 0),
+			},
+		}
+		qy := c.Find(pq)
+
+		if total, err = qy.Count(); err != nil {
+			return err
+		}
+		return err
+	}
+
+	if err = withCollection(accountColl, nil, q); err != nil {
+		return 0, nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
