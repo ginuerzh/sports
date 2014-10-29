@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"github.com/ginuerzh/sports/errors"
+	//"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -65,11 +65,13 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 		writeResponse(resp, err)
 		return
 	}
-	if tn == 0 {
-		writeResponse(resp, errors.NewError(errors.NotExistsError))
-		return
+	/*
+		if tn == 0 {
+			writeResponse(resp, errors.NewError(errors.NotExistsError))
+			return
 
-	}
+		}
+	*/
 	tnvalid := len(records)
 	recs := make([]record, tnvalid)
 	for i, _ := range records {
@@ -89,13 +91,24 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 		recs[i].PubTime = records[i].PubTime.Unix()
 		recs[i].PubTimeStr = records[i].PubTime.Format("2006-01-02 15:04:05")
 	}
-	respData := &recordsListJsonStruct{
-		Records:     recs,
-		NextCursor:  records[tnvalid-1].Id.String(),
-		PrevCursor:  records[0].Id.String(),
-		TotalNumber: tn,
+
+	if tnvalid == 0 {
+		respData := &recordsListJsonStruct{
+			Records:     recs,
+			NextCursor:  "",
+			PrevCursor:  "",
+			TotalNumber: tn,
+		}
+		writeResponse(resp, respData)
+	} else {
+		respData := &recordsListJsonStruct{
+			Records:     recs,
+			NextCursor:  records[tnvalid-1].Id.String(),
+			PrevCursor:  records[0].Id.String(),
+			TotalNumber: tn,
+		}
+		writeResponse(resp, respData)
 	}
-	writeResponse(resp, respData)
 }
 
 type deleteRecordsForm struct {

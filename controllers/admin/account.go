@@ -272,12 +272,12 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 	}
 	countvalid := len(users)
 	log.Println("countvalid is :", countvalid)
-
-	if countvalid == 0 {
-		writeResponse(resp, err)
-		return
-	}
-
+	/*
+		if countvalid == 0 {
+			writeResponse(resp, err)
+			return
+		}
+	*/
 	list := make([]userInfoJsonStruct, countvalid)
 	for i, user := range users {
 		list[i].Userid = user.Id
@@ -355,14 +355,23 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 			nc = strconv.FormatInt(list[count-1].RegTime, 10)
 		}
 	*/
-	info := &userListJsonStruct{
-		Users:       list,
-		NextCursor:  list[countvalid-1].Userid,
-		PrevCursor:  list[0].Userid,
-		TotalNumber: count,
+	if countvalid == 0 {
+		info := &userListJsonStruct{
+			Users:       list,
+			NextCursor:  "",
+			PrevCursor:  "",
+			TotalNumber: count,
+		}
+		writeResponse(resp, info)
+	} else {
+		info := &userListJsonStruct{
+			Users:       list,
+			NextCursor:  list[countvalid-1].Userid,
+			PrevCursor:  list[0].Userid,
+			TotalNumber: count,
+		}
+		writeResponse(resp, info)
 	}
-
-	writeResponse(resp, info)
 }
 
 type getSearchListForm struct {
@@ -394,12 +403,12 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 	}
 	countvalid := len(users)
 	log.Println("countvalid is :", countvalid)
-
-	if countvalid == 0 {
-		writeResponse(resp, err)
-		return
-	}
-
+	/*
+		if countvalid == 0 {
+			writeResponse(resp, err)
+			return
+		}
+	*/
 	list := make([]userInfoJsonStruct, countvalid)
 	for i, user := range users {
 		list[i].Userid = user.Id
@@ -450,14 +459,23 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		}
 	}
 
-	info := &userListJsonStruct{
-		Users:       list,
-		NextCursor:  list[countvalid-1].Userid,
-		PrevCursor:  list[0].Userid,
-		TotalNumber: count,
+	if countvalid == 0 {
+		info := &userListJsonStruct{
+			Users:       list,
+			NextCursor:  "",
+			PrevCursor:  "",
+			TotalNumber: count,
+		}
+		writeResponse(resp, info)
+	} else {
+		info := &userListJsonStruct{
+			Users:       list,
+			NextCursor:  list[countvalid-1].Userid,
+			PrevCursor:  list[0].Userid,
+			TotalNumber: count,
+		}
+		writeResponse(resp, info)
 	}
-
-	writeResponse(resp, info)
 }
 
 type getUserFriendsForm struct {
@@ -503,7 +521,17 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 
 	if getCount == 0 {
-		writeResponse(resp, errors.NewError(errors.NotExistsError))
+		listEmpty := make([]userInfoJsonStruct, getCount)
+		info := &userListJsonStruct{
+			Users:       listEmpty,
+			NextCursor:  "",
+			PrevCursor:  "",
+			TotalNumber: getCount,
+		}
+
+		writeResponse(resp, info)
+
+		//		writeResponse(resp, errors.NewError(errors.NotExistsError))
 		return
 	}
 
@@ -514,11 +542,12 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 	countvalid := len(users)
 	log.Println("countvalid is :", countvalid)
-	if countvalid == 0 {
-		writeResponse(resp, errors.NewError(errors.DbError))
-		return
-	}
-
+	/*
+		if countvalid == 0 {
+			writeResponse(resp, errors.NewError(errors.DbError))
+			return
+		}
+	*/
 	list := make([]userInfoJsonStruct, countvalid)
 	for i, user := range users {
 		list[i].Userid = user.Id
@@ -587,14 +616,26 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 			nc = strconv.FormatInt(list[count-1].RegTime, 10)
 		}
 	*/
-	info := &userListJsonStruct{
-		Users:       list,
-		NextCursor:  list[countvalid-1].Userid,
-		PrevCursor:  list[0].Userid,
-		TotalNumber: count,
-	}
 
-	writeResponse(resp, info)
+	if countvalid == 0 {
+		info := &userListJsonStruct{
+			Users:       list,
+			NextCursor:  "",
+			PrevCursor:  "",
+			TotalNumber: count,
+		}
+
+		writeResponse(resp, info)
+	} else {
+		info := &userListJsonStruct{
+			Users:       list,
+			NextCursor:  list[countvalid-1].Userid,
+			PrevCursor:  list[0].Userid,
+			TotalNumber: count,
+		}
+
+		writeResponse(resp, info)
+	}
 }
 
 type banUserForm struct {
