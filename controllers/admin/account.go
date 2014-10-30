@@ -161,8 +161,8 @@ type userInfoJsonStruct struct {
 
 	Wallet     string `json:"wallet"`
 	LastLog    int64  `json:"last_login_time"`
-	BanTime    int64  `json:"ban_time,omitempty"`
-	BanTimeStr string `json:"ban_time_str,omitempty"`
+	BanTime    int64  `json:"ban_time"`
+	BanTimeStr string `json:"ban_time_str"`
 	RegTimeStr string `json:"reg_time_str"`
 	LastLogStr string `json:"last_login_time_str"`
 }
