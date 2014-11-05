@@ -507,13 +507,12 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 }
 
 // This function search users with userid or nickname after preCursor or nextCursor sorted by sortOrder. The return count total should not be more than limit.
-func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
+func GetSearchListBySort(id, nickname, keywords string, skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
 	user := &Account{}
 	var query bson.M
 	var sortby string
 
 	if len(nextCursor) > 0 {
-
 		user.findOne(bson.M{"_id": nextCursor})
 	} else if len(preCursor) > 0 {
 		user.findOne(bson.M{"_id": preCursor})
@@ -666,7 +665,46 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 		}
 	}
 
-	if len(nickname) > 0 && len(id) > 0 {
+	if len(keywords) > 0 {
+		query["$or"] = []bson.M{
+			bson.M{
+				"_id": bson.M{
+					"$ne":      user.Id,
+					"$regex":   keywords,
+					"$options": "i",
+				},
+			},
+
+			bson.M{
+				"nickname": bson.M{
+					"$ne":      user.Id,
+					"$regex":   keywords,
+					"$options": "i",
+				},
+			},
+			bson.M{
+				"phone": bson.M{
+					"$ne":      user.Id,
+					"$regex":   keywords,
+					"$options": "i",
+				},
+			},
+			bson.M{
+				"about": bson.M{
+					"$ne":      user.Id,
+					"$regex":   keywords,
+					"$options": "i",
+				},
+			},
+			bson.M{
+				"hobby": bson.M{
+					"$ne":      user.Id,
+					"$regex":   keywords,
+					"$options": "i",
+				},
+			},
+		}
+	} else if len(nickname) > 0 && len(id) > 0 {
 		query["$or"] = []bson.M{
 			bson.M{
 				"_id": bson.M{
@@ -704,6 +742,7 @@ func GetSearchListBySort(id, nickname string, skip, limit int, sortOrder, preCur
 				"$gt": time.Unix(0, 0),
 			},
 		}
+		pq["$or"] = query["$or"]
 		qy := c.Find(pq)
 
 		if total, err = qy.Count(); err != nil {

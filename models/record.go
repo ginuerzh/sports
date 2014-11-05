@@ -81,7 +81,7 @@ func (this *Record) Save() error {
 
 // This function returns records of type recType between fromTime and toTime, at same time if nextCursor or  preCursor is not nil, the records should after
 // the cursor. The count is the max count it returns this time.
-func GetRecords(id, recType string, nextCursor, preCursor string, count int, fromTime, toTime int64) (int, []Record, error) {
+func GetRecords(id, recType string, nextCursor, preCursor string, count int, fromTime, toTime int64, skip, limit int) (int, []Record, error) {
 	var records []Record
 	total := 0
 
@@ -204,7 +204,7 @@ func GetRecords(id, recType string, nextCursor, preCursor string, count int, fro
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
-	if err = search(recordColl, query, nil, 0, 0, []string{sortby}, nil, &records); err != nil {
+	if err = search(recordColl, query, nil, skip, limit, []string{sortby}, nil, &records); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 

@@ -165,6 +165,7 @@ type userInfoJsonStruct struct {
 	BanTimeStr string `json:"ban_time_str"`
 	RegTimeStr string `json:"reg_time_str"`
 	LastLogStr string `json:"last_login_time_str"`
+	BanStatus  string `json:"ban_status"`
 }
 
 func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserInfoForm) {
@@ -216,6 +217,23 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		LastLogStr: user.LastLogin.Format("2006-01-02 15:04:05"),
 	}
 
+	if user.TimeLimit > 0 {
+		if user.TimeLimit > time.Now().Unix() {
+			info.BanStatus = "normal"
+		} else {
+			info.BanStatus = "lock"
+		}
+
+		info.BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
+	} else {
+		if user.TimeLimit == 0 {
+			info.BanStatus = "normal"
+		} else if user.TimeLimit == -1 {
+			info.BanStatus = "ban"
+		}
+		info.BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
+	}
+
 	info.Follows, info.Followers, info.FriendsCount, info.BlacklistsCount = redis.FriendCount(user.Id)
 
 	if user.Equips != nil {
@@ -239,18 +257,22 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 }
 
 type getUserListForm struct {
-	Count      int    `form:"count"`
-	Sort       string `form:"sort"`
-	NextCursor string `form:"next_cursor"`
-	PrevCursor string `form:"prev_cursor"`
-	Token      string `form:"access_token" binding:"required"`
+	//Count      int    `form:"count"`
+	Sort string `form:"sort"`
+	//NextCursor string `form:"next_cursor"`
+	//PrevCursor string `form:"prev_cursor"`
+	Token string `form:"access_token" binding:"required"`
+	Count int    `form:"page_count"`
+	Page  int    `form:"page_index"`
 }
 
 type userListJsonStruct struct {
-	Users       []userInfoJsonStruct `json:"users"`
-	NextCursor  string               `json:"next_cursor"`
-	PrevCursor  string               `json:"prev_cursor"`
-	TotalNumber int                  `json:"total_number"`
+	Users []userInfoJsonStruct `json:"users"`
+	//NextCursor  string               `json:"next_cursor"`
+	//PrevCursor  string               `json:"prev_cursor"`
+	Page        int `json:"page_index"`
+	PageTotal   int `json:"page_total"`
+	TotalNumber int `json:"total_number"`
 }
 
 func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserListForm) {
@@ -264,8 +286,11 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 	if getCount == 0 {
 		getCount = defaultCount
 	}
-	log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
-	count, users, err := models.GetUserListBySort(0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
+	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
+	//count, users, err := models.GetUserListBySort(0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
+
+	log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
+	count, users, err := models.GetUserListBySort(form.Page*getCount, getCount, form.Sort, "", "")
 	if err != nil {
 		writeResponse(resp, err)
 		return
@@ -299,8 +324,19 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		list[i].LastLog = user.LastLogin.Unix()
 		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
+			if user.TimeLimit > time.Now().Unix() {
+				list[i].BanStatus = "normal"
+			} else {
+				list[i].BanStatus = "lock"
+			}
+
 			list[i].BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
 		} else {
+			if user.TimeLimit == 0 {
+				list[i].BanStatus = "normal"
+			} else if user.TimeLimit == -1 {
+				list[i].BanStatus = "ban"
+			}
 			list[i].BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
 		}
 		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
@@ -355,19 +391,27 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 			nc = strconv.FormatInt(list[count-1].RegTime, 10)
 		}
 	*/
+	totalPage := count / getCount
+	if count%getCount != 0 {
+		totalPage++
+	}
 	if countvalid == 0 {
 		info := &userListJsonStruct{
-			Users:       list,
-			NextCursor:  "",
-			PrevCursor:  "",
+			Users:     list,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//NextCursor:  "",
+			//PrevCursor:  "",
 			TotalNumber: count,
 		}
 		writeResponse(resp, info)
 	} else {
 		info := &userListJsonStruct{
-			Users:       list,
-			NextCursor:  list[countvalid-1].Userid,
-			PrevCursor:  list[0].Userid,
+			Users:     list,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//NextCursor:  list[countvalid-1].Userid,
+			//PrevCursor:  list[0].Userid,
 			TotalNumber: count,
 		}
 		writeResponse(resp, info)
@@ -375,13 +419,16 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type getSearchListForm struct {
-	Userid     string `form:"userid"`
-	NickName   string `form:"nickname"`
-	Count      int    `form:"count"`
-	Sort       string `form:"sort"`
-	NextCursor string `form:"next_cursor"`
-	PrevCursor string `form:"prev_cursor"`
-	Token      string `form:"access_token" binding:"required"`
+	Userid   string `form:"userid"`
+	NickName string `form:"nickname"`
+	KeyWord  string `form:"keyword"`
+	//	Count    int    `form:"count"`
+	Sort string `form:"sort"`
+	//	NextCursor string `form:"next_cursor"`
+	//	PrevCursor string `form:"prev_cursor"`
+	Count int    `form:"page_count"`
+	Page  int    `form:"page_index"`
+	Token string `form:"access_token" binding:"required"`
 }
 
 func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getSearchListForm) {
@@ -395,8 +442,11 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 	if getCount == 0 {
 		getCount = defaultCount
 	}
-	log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
-	count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, 0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
+	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
+	//count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, 0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
+
+	log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
+	count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, form.KeyWord, getCount*form.Page, getCount, form.Sort, "", "")
 	if err != nil {
 		writeResponse(resp, err)
 		return
@@ -429,6 +479,23 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].Wallet = user.Wallet.Addr
 		list[i].LastLog = user.LastLogin.Unix()
 		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
+		if user.TimeLimit > 0 {
+			if user.TimeLimit > time.Now().Unix() {
+				list[i].BanStatus = "normal"
+			} else {
+				list[i].BanStatus = "lock"
+			}
+
+			list[i].BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
+		} else {
+			if user.TimeLimit == 0 {
+				list[i].BanStatus = "normal"
+			} else if user.TimeLimit == -1 {
+				list[i].BanStatus = "ban"
+			}
+			list[i].BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
+		}
+
 		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
 		pups := redis.UserProps(user.Id)
 		if pups != nil {
@@ -459,19 +526,28 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		}
 	}
 
+	totalPage := count / getCount
+	if count%getCount != 0 {
+		totalPage++
+	}
+
 	if countvalid == 0 {
 		info := &userListJsonStruct{
-			Users:       list,
-			NextCursor:  "",
-			PrevCursor:  "",
+			Users:     list,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//			NextCursor:  "",
+			//			PrevCursor:  "",
 			TotalNumber: count,
 		}
 		writeResponse(resp, info)
 	} else {
 		info := &userListJsonStruct{
-			Users:       list,
-			NextCursor:  list[countvalid-1].Userid,
-			PrevCursor:  list[0].Userid,
+			Users:     list,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//			NextCursor:  list[countvalid-1].Userid,
+			//			PrevCursor:  list[0].Userid,
 			TotalNumber: count,
 		}
 		writeResponse(resp, info)
@@ -479,13 +555,15 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 }
 
 type getUserFriendsForm struct {
-	UserId     string `form:"userid" binding:"required"`
-	Type       string `form:"type"`
-	Count      int    `form:"count"`
-	Sort       string `form:"sort"`
-	NextCursor string `form:"next_cursor"`
-	PrevCursor string `form:"prev_cursor"`
-	Token      string `form:"access_token" binding:"required"`
+	UserId string `form:"userid" binding:"required"`
+	Type   string `form:"type"`
+	//Count  int    `form:"count"`
+	Sort  string `form:"sort"`
+	Count int    `form:"page_count"`
+	Page  int    `form:"page_index"`
+	//	NextCursor string `form:"next_cursor"`
+	//	PrevCursor string `form:"prev_cursor"`
+	Token string `form:"access_token" binding:"required"`
 }
 
 func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserFriendsForm) {
@@ -523,9 +601,12 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 	if getCount == 0 {
 		listEmpty := make([]userInfoJsonStruct, getCount)
 		info := &userListJsonStruct{
-			Users:       listEmpty,
-			NextCursor:  "",
-			PrevCursor:  "",
+			Users:     listEmpty,
+			Page:      form.Page,
+			PageTotal: 0,
+
+			//			NextCursor:  "",
+			//			PrevCursor:  "",
 			TotalNumber: getCount,
 		}
 
@@ -535,7 +616,8 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		return
 	}
 
-	count, users, err := models.GetFriendsListBySort(0, getCount, userids, form.Sort, form.PrevCursor, form.NextCursor)
+	//count, users, err := models.GetFriendsListBySort(0, getCount, userids, form.Sort, form.PrevCursor, form.NextCursor)
+	count, users, err := models.GetFriendsListBySort(getCount*form.Page, getCount, userids, form.Sort, "", "")
 	if err != nil {
 		writeResponse(resp, err)
 		return
@@ -576,6 +658,22 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].Wealth = pps.Wealth
 		list[i].Score = pps.Score
 		list[i].Level = pps.Level
+		if user.TimeLimit > 0 {
+			if user.TimeLimit > time.Now().Unix() {
+				list[i].BanStatus = "normal"
+			} else {
+				list[i].BanStatus = "lock"
+			}
+
+			list[i].BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
+		} else {
+			if user.TimeLimit == 0 {
+				list[i].BanStatus = "normal"
+			} else if user.TimeLimit == -1 {
+				list[i].BanStatus = "ban"
+			}
+			list[i].BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
+		}
 
 		if user.Equips != nil {
 			eq := *user.Equips
@@ -616,21 +714,29 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 			nc = strconv.FormatInt(list[count-1].RegTime, 10)
 		}
 	*/
+	totalPage := count / getCount
+	if count%getCount != 0 {
+		totalPage++
+	}
 
 	if countvalid == 0 {
 		info := &userListJsonStruct{
-			Users:       list,
-			NextCursor:  "",
-			PrevCursor:  "",
+			Users:     list,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//NextCursor:  "",
+			//PrevCursor:  "",
 			TotalNumber: count,
 		}
 
 		writeResponse(resp, info)
 	} else {
 		info := &userListJsonStruct{
-			Users:       list,
-			NextCursor:  list[countvalid-1].Userid,
-			PrevCursor:  list[0].Userid,
+			Users:     list,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//NextCursor:  list[countvalid-1].Userid,
+			//PrevCursor:  list[0].Userid,
 			TotalNumber: count,
 		}
 
@@ -901,248 +1007,3 @@ func updateUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 	writeResponse(resp, nil)
 }
-
-/*
-func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
-	user := &Account{}
-	var query bson.M
-	var sortby string
-	var uids []string
-
-	pc, _ := strconv.Atoi(preCursor)
-	nc, _ := strconv.Atoi(nextCursor)
-
-	switch sortOrder {
-	case "logintime":
-		if len(nextCursor) > 0 {
-			user.findOne(bson.M{"lastlogin": nc})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$lte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-lastlogin"
-		} else if len(preCursor) > 0 {
-			user.findOne(bson.M{"lastlogin": pc})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$gte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "lastlogin"
-		} else {
-			user.LastLogin = time.Now()
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$lte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "-lastlogin"
-		}
-
-	case "userid":
-		if len(nextCursor) > 0 {
-			user.findOne(bson.M{"_id": nextCursor})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "_id"
-		} else if len(preCursor) > 0 {
-			user.findOne(bson.M{"_id": preCursor})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-_id"
-		} else {
-			user.Id = ""
-			query = bson.M{
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "_id"
-		}
-
-	case "nickname":
-		if len(nextCursor) > 0 {
-			user.findOne(bson.M{"nickname": nextCursor})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"nickname": bson.M{
-					"$gte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "nickname"
-		} else if len(preCursor) > 0 {
-			user.findOne(bson.M{"nickname": preCursor})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"nickname": bson.M{
-					"$lte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-nickname"
-		} else {
-			user.Nickname = ""
-			query = bson.M{
-				"nickname": bson.M{
-					"$gt": user.Nickname,
-				},
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "nickname"
-		}
-
-	case "score":
-		if len(nextCursor) > 0 {
-			user.findOne(bson.M{"score": nc})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"score": bson.M{
-					"$lte": user.Score,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-score"
-		} else if len(preCursor) > 0 {
-			user.findOne(bson.M{"score": pc})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"score": bson.M{
-					"$gte": user.Score,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "score"
-		} else {
-			user.Score = 0
-			query = bson.M{
-				"score": bson.M{
-					"$lte": user.Score,
-				},
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "-score"
-		}
-
-	case "regtime":
-		log.Println("regtime")
-		fallthrough
-	default:
-		log.Println("default")
-		if len(nextCursor) > 0 {
-			user.findOne(bson.M{"reg_time": nc})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"reg_time": bson.M{
-					"$lte": user.RegTime,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-reg_time"
-		} else if len(preCursor) > 0 {
-			user.findOne(bson.M{"reg_time": pc})
-			for i := 0; i < len(ids); i++ {
-				if ids[i] != user.Id {
-					uids = append(uids, ids[i])
-				}
-			}
-			query = bson.M{
-				"reg_time": bson.M{
-					"$gte": user.RegTime,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "reg_time"
-		} else {
-			user.RegTime = time.Now()
-			query = bson.M{
-				"reg_time": bson.M{
-					"$lte": user.RegTime,
-				},
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "-reg_time"
-		}
-	}
-
-	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
-	}
-
-	return
-}
-*/

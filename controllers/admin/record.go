@@ -17,14 +17,16 @@ func BindRecordsApi(m *martini.ClassicMartini) {
 }
 
 type getRecordsForm struct {
-	Userid     string `form:"userid" binding:"required"`
-	Type       string `form:"type"`
-	Count      int    `form:"count"`
-	NextCursor string `form:"next_cursor"`
-	PrevCursor string `form:"prev_cursor"`
-	FromTime   int64  `form:"from_time"`
-	ToTime     int64  `form:"to_time"`
-	Token      string `form:"access_token" binding:"required"`
+	Userid string `form:"userid" binding:"required"`
+	Type   string `form:"type"`
+	Count  int    `form:"page_count"`
+	Page   int    `form:"page_index"`
+	//Count      int    `form:"count"`
+	//NextCursor string `form:"next_cursor"`
+	//PrevCursor string `form:"prev_cursor"`
+	FromTime int64  `form:"from_time"`
+	ToTime   int64  `form:"to_time"`
+	Token    string `form:"access_token" binding:"required"`
 }
 
 type record struct {
@@ -42,10 +44,12 @@ type record struct {
 }
 
 type recordsListJsonStruct struct {
-	Records     []record `json:"records"`
-	NextCursor  string   `json:"next_cursor"`
-	PrevCursor  string   `json:"prev_cursor"`
-	TotalNumber int      `json:"total_number"`
+	Records []record `json:"records"`
+	//NextCursor  string   `json:"next_cursor"`
+	//PrevCursor  string   `json:"prev_cursor"`
+	Page        int `json:"page_index"`
+	PageTotal   int `json:"page_total"`
+	TotalNumber int `json:"total_number"`
 }
 
 func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getRecordsForm) {
@@ -56,11 +60,12 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 
 	getCount := form.Count
-	if getCount > defaultRecordsCount {
+	if getCount == 0 {
 		getCount = defaultRecordsCount
 	}
 
-	tn, records, err := models.GetRecords(form.Userid, form.Type, form.NextCursor, form.PrevCursor, form.Count, form.FromTime, form.ToTime)
+	//tn, records, err := models.GetRecords(form.Userid, form.Type, form.NextCursor, form.PrevCursor, form.Count, form.FromTime, form.ToTime, 0, getCount)
+	tn, records, err := models.GetRecords(form.Userid, form.Type, "", "", form.Count, form.FromTime, form.ToTime, getCount*form.Page, getCount)
 	if err != nil {
 		writeResponse(resp, err)
 		return
@@ -92,19 +97,28 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 		recs[i].PubTimeStr = records[i].PubTime.Format("2006-01-02 15:04:05")
 	}
 
+	totalPage := tn / getCount
+	if tn%getCount != 0 {
+		totalPage++
+	}
+
 	if tnvalid == 0 {
 		respData := &recordsListJsonStruct{
-			Records:     recs,
-			NextCursor:  "",
-			PrevCursor:  "",
+			Records:   recs,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//NextCursor:  "",
+			//PrevCursor:  "",
 			TotalNumber: tn,
 		}
 		writeResponse(resp, respData)
 	} else {
 		respData := &recordsListJsonStruct{
-			Records:     recs,
-			NextCursor:  records[tnvalid-1].Id.String(),
-			PrevCursor:  records[0].Id.String(),
+			Records:   recs,
+			Page:      form.Page,
+			PageTotal: totalPage,
+			//NextCursor:  records[tnvalid-1].Id.String(),
+			//PrevCursor:  records[0].Id.String(),
 			TotalNumber: tn,
 		}
 		writeResponse(resp, respData)
