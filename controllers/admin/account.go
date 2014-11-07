@@ -102,8 +102,9 @@ func checkToken(r *models.RedisLogger, t string) (valid bool, err error) {
 func adminLogoutHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form adminLogoutForm) {
 	valid, err := checkToken(redis, form.Token)
 	if valid {
+		data := map[string]interface{}{}
 		redis.DelOnlineUser(form.Token)
-		writeResponse(resp, nil)
+		writeResponse(resp, data)
 	} else {
 		writeResponse(resp, err)
 	}
@@ -1008,5 +1009,6 @@ func updateUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		writeResponse(resp, err)
 		return
 	}
-	writeResponse(resp, nil)
+	data := map[string]interface{}{}
+	writeResponse(resp, data)
 }
