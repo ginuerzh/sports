@@ -21,7 +21,7 @@ import (
 	//errs "errors"
 )
 
-var defaultCount = 20
+var defaultCount = 50
 
 type response struct {
 	ReqPath  string      `json:"req_path"`

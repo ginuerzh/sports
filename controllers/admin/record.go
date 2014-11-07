@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-var defaultRecordsCount = 20
+var defaultRecordsCount = 50
 
 func BindRecordsApi(m *martini.ClassicMartini) {
 	m.Get("/admin/record/timeline", binding.Form(getRecordsForm{}), adminErrorHandler, getRecordsListHandler)
