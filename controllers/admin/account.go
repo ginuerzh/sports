@@ -217,6 +217,7 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		LastLogStr: user.LastLogin.Format("2006-01-02 15:04:05"),
 	}
 
+	info.BanTime = user.TimeLimit
 	if user.TimeLimit > 0 {
 		if user.TimeLimit > time.Now().Unix() {
 			info.BanStatus = "normal"
@@ -479,6 +480,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].Wallet = user.Wallet.Addr
 		list[i].LastLog = user.LastLogin.Unix()
 		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
+		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
 			if user.TimeLimit > time.Now().Unix() {
 				list[i].BanStatus = "normal"
@@ -658,6 +660,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].Wealth = pps.Wealth
 		list[i].Score = pps.Score
 		list[i].Level = pps.Level
+		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
 			if user.TimeLimit > time.Now().Unix() {
 				list[i].BanStatus = "normal"

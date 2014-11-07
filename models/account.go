@@ -511,6 +511,7 @@ func GetSearchListBySort(id, nickname, keywords string, skip, limit int, sortOrd
 	user := &Account{}
 	var query bson.M
 	var sortby string
+	keyType := -1
 
 	if len(nextCursor) > 0 {
 		user.findOne(bson.M{"_id": nextCursor})
@@ -666,6 +667,7 @@ func GetSearchListBySort(id, nickname, keywords string, skip, limit int, sortOrd
 	}
 
 	if len(keywords) > 0 {
+		keyType = 0
 		query["$or"] = []bson.M{
 			bson.M{
 				"_id": bson.M{
@@ -705,6 +707,7 @@ func GetSearchListBySort(id, nickname, keywords string, skip, limit int, sortOrd
 			},
 		}
 	} else if len(nickname) > 0 && len(id) > 0 {
+		keyType = 0
 		query["$or"] = []bson.M{
 			bson.M{
 				"_id": bson.M{
@@ -723,12 +726,14 @@ func GetSearchListBySort(id, nickname, keywords string, skip, limit int, sortOrd
 			},
 		}
 	} else if len(nickname) > 0 {
+		keyType = 1
 		query["nickname"] = bson.M{
 			"$ne":      user.Id,
 			"$regex":   nickname,
 			"$options": "i",
 		}
 	} else if len(id) > 0 {
+		keyType = 2
 		query["_id"] = bson.M{
 			"$ne":      user.Id,
 			"$regex":   id,
@@ -742,7 +747,13 @@ func GetSearchListBySort(id, nickname, keywords string, skip, limit int, sortOrd
 				"$gt": time.Unix(0, 0),
 			},
 		}
-		pq["$or"] = query["$or"]
+		if keyType == 0 {
+			pq["$or"] = query["$or"]
+		} else if keyType == 1 {
+			pq["$nickname"] = query["$nickname"]
+		} else if keyType == 2 {
+			pq["$_id"] = query["$_id"]
+		}
 		qy := c.Find(pq)
 
 		if total, err = qy.Count(); err != nil {
