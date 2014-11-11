@@ -53,6 +53,8 @@ const (
 
 	redisPubSubGroup = redisPrefix + ":pubsub:group:"
 	redisPubSubUser  = redisPrefix + ":pubsub:user:"
+
+	redisNoticeChannel = redisPrefix + ":pubsub:notice"
 )
 
 const (
@@ -97,6 +99,12 @@ func (logger *RedisLogger) Unsubscribe(psc *redis.PubSubConn, groups ...string) 
 		channels = append(channels, redisPubSubGroup+group)
 	}
 	return psc.Unsubscribe(channels...)
+}
+
+func (logger *RedisLogger) Notice(msg []byte) {
+	conn := logger.pool.Get()
+	defer conn.Close()
+	conn.Do("PUBLISH", redisNoticeChannel, msg)
 }
 
 func (logger *RedisLogger) PubMsg(typ string, to string, msg []byte) {
