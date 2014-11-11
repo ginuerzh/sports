@@ -139,7 +139,8 @@ func CheckUserIDHandler(getU getUser, redis *models.RedisLogger, request *http.R
 		return
 	}
 	log.Println("user.TimeLimit is :", user.TimeLimit, "cur time is:", time.Now().Unix())
-	if user.TimeLimit == -1 || user.TimeLimit > time.Now().Unix() {
+	//if user.TimeLimit == -1 || user.TimeLimit > time.Now().Unix() {
+	if user.TimeLimit == -1 {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 		return
 	}
