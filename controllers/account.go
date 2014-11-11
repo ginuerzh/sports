@@ -218,6 +218,23 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 		"ExpEffect":       awards,
 	}
 	writeResponse(request.RequestURI, resp, data, nil)
+
+	// ws push
+	notice := &models.Event{
+		Type: models.EventMsg,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventChat,
+			Id:   form.Userid,
+			From: form.Userid,
+			Body: []models.MsgBody{
+				{Type: "msg_type", Content: "text"},
+				{Type: "msg_content", Content: user.Nickname + "刚刚登录."},
+				{Type: "nikename", Content: user.Nickname},
+			},
+		},
+	}
+	redis.Notice(notice.Bytes())
 }
 
 type logoutForm struct {
