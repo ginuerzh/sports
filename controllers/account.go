@@ -77,6 +77,23 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 
 		redis.LogRegister(user.Id)
 		//redis.SetOnlineUser(token, user, true)
+
+		// ws push
+		notice := &models.Event{
+			Type: models.EventMsg,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventChat,
+				Id:   user.Id,
+				From: user.Id,
+				Body: []models.MsgBody{
+					{Type: "msg_type", Content: "text"},
+					{Type: "msg_content", Content: user.Id + "刚刚注册."},
+					{Type: "nikename", Content: user.Nickname},
+				},
+			},
+		}
+		redis.Notice(notice.Bytes())
 	}
 }
 
@@ -229,7 +246,7 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 			From: form.Userid,
 			Body: []models.MsgBody{
 				{Type: "msg_type", Content: "text"},
-				{Type: "msg_content", Content: user.Nickname + "刚刚登录."},
+				{Type: "msg_content", Content: user.Id + "刚刚登录."},
 				{Type: "nikename", Content: user.Nickname},
 			},
 		},

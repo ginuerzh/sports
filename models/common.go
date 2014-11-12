@@ -272,7 +272,7 @@ func search(collection string, query interface{}, selector interface{},
 }
 
 func count(collection string, query interface{}) (count int, err error) {
-	q := func (c *mgo.Collection) (err error) {
+	q := func(c *mgo.Collection) (err error) {
 		count, err = c.Find(query).Count()
 		return
 	}
@@ -432,4 +432,12 @@ func Struct2Map(i interface{}) bson.M {
 	json.Unmarshal(v, &m)
 
 	return m
+}
+
+func AgeToTimeRange(age int) (start time.Time, end time.Time) {
+	now := time.Now()
+	start = time.Date(now.Year()-age, time.January, 1, 0, 0, 0, 0, now.Location())
+	end = time.Date(now.Year()-age, time.December, 31, 23, 59, 59, 999999, now.Location())
+
+	return
 }

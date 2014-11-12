@@ -421,9 +421,12 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type getSearchListForm struct {
-	Userid   string `form:"userid"`
-	NickName string `form:"nickname"`
-	KeyWord  string `form:"keyword"`
+	Userid    string `form:"userid"`
+	NickName  string `form:"nickname"`
+	Gender    string `form:"gender"`
+	Age       string `form:"age"`
+	BanStatus string `form:"ban_status"`
+	KeyWord   string `form:"keyword"`
 	//	Count    int    `form:"count"`
 	Sort string `form:"sort"`
 	//	NextCursor string `form:"next_cursor"`
@@ -447,8 +450,9 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
 	//count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, 0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
 
-	log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
-	count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, form.KeyWord, getCount*form.Page, getCount, form.Sort, "", "")
+	log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page, form.Gender, form.Age, form.BanStatus)
+	count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, form.KeyWord,
+		form.Gender, form.Age, form.BanStatus, getCount*form.Page, getCount, form.Sort, "", "")
 	if err != nil {
 		writeResponse(resp, err)
 		return

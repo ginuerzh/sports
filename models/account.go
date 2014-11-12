@@ -2,11 +2,14 @@
 package models
 
 import (
+	"encoding/json"
 	"github.com/ginuerzh/sports/errors"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"labix.org/v2/mgo/txn"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -507,274 +510,99 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 }
 
 // This function search users with userid or nickname after preCursor or nextCursor sorted by sortOrder. The return count total should not be more than limit.
-func GetSearchListBySort(id, nickname, keywords string, skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
-	user := &Account{}
-	var query bson.M
-	var sortby string
-	keyType := -1
+func GetSearchListBySort(id, nickname, keywords string,
+	gender, age, banStatus string, skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
 
-	if len(nextCursor) > 0 {
-		user.findOne(bson.M{"_id": nextCursor})
-	} else if len(preCursor) > 0 {
-		user.findOne(bson.M{"_id": preCursor})
-	}
+	var sortby string
 
 	switch sortOrder {
 	case "logintime":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$lte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-lastlogin"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$gte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "lastlogin"
-		} else {
-			query = bson.M{}
-			sortby = "-lastlogin"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "-lastlogin"
 	case "userid":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"_id": bson.M{
-					"$gt": user.Id,
-				},
-			}
-			sortby = "_id"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"_id": bson.M{
-					"$lt": user.Id,
-				},
-			}
-			sortby = "-_id"
-		} else {
-			query = bson.M{}
-			sortby = "_id"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "-_id"
 	case "nickname":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"nickname": bson.M{
-					"$gte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "nickname"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"nickname": bson.M{
-					"$lte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-nickname"
-		} else {
-			query = bson.M{}
-			sortby = "nickname"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "-nickname"
 	case "score":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"score": bson.M{
-					"$lte": user.Score,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-score"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"score": bson.M{
-					"$gte": user.Score,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "score"
-		} else {
-			query = bson.M{}
-			sortby = "-score"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "-score"
 	case "regtime":
-		log.Println("regtime")
-		fallthrough
+		sortby = "reg_time"
 	default:
-		log.Println("default")
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$lte": user.RegTime,
-					"$gt":  time.Unix(0, 0),
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-reg_time"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$gte": user.RegTime,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "reg_time"
-		} else {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$gt": time.Unix(0, 0),
-				},
-			}
-			sortby = "-reg_time"
-		}
+		sortby = "-reg_time"
 	}
 
+	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
 	if len(keywords) > 0 {
-		keyType = 0
 		query["$or"] = []bson.M{
-			bson.M{
-				"_id": bson.M{
-					"$ne":      user.Id,
-					"$regex":   keywords,
-					"$options": "i",
-				},
-			},
-
-			bson.M{
-				"nickname": bson.M{
-					"$ne":      user.Id,
-					"$regex":   keywords,
-					"$options": "i",
-				},
-			},
-			bson.M{
-				"phone": bson.M{
-					"$ne":      user.Id,
-					"$regex":   keywords,
-					"$options": "i",
-				},
-			},
-			bson.M{
-				"about": bson.M{
-					"$ne":      user.Id,
-					"$regex":   keywords,
-					"$options": "i",
-				},
-			},
-			bson.M{
-				"hobby": bson.M{
-					"$ne":      user.Id,
-					"$regex":   keywords,
-					"$options": "i",
-				},
-			},
-		}
-	} else if len(nickname) > 0 && len(id) > 0 {
-		keyType = 0
-		query["$or"] = []bson.M{
-			bson.M{
-				"_id": bson.M{
-					"$ne":      user.Id,
-					"$regex":   id,
-					"$options": "i",
-				},
-			},
-
-			bson.M{
-				"nickname": bson.M{
-					"$ne":      user.Id,
-					"$regex":   nickname,
-					"$options": "i",
-				},
-			},
-		}
-	} else if len(nickname) > 0 {
-		keyType = 1
-		query["nickname"] = bson.M{
-			"$ne":      user.Id,
-			"$regex":   nickname,
-			"$options": "i",
-		}
-	} else if len(id) > 0 {
-		keyType = 2
-		query["_id"] = bson.M{
-			"$ne":      user.Id,
-			"$regex":   id,
-			"$options": "i",
+			{"_id": bson.M{"$regex": keywords, "$options": "i"}},
+			{"nickname": bson.M{"$regex": keywords, "$options": "i"}},
+			{"phone": bson.M{"$regex": keywords, "$options": "i"}},
+			{"about": bson.M{"$regex": keywords, "$options": "i"}},
+			{"hobby": bson.M{"$regex": keywords, "$options": "i"}},
 		}
 	}
 
-	q := func(c *mgo.Collection) error {
-		pq := bson.M{
-			"reg_time": bson.M{
-				"$gt": time.Unix(0, 0),
-			},
+	if len(gender) > 0 {
+		if strings.HasPrefix(gender, "f") {
+			query["gender"] = bson.M{"$in": []interface{}{"f", "female"}}
+		} else {
+			query["gender"] = bson.M{"$in": []interface{}{"m", "male", nil}}
 		}
-		if keyType == 0 {
-			pq["$or"] = query["$or"]
-		} else if keyType == 1 {
-			pq["$nickname"] = query["$nickname"]
-		} else if keyType == 2 {
-			pq["$_id"] = query["$_id"]
-		}
-		qy := c.Find(pq)
+	}
+	if len(age) > 0 {
+		s := strings.Split(age, "-")
+		if len(s) == 1 {
+			if a, err := strconv.Atoi(s[0]); err == nil {
+				start, end := AgeToTimeRange(a)
 
-		if total, err = qy.Count(); err != nil {
-			return err
+				query["birth"] = bson.M{
+					"$gte": start.Unix(),
+					"$lte": end.Unix(),
+				}
+			}
 		}
-		return err
+		if len(s) == 2 {
+			low, _ := strconv.Atoi(s[0])
+			high, _ := strconv.Atoi(s[1])
+			if low == high {
+				start, end := AgeToTimeRange(low)
+				query["birth"] = bson.M{
+					"$gte": start.Unix(),
+					"$lte": end.Unix(),
+				}
+			} else if low > high {
+				start, _ := AgeToTimeRange(low)
+				_, end := AgeToTimeRange(high)
+				query["birth"] = bson.M{
+					"$gte": start.Unix(),
+					"$lte": end.Unix(),
+				}
+			} else {
+				start, _ := AgeToTimeRange(high)
+				_, end := AgeToTimeRange(low)
+				query["birth"] = bson.M{
+					"$gte": start.Unix(),
+					"$lte": end.Unix(),
+				}
+			}
+		}
+	}
+	if len(banStatus) > 0 {
+		switch banStatus {
+		case "normal":
+			query["timelimit"] = bson.M{"$in": []interface{}{0, nil}}
+		case "lock":
+			query["timelimit"] = bson.M{
+				"$gt": 0,
+			}
+		case "ban":
+			query["timelimit"] = bson.M{"$lt": 0}
+		}
 	}
 
-	if err = withCollection(accountColl, nil, q); err != nil {
+	b, _ := json.Marshal(query)
+	log.Println("query:", string(b))
+	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
-	}
-
-	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
-	}
-
-	if len(preCursor) > 0 {
-		totalCount := len(users)
-		for i := 0; i < totalCount/2; i++ {
-			users[i], users[totalCount-1-i] = users[totalCount-1-i], users[i]
-		}
 	}
 
 	return
@@ -1287,7 +1115,7 @@ func (this *Account) SearchNear(paging *Paging) ([]Account, error) {
 		},
 	}
 
-	if err := psearch(accountColl, query, nil, nil, nil, &users, nil, nil); err != nil {
+	if err := psearch(accountColl, query, nil, nil, nil, &users, nil, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
 		}
