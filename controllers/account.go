@@ -80,16 +80,15 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 
 		// ws push
 		notice := &models.Event{
-			Type: models.EventMsg,
+			Type: models.EventArticle,
 			Time: time.Now().Unix(),
 			Data: models.EventData{
-				Type: models.EventChat,
+				Type: models.EventComment,
 				Id:   user.Id,
 				From: user.Id,
 				Body: []models.MsgBody{
-					{Type: "msg_type", Content: "text"},
-					{Type: "msg_content", Content: user.Id + "刚刚注册."},
-					{Type: "nikename", Content: user.Nickname},
+					{Type: "total_count", Content: "1"},
+					{Type: "image", Content: user.Profile},
 				},
 			},
 		}
@@ -238,16 +237,15 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 
 	// ws push
 	notice := &models.Event{
-		Type: models.EventMsg,
+		Type: models.EventArticle,
 		Time: time.Now().Unix(),
 		Data: models.EventData{
-			Type: models.EventChat,
+			Type: models.EventComment,
 			Id:   form.Userid,
 			From: form.Userid,
 			Body: []models.MsgBody{
-				{Type: "msg_type", Content: "text"},
-				{Type: "msg_content", Content: user.Id + "刚刚登录."},
-				{Type: "nikename", Content: user.Nickname},
+				{Type: "total_count", Content: "1"},
+				{Type: "image", Content: user.Profile},
 			},
 		},
 	}
