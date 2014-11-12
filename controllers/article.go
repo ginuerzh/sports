@@ -334,11 +334,17 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type articleCommentsForm struct {
-	Id string `json:"article_id"  binding:"required"`
+	Id    string `json:"article_id"  binding:"required"`
+	Token string `json:"access_token" binding:"required"`
 	models.Paging
 }
 
-func articleCommentsHandler(request *http.Request, resp http.ResponseWriter, form articleCommentsForm) {
+func (this articleCommentsForm) getTokenId() string {
+	return this.Token
+}
+
+func articleCommentsHandler(request *http.Request, resp http.ResponseWriter, getT GetToken) {
+	form := getT.(articleCommentsForm)
 	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
 	_, comments, err := article.Comments(&form.Paging)
 
