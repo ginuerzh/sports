@@ -222,7 +222,6 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 	award, _ := user.SetLogin(count, lastlog)
 	awards := Awards{}
 	if user.LastLogin.Unix() < d.Unix() {
-		log.Println("award")
 		awards.Wealth = award * models.Satoshi
 		if err := giveAwards(user, &awards, redis); err != nil {
 			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))

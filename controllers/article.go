@@ -40,6 +40,7 @@ type articleJsonStruct struct {
 	Reviews    int              `json:"sub_article_count"`
 	NewReviews int              `json:"new_sub_article_count"`
 	Contents   []models.Segment `json:"article_segments"`
+	Rewards    int64            `json:"reward_total"`
 }
 
 func convertArticle(article *models.Article) *articleJsonStruct {
@@ -51,6 +52,7 @@ func convertArticle(article *models.Article) *articleJsonStruct {
 	jsonStruct.PubTime = article.PubTime.Unix()
 	jsonStruct.Thumbs = len(article.Thumbs)
 	jsonStruct.Reviews = len(article.Reviews)
+	jsonStruct.Rewards = article.TotalReward
 
 	jsonStruct.Title, jsonStruct.Image = article.Cover()
 
