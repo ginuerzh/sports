@@ -80,13 +80,15 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 
 		// ws push
 		notice := &models.Event{
-			Type: models.EventArticle,
+			Type: models.EventWallet,
 			Time: time.Now().Unix(),
 			Data: models.EventData{
-				Type: models.EventComment,
+				Type: models.EventTx,
 				Id:   user.Id,
 				From: user.Id,
 				Body: []models.MsgBody{
+					{Type: "rule", Content: "1"},
+					{Type: "nikename", Content: user.Id},
 					{Type: "total_count", Content: "1"},
 					{Type: "image", Content: user.Profile},
 				},
@@ -220,6 +222,7 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 	award, _ := user.SetLogin(count, lastlog)
 	awards := Awards{}
 	if user.LastLogin.Unix() < d.Unix() {
+		log.Println("award")
 		awards.Wealth = award * models.Satoshi
 		if err := giveAwards(user, &awards, redis); err != nil {
 			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
@@ -234,22 +237,6 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 		"ExpEffect":       awards,
 	}
 	writeResponse(request.RequestURI, resp, data, nil)
-
-	// ws push
-	notice := &models.Event{
-		Type: models.EventArticle,
-		Time: time.Now().Unix(),
-		Data: models.EventData{
-			Type: models.EventComment,
-			Id:   form.Userid,
-			From: form.Userid,
-			Body: []models.MsgBody{
-				{Type: "total_count", Content: "1"},
-				{Type: "image", Content: user.Profile},
-			},
-		},
-	}
-	redis.Notice(notice.Bytes())
 }
 
 type logoutForm struct {

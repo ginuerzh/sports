@@ -321,191 +321,52 @@ func UserList(skip, limit int) (total int, users []Account, err error) {
 
 // This function returns users after preCursor or nextCursor sorted by sortOrder. The return count total should not be more than limit.
 func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
-	user := &Account{}
-	var query bson.M
-	var sortby string
 
-	if len(nextCursor) > 0 {
-		user.findOne(bson.M{"_id": nextCursor})
-	} else if len(preCursor) > 0 {
-		user.findOne(bson.M{"_id": preCursor})
-	}
+	var sortby string
 
 	switch sortOrder {
 	case "logintime":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$lte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-lastlogin"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$gte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "lastlogin"
-		} else {
-			query = bson.M{}
-			sortby = "-lastlogin"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "lastlogin"
+	case "-logintime":
+		sortby = "-lastlogin"
 	case "userid":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"_id": bson.M{
-					"$gt": user.Id,
-				},
-			}
-			sortby = "_id"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"_id": bson.M{
-					"$lt": user.Id,
-				},
-			}
-			sortby = "-_id"
-		} else {
-			query = bson.M{}
-			sortby = "_id"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "_id"
+	case "-userid":
+		sortby = "-_id"
 	case "nickname":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"nickname": bson.M{
-					"$gte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "nickname"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"nickname": bson.M{
-					"$lte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-nickname"
-		} else {
-			query = bson.M{}
-			sortby = "nickname"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "nickname"
+	case "-nickname":
+		sortby = "-nickname"
 	case "score":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"score": bson.M{
-					"$lte": user.Score,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-score"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"score": bson.M{
-					"$gte": user.Score,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "score"
-		} else {
-			query = bson.M{}
-			sortby = "-score"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
-
+		sortby = "score"
+	case "-score":
+		sortby = "-score"
 	case "regtime":
-		log.Println("regtime")
-		fallthrough
+		sortby = "reg_time"
+	case "-regtime":
+		sortby = "-reg_time"
+	case "age":
+		sortby = "-birth"
+	case "-age":
+		sortby = "birth"
+	case "gender":
+		sortby = "gender"
+	case "-gender":
+		sortby = "-gender"
+	case "ban":
+		sortby = "timelimit"
+	case "-ban":
+		sortby = "-timelimit"
 	default:
-		log.Println("default")
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$lte": user.RegTime,
-					"$gt":  time.Unix(0, 0),
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "-reg_time"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$gte": user.RegTime,
-				},
-				"_id": bson.M{
-					"$ne": user.Id,
-				},
-			}
-			sortby = "reg_time"
-		} else {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$gt": time.Unix(0, 0),
-				},
-			}
-			sortby = "-reg_time"
-		}
+		sortby = "-reg_time"
 	}
 
-	q := func(c *mgo.Collection) error {
-		pq := bson.M{
-			"reg_time": bson.M{
-				"$gt": time.Unix(0, 0),
-			},
-		}
-		qy := c.Find(pq)
+	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
 
-		if total, err = qy.Count(); err != nil {
-			return err
-		}
-		return err
-	}
-
-	if err = withCollection(accountColl, nil, q); err != nil {
+	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
-	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
-	}
-
-	if len(preCursor) > 0 {
-		totalCount := len(users)
-		for i := 0; i < totalCount/2; i++ {
-			users[i], users[totalCount-1-i] = users[totalCount-1-i], users[i]
-		}
-	}
 	return
 }
 
@@ -517,47 +378,74 @@ func GetSearchListBySort(id, nickname, keywords string,
 
 	switch sortOrder {
 	case "logintime":
+		sortby = "lastlogin"
+	case "-logintime":
 		sortby = "-lastlogin"
 	case "userid":
+		sortby = "_id"
+	case "-userid":
 		sortby = "-_id"
 	case "nickname":
+		sortby = "nickname"
+	case "-nickname":
 		sortby = "-nickname"
 	case "score":
+		sortby = "score"
+	case "-score":
 		sortby = "-score"
 	case "regtime":
 		sortby = "reg_time"
+	case "-regtime":
+		sortby = "-reg_time"
+	case "age":
+		sortby = "-birth"
+	case "-age":
+		sortby = "birth"
+	case "gender":
+		sortby = "gender"
+	case "-gender":
+		sortby = "-gender"
+	case "ban":
+		sortby = "timelimit"
+	case "-ban":
+		sortby = "-timelimit"
 	default:
 		sortby = "-reg_time"
 	}
 
-	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
+	and := []bson.M{
+		{"reg_time": bson.M{"$gt": time.Unix(0, 0)}},
+	}
+
 	if len(keywords) > 0 {
-		query["$or"] = []bson.M{
+		q := bson.M{"$or": []bson.M{
 			{"_id": bson.M{"$regex": keywords, "$options": "i"}},
 			{"nickname": bson.M{"$regex": keywords, "$options": "i"}},
 			{"phone": bson.M{"$regex": keywords, "$options": "i"}},
 			{"about": bson.M{"$regex": keywords, "$options": "i"}},
 			{"hobby": bson.M{"$regex": keywords, "$options": "i"}},
-		}
+		}}
+		and = append(and, q)
 	}
 
 	if len(gender) > 0 {
 		if strings.HasPrefix(gender, "f") {
-			query["gender"] = bson.M{"$in": []interface{}{"f", "female"}}
+			and = append(and, bson.M{"gender": bson.M{"$in": []interface{}{"f", "female"}}})
 		} else {
-			query["gender"] = bson.M{"$in": []interface{}{"m", "male", nil}}
+			and = append(and, bson.M{"gender": bson.M{"$in": []interface{}{"m", "male", nil}}})
 		}
 	}
 	if len(age) > 0 {
 		s := strings.Split(age, "-")
 		if len(s) == 1 {
 			if a, err := strconv.Atoi(s[0]); err == nil {
-				start, end := AgeToTimeRange(a)
-
-				query["birth"] = bson.M{
-					"$gte": start.Unix(),
-					"$lte": end.Unix(),
+				if a == 0 {
+					and = append(and, bson.M{"birth": bson.M{"$exists": false}})
+				} else {
+					start, end := AgeToTimeRange(a)
+					and = append(and, bson.M{"birth": bson.M{"$gte": start.Unix(), "$lte": end.Unix()}})
 				}
+
 			}
 		}
 		if len(s) == 2 {
@@ -565,23 +453,24 @@ func GetSearchListBySort(id, nickname, keywords string,
 			high, _ := strconv.Atoi(s[1])
 			if low == high {
 				start, end := AgeToTimeRange(low)
-				query["birth"] = bson.M{
+				and = append(and, bson.M{"birth": bson.M{
 					"$gte": start.Unix(),
 					"$lte": end.Unix(),
-				}
-			} else if low > high {
-				start, _ := AgeToTimeRange(low)
-				_, end := AgeToTimeRange(high)
-				query["birth"] = bson.M{
-					"$gte": start.Unix(),
-					"$lte": end.Unix(),
-				}
+				}})
 			} else {
+				if low > high {
+					low, high = high, low
+				}
 				start, _ := AgeToTimeRange(high)
 				_, end := AgeToTimeRange(low)
-				query["birth"] = bson.M{
-					"$gte": start.Unix(),
-					"$lte": end.Unix(),
+
+				if low == 0 {
+					and = append(and, bson.M{"$or": []bson.M{
+						{"birth": bson.M{"$gte": start.Unix(), "$lte": end.Unix()}},
+						{"birth": bson.M{"$exists": false}},
+					}})
+				} else {
+					and = append(and, bson.M{"birth": bson.M{"$gte": start.Unix(), "$lte": end.Unix()}})
 				}
 			}
 		}
@@ -589,15 +478,15 @@ func GetSearchListBySort(id, nickname, keywords string,
 	if len(banStatus) > 0 {
 		switch banStatus {
 		case "normal":
-			query["timelimit"] = bson.M{"$in": []interface{}{0, nil}}
+			and = append(and, bson.M{"timelimit": bson.M{"$in": []interface{}{0, nil}}})
 		case "lock":
-			query["timelimit"] = bson.M{
-				"$gt": 0,
-			}
+			and = append(and, bson.M{"timelimit": bson.M{"$gt": 0}})
 		case "ban":
-			query["timelimit"] = bson.M{"$lt": 0}
+			and = append(and, bson.M{"timelimit": bson.M{"$lt": 0}})
 		}
 	}
+
+	query := bson.M{"$and": and}
 
 	b, _ := json.Marshal(query)
 	log.Println("query:", string(b))

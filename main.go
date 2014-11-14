@@ -80,6 +80,8 @@ func main() {
 	admin.BindAccountApi(m)
 	admin.BindRecordsApi(m)
 
+	admin.BindRuleApi(m)
+
 	//m.Run()
 	log.Fatal(http.ListenAndServe(listenAddr, m))
 }

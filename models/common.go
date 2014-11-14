@@ -50,6 +50,7 @@ var (
 	actionColl = "actions"
 	groupColl  = "groups"
 	eventColl  = "events"
+	ruleColl   = "rules"
 	//rateColl     = "rates"
 )
 
