@@ -6,6 +6,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"github.com/ginuerzh/sports/controllers"
 	"github.com/ginuerzh/sports/controllers/admin"
+	//"github.com/ginuerzh/sports/controllers/jsgen"
 	//"github.com/ginuerzh/sports/models"
 	"github.com/zhengying/apns"
 	//"github.com/martini-contrib/gzip"
@@ -74,6 +75,7 @@ func main() {
 	controllers.BindWalletApi(m)
 	controllers.BindTaskApi(m)
 
+	//admin apis
 	admin.BindArticleApi(m)
 	admin.BindTaskApi(m)
 	admin.BindStatApi(m)
@@ -82,6 +84,10 @@ func main() {
 
 	admin.BindRuleApi(m)
 
+	//jsgen apis
+	//jsgen.BindConfigApi(m)
+	//jsgen.BindAccountApi(m)
+	//jsgen.BindArticleApi(m)
 	//m.Run()
 	log.Fatal(http.ListenAndServe(listenAddr, m))
 }

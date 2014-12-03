@@ -2,6 +2,8 @@
 package admin
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
@@ -14,7 +16,8 @@ import (
 
 func BindArticleApi(m *martini.ClassicMartini) {
 	m.Get("/admin/article/info", binding.Form(articleInfoForm{}), adminErrorHandler, articleInfoHandler)
-	m.Get("/admin/article/timeline", binding.Form(articleListForm{}), adminErrorHandler, articleListHandler)
+	m.Get("/admin/article/list", binding.Form(articleListForm{}), adminErrorHandler, articleListHandler)
+	m.Get("/admin/article/timeline", binding.Form(articleListForm{}), adminErrorHandler, articleTimelineHandler)
 	m.Get("/admin/article/comments", binding.Form(articleListForm{}), adminErrorHandler, articleCommentsHandler)
 	m.Post("/admin/article/post", binding.Json(postForm{}), adminErrorHandler, articlePostHandler)
 	m.Post("/admin/article/delete", binding.Json(delArticleForm{}), adminErrorHandler, delArticleHandler)
@@ -23,39 +26,62 @@ func BindArticleApi(m *martini.ClassicMartini) {
 }
 
 type articleInfo struct {
-	Id          string           `json:"article_id"`
-	Author      string           `json:"author"`
-	Image       string           `json:"cover_image"`
-	Title       string           `json:"cover_text"`
-	Time        int64            `json:"time"`
-	TimeStr     string           `json:"time_str"`
-	Thumbs      int              `json:"thumbs_count"`
-	Comments    int              `json:"comments_count"`
-	Rewards     int64            `json:"rewards_value"`
-	RewardUsers []string         `json:"rewards_users"`
-	Tags        []string         `json:"tags"`
-	Contents    []models.MsgBody `json:"contents"`
+	Id     string              `json:"article_id"`
+	Parent string              `json:"parent"`
+	Author *userInfoJsonStruct `json:"author"`
+	Image  string              `json:"cover_image"`
+	Title  string              `json:"cover_text"`
+	Time   int64               `json:"time"`
+	//TimeStr      string         `json:"time_str"`
+	Thumbs       int            `json:"thumbs_count"`
+	CommentCount int            `json:"comments_count"`
+	Comments     []*articleInfo `json:"comments"`
+	Rewards      int64          `json:"rewards_value"`
+	RewardUsers  []string       `json:"rewards_users"`
+	Tags         []string       `json:"tags"`
+	Contents     string         `json:"contents"`
 }
 
-func convertArticle(article *models.Article) *articleInfo {
+func convertArticle(article *models.Article, redis *models.RedisLogger) *articleInfo {
 	info := &articleInfo{}
 	info.Id = article.Id.Hex()
-	info.Author = article.Author
+	info.Parent = article.Parent
+
+	user := &models.Account{}
+	user.FindByUserid(article.Author)
+	info.Author = convertUser(user, redis)
 	info.Time = article.PubTime.Unix()
-	info.TimeStr = article.PubTime.Format("2006-01-02 15:04:05")
+	//info.TimeStr = article.PubTime.Format("2006-01-02 15:04:05")
 	info.Thumbs = len(article.Thumbs)
-	info.Comments = len(article.Reviews)
+	info.CommentCount = len(article.Reviews)
 	info.Rewards = article.TotalReward
 	info.RewardUsers = article.Rewards
 	info.Tags = article.Tags
 	info.Title, info.Image = article.Cover()
-	info.Contents = []models.MsgBody{}
+	info.Contents = formatArticleContent(article.Contents)
 
-	for _, content := range article.Contents {
-		info.Contents = append(info.Contents,
-			models.MsgBody{Type: strings.ToLower(content.ContentType), Content: content.ContentText})
-	}
 	return info
+}
+
+func formatArticleContent(contents []models.Segment) string {
+	buffer := &bytes.Buffer{}
+	images := &bytes.Buffer{}
+	j := 1
+	for _, seg := range contents {
+		switch strings.ToUpper(seg.ContentType) {
+		case "TEXT":
+			buffer.WriteString(seg.ContentText + "\n\n")
+		case "IMAGE":
+			fmt.Fprintf(buffer, "![pic%d][%d]\n\n", j, j)
+			fmt.Fprintf(buffer, "[%d]: %s\n", j, seg.ContentText)
+			j++
+		}
+	}
+	if images.Len() > 0 {
+		buffer.WriteString("\n\n")
+		buffer.WriteString(images.String())
+	}
+	return buffer.String()
 }
 
 type articleInfoForm struct {
@@ -81,17 +107,55 @@ func articleInfoHandler(w http.ResponseWriter, redis *models.RedisLogger, form a
 		return
 	}
 
-	writeResponse(w, convertArticle(article))
+	a := convertArticle(article, redis)
+	a.Comments = comments(redis, article, 0, 0)
+	writeResponse(w, a)
+}
+
+func comments(redis *models.RedisLogger, article *models.Article, pageIndex, pageCount int) (a []*articleInfo) {
+	_, list, _ := article.AdminComments(pageIndex, pageCount)
+	for _, c := range list {
+		art := convertArticle(&c, redis)
+		if len(c.Reviews) > 0 {
+			art.Comments = comments(redis, &c, 0, 0)
+		}
+		a = append(a, art)
+	}
+	return a
 }
 
 type articleListForm struct {
 	Userid string `form:"userid"`
 	Id     string `form:"article_id"`
+	Sort   string `form:"sort"`
 	AdminPaging
 	Token string `form:"access_token" binding:"required"`
 }
 
 func articleListHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
+	if form.PageCount == 0 {
+		form.PageCount = 50
+	}
+	total, articles, _ := models.ArticleList(form.Sort, form.PageIndex, form.PageCount)
+	list := make([]*articleInfo, len(articles))
+	for i, _ := range articles {
+		list[i] = convertArticle(&articles[i], redis)
+	}
+	pages := total / form.PageCount
+	if total%form.PageCount > 0 {
+		pages++
+	}
+	resp := map[string]interface{}{
+		"articles":     list,
+		"page_index":   form.PageIndex,
+		"page_total":   pages,
+		"total_number": total,
+	}
+
+	writeResponse(w, resp)
+}
+
+func articleTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
 	/*
 		user := redis.OnlineUser(form.Token)
 		if user == nil {
@@ -99,20 +163,25 @@ func articleListHandler(w http.ResponseWriter, redis *models.RedisLogger, form a
 			return
 		}
 	*/
-
-	u := &models.User{Id: form.Userid}
-	paging := &models.Paging{First: form.Pre, Last: form.Next, Count: form.Count}
-	total, articles, _ := u.Articles("ARTICLES", paging)
+	if form.PageCount == 0 {
+		form.PageCount = 50
+	}
+	u := &models.Account{Id: form.Userid}
+	total, articles, _ := u.ArticleTimeline(form.PageIndex, form.PageCount)
 
 	list := make([]*articleInfo, len(articles))
 	for i, _ := range articles {
-		list[i] = convertArticle(&articles[i])
+		list[i] = convertArticle(&articles[i], redis)
 	}
 
+	pages := total / form.PageCount
+	if total%form.PageCount > 0 {
+		pages++
+	}
 	resp := map[string]interface{}{
 		"articles":     list,
-		"prev_cursor":  paging.First,
-		"next_cursor":  paging.Last,
+		"page_index":   form.PageIndex,
+		"page_total":   pages,
 		"total_number": total,
 	}
 
@@ -127,31 +196,32 @@ func articleCommentsHandler(w http.ResponseWriter, redis *models.RedisLogger, fo
 			return
 		}
 	*/
-
-	paging := &models.Paging{First: form.Pre, Last: form.Next, Count: form.Count}
-	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
-	total, comments, _ := article.Comments(paging)
-
-	list := make([]*articleInfo, len(comments))
-	for i, _ := range comments {
-		list[i] = convertArticle(&comments[i])
+	if form.PageCount == 0 {
+		form.PageCount = 50
 	}
+	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
+	list := comments(redis, article, form.PageIndex, form.PageCount)
 
+	total := article.CommentCount()
+	pages := total / form.PageCount
+	if total%form.PageCount > 0 {
+		pages++
+	}
 	resp := map[string]interface{}{
 		"comments":     list,
-		"next_cursor":  paging.Last,
-		"prev_cursor":  paging.First,
+		"page_index":   form.PageIndex,
+		"page_total":   pages,
 		"total_number": total,
 	}
 	writeResponse(w, resp)
 }
 
 type postForm struct {
-	Id       string           `json:"article_id"`
-	Author   string           `json:"author"`
-	Contents []models.MsgBody `json:"contents"`
-	Tags     []string         `json:"tags"`
-	Token    string           `json:"access_token" binding:"required"`
+	Id       string   `json:"article_id"`
+	Author   string   `json:"author"`
+	Contents string   `json:"contents"`
+	Tags     []string `json:"tags"`
+	Token    string   `json:"access_token" binding:"required"`
 }
 
 func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form postForm) {
@@ -167,14 +237,16 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 		PubTime: time.Now(),
 		Tags:    form.Tags,
 	}
+	if len(article.Tags) == 0 {
+		article.Tags = []string{"SPORT_LOG"}
+	}
 
 	if len(form.Author) == 0 {
 		article.Author = user.Id
 	}
-	for _, content := range form.Contents {
-		article.Contents = append(article.Contents,
-			models.Segment{ContentType: strings.ToUpper(content.Type), ContentText: content.Type})
-	}
+
+	article.Contents = append(article.Contents,
+		models.Segment{ContentType: "TEXT", ContentText: form.Contents})
 
 	if err := article.Save(); err != nil {
 		writeResponse(w, err)
@@ -224,23 +296,24 @@ func articleSearchHandler(w http.ResponseWriter, redis *models.RedisLogger, form
 			return
 		}
 	*/
-
-	paging := &models.Paging{First: form.Pre, Last: form.Next, Count: form.Count}
-	total, articles, err := models.SearchArticle(form.Keyword, paging)
-
-	if err != nil {
-		writeResponse(w, err)
+	if form.PageCount == 0 {
+		form.PageCount = 50
 	}
+	total, articles, _ := models.AdminSearchArticle(form.Keyword, form.PageIndex, form.PageCount)
 
 	list := make([]*articleInfo, len(articles))
 	for i, _ := range articles {
-		list[i] = convertArticle(&articles[i])
+		list[i] = convertArticle(&articles[i], redis)
 	}
 
+	pages := total / form.PageCount
+	if total%form.PageCount > 0 {
+		pages++
+	}
 	resp := map[string]interface{}{
 		"articles":     list,
-		"next_cursor":  paging.Last,
-		"prev_cursor":  paging.First,
+		"page_index":   form.PageIndex,
+		"page_total":   pages,
 		"total_number": total,
 	}
 	writeResponse(w, resp)

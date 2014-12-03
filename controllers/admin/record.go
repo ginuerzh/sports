@@ -30,7 +30,7 @@ type getRecordsForm struct {
 }
 
 type record struct {
-	ID         string   `json:"record_id”`
+	ID         string   `json:"record_id"`
 	Type       string   `json:"type"`
 	Duration   int      `json:"duration"`
 	Distance   int      `json:"distance"`

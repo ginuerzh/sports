@@ -2,6 +2,7 @@
 package admin
 
 import (
+	//"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/ginuerzh/sports/errors"
@@ -11,9 +12,11 @@ import (
 )
 
 type AdminPaging struct {
-	Next  string `form:"next_cursor" json:"next_cursor"`
-	Pre   string `form:"prev_cursor" json:"prev_cursor"`
-	Count int    `form:"count" json:"count"`
+	Next      string `form:"next_cursor" json:"next_cursor"`
+	Pre       string `form:"prev_cursor" json:"prev_cursor"`
+	Count     int    `form:"count" json:"count"`
+	PageIndex int    `form:"page_index" json:"page_index"`
+	PageCount int    `form:"page_count" json:"page_count"`
 }
 
 func writeResponse(w http.ResponseWriter, data interface{}) []byte {

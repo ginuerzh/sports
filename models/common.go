@@ -54,37 +54,80 @@ var (
 	//rateColl     = "rates"
 )
 
+const (
+	Satoshi  = 100000000
+	MaxLevel = 40
+)
+
 var (
 	GuestUserPrefix = "guest:"
+	MongoAddr       = "localhost:27017"
+
+	levelScores = make([]int64, MaxLevel)
 )
 
-var (
-	MongoAddr = "localhost:27017"
-)
-
-const (
-	Satoshi = 100000000
-)
-
-type Props struct {
-	Physical int64 `json:"physique_value"`
-	Literal  int64 `json:"literature_value"`
-	Mental   int64 `json:"magic_value"`
-	Wealth   int64 `json:"coin_value"`
-	Score    int64 `json:"rankscore"`
-	Level    int64 `json:"rankLevel"`
+func init() {
+	initLevelScores()
 }
 
+func scoreOfUpgrade(n int) int64 {
+	difficult := func(n int) int {
+		if n < 10 {
+			return 0
+		} else if n < 20 {
+			return 1
+		} else if n < 30 {
+			return 3
+		} else if n < 35 {
+			return 6
+		} else {
+			return 5 * (n - 33)
+		}
+	}
+
+	factor := func(n int) float64 {
+		if n <= 10 {
+			return 1
+		} else if n < 30 {
+			return (1.0 - float64(n-10)/100)
+		} else {
+			return 0.82
+		}
+	}
+
+	s := int64(float64(2*n+difficult(n)) * float64(40+3*n) * factor(n))
+	return s - s%10
+}
+
+func initLevelScores() {
+	var total int64
+	for i := 1; i < len(levelScores); i++ {
+		total += scoreOfUpgrade(i)
+		levelScores[i] = total
+	}
+}
+
+func Score2Level(score int64) int {
+	for i := 1; i < len(levelScores); i++ {
+		if score < levelScores[i] {
+			return i
+		}
+	}
+
+	return MaxLevel
+}
+
+/*
 func UserScore(props *Props) int {
 	return int(props.Physical*4 + props.Literal*3 + props.Mental*2 + props.Wealth/Satoshi*1)
 }
 
 var levelScores = []int{
-	0, 20, 30, 45, 67, 101, 151, 227, 341, 512, /* 1 - 10 */
-	768, 1153, 1729, 2594, 3892, 5838, 8757, 13136, 19705, 29557, /* 11 - 20 */
-	44336, 66505, 99757, 149636, 224454, 336682, 505023, 757535, 1136302, 1704453, /* 21 - 30 */
-	2556680, 3835021, 5752531, 8628797, 12943196, /* 31 - 35 */
-	19414794, 29122192, 43683288, 65524932, 98287398, /* 36 - 40 */
+	0, 20, 30, 45, 67, 101, 151, 227, 341, 512,
+	768, 1153, 1729, 2594, 3892, 5838, 8757, 13136, 19705, 29557,
+	44336, 66505, 99757, 149636, 224454, 336682, 505023, 757535, 1136302, 1704453,
+	2556680, 3835021, 5752531, 8628797, 12943196,
+	19414794, 29122192, 43683288, 65524932, 98287398,
 }
 
 func UserLevel(score int) int {
@@ -98,7 +141,7 @@ func UserLevel(score int) int {
 	}
 	return len(levelScores)
 }
-
+*/
 type Paging struct {
 	First string `form:"page_frist_id" json:"page_frist_id"`
 	Last  string `form:"page_last_id" json:"page_last_id"`

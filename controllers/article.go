@@ -90,6 +90,9 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		Parent:   form.Parent,
 		Tags:     form.Tags,
 	}
+	if len(article.Tags) == 0 {
+		article.Tags = []string{"SPORT_LOG"}
+	}
 
 	if err := article.Save(); err != nil {
 		log.Println(err)
@@ -97,13 +100,18 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	awards := Awards{Literal: 1, Wealth: 1 * models.Satoshi}
-	if err := giveAwards(user, &awards, redis); err != nil {
-		log.Println(err)
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
-		return
+	awards := Awards{}
+	// only new article
+	if len(form.Parent) == 0 {
+		awards = Awards{Literal: 10 + user.Props.Level, Wealth: 10 * models.Satoshi, Score: 10 + user.Props.Level}
+		if err := giveAwards(user, awards); err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+			return
+		}
 	}
 
+	// comment
 	if len(form.Parent) > 0 {
 		parent := &models.Article{}
 		if find, err := parent.FindById(form.Parent); !find {
@@ -214,12 +222,14 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	awards := Awards{Physical: 1, Wealth: 1 * models.Satoshi}
-
-	if err := giveAwards(user, &awards, redis); err != nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
-		return
-	}
+	awards := Awards{}
+	/*
+		awards := Awards{Physical: 1, Wealth: 1 * models.Satoshi}
+		if err := giveAwards(user, awards); err != nil {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+			return
+		}
+	*/
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 

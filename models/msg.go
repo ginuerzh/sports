@@ -127,3 +127,18 @@ func msgPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (
 
 	return
 }
+
+func AdminMessages(from, to string, pageIndex, pageCount int) (total int, msgs []Message, err error) {
+	var or []bson.M
+
+	if len(from) > 0 {
+		or = append(or, bson.M{"from": from})
+	}
+	if len(to) > 0 {
+		or = append(or, bson.M{"to": to})
+	}
+	err = search(msgColl, bson.M{"type": "chat", "$or": or}, nil,
+		pageIndex*pageCount, pageCount, []string{"-time"}, &total, &msgs)
+
+	return
+}

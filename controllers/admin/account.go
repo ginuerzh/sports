@@ -74,7 +74,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	redis.SetOnlineUser(token, user, true)
+	redis.SetOnlineUser(token, user.Id)
 	redis.LogLogin(user.Id)
 
 	data := map[string]interface{}{
@@ -169,6 +169,72 @@ type userInfoJsonStruct struct {
 	BanStatus  string `json:"ban_status"`
 }
 
+func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonStruct {
+	info := &userInfoJsonStruct{
+		Userid:     user.Id,
+		Nickname:   user.Nickname,
+		Phone:      user.Phone,
+		Type:       user.Role,
+		About:      user.About,
+		Profile:    user.Profile,
+		RegTime:    user.RegTime.Unix(),
+		RegTimeStr: user.RegTime.Format("2006-01-02 15:04:05"),
+		Hobby:      user.Hobby,
+		Height:     user.Height,
+		Weight:     user.Weight,
+		Birth:      user.Birth,
+
+		Physical: user.Props.Physical,
+		Literal:  user.Props.Literal,
+		Mental:   user.Props.Mental,
+		Wealth:   user.Props.Wealth,
+		Score:    user.Props.Score,
+		Level:    user.Props.Level + 1,
+
+		Gender: user.Gender,
+		Posts:  user.ArticleCount(),
+
+		Photos: user.Photos,
+
+		Wallet:  user.Wallet.Addr,
+		LastLog: user.LastLogin.Unix(),
+	}
+
+	info.BanTime = user.TimeLimit
+	if user.TimeLimit > 0 {
+		if user.TimeLimit > time.Now().Unix() {
+			info.BanStatus = "normal"
+		} else {
+			info.BanStatus = "lock"
+		}
+	} else {
+		if user.TimeLimit == 0 {
+			info.BanStatus = "normal"
+		} else if user.TimeLimit == -1 {
+			info.BanStatus = "ban"
+		}
+	}
+
+	if user.Equips != nil {
+		eq := *user.Equips
+		info.Equip.Shoes = eq.Shoes
+		info.Equip.Electronics = eq.Electronics
+		info.Equip.Softwares = eq.Softwares
+		//info.Equips = *user.Equips
+	}
+
+	if user.Addr != nil {
+		info.Addr = user.Addr.String()
+	}
+	if user.Loc != nil {
+		loction := *user.Loc
+		info.Lat = loction.Lat
+		info.Lng = loction.Lng
+	}
+
+	return info
+}
+
 func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserInfoForm) {
 	log.Println("get a single user infomation")
 
@@ -201,12 +267,12 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		Weight:     user.Weight,
 		Birth:      user.Birth,
 
-		Physical: redis.UserProps(user.Id).Physical,
-		Literal:  redis.UserProps(user.Id).Literal,
-		Mental:   redis.UserProps(user.Id).Mental,
-		Wealth:   redis.UserProps(user.Id).Wealth,
-		Score:    redis.UserProps(user.Id).Score,
-		Level:    redis.UserProps(user.Id).Level,
+		Physical: user.Props.Physical,
+		Literal:  user.Props.Literal,
+		Mental:   user.Props.Mental,
+		Wealth:   user.Props.Wealth,
+		Score:    user.Props.Score,
+		Level:    user.Props.Level,
 
 		Gender: user.Gender,
 		Posts:  user.ArticleCount(),
@@ -324,6 +390,14 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		list[i].Photos = user.Photos
 		list[i].Wallet = user.Wallet.Addr
 		list[i].LastLog = user.LastLogin.Unix()
+
+		list[i].Physical = user.Props.Physical
+		list[i].Literal = user.Props.Literal
+		list[i].Mental = user.Props.Mental
+		list[i].Wealth = user.Props.Wealth
+		list[i].Score = user.Props.Score
+		list[i].Level = user.Props.Level + 1
+
 		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
 			if user.TimeLimit > time.Now().Unix() {
@@ -343,16 +417,18 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		}
 		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
 		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
-		pups := redis.UserProps(user.Id)
-		if pups != nil {
-			ups := *pups
-			list[i].Physical = ups.Physical
-			list[i].Literal = ups.Literal
-			list[i].Mental = ups.Mental
-			list[i].Wealth = ups.Wealth
-			list[i].Score = ups.Score
-			list[i].Level = ups.Level
-		}
+		/*
+			pups := redis.UserProps(user.Id)
+			if pups != nil {
+				ups := *pups
+				list[i].Physical = user.Pro.Physical
+				list[i].Literal = ups.Literal
+				list[i].Mental = ups.Mental
+				list[i].Wealth = ups.Wealth
+				list[i].Score = ups.Score
+				list[i].Level = ups.Level
+			}
+		*/
 
 		if user.Equips != nil {
 			eq := *user.Equips
@@ -474,7 +550,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].About = user.About
 		list[i].Profile = user.Profile
 		list[i].RegTime = user.RegTime.Unix()
-		list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
+		//list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
 		list[i].Hobby = user.Hobby
 		list[i].Height = user.Height
 		list[i].Weight = user.Weight
@@ -484,7 +560,15 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].Photos = user.Photos
 		list[i].Wallet = user.Wallet.Addr
 		list[i].LastLog = user.LastLogin.Unix()
-		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
+
+		list[i].Physical = user.Props.Physical
+		list[i].Literal = user.Props.Literal
+		list[i].Mental = user.Props.Mental
+		list[i].Wealth = user.Props.Wealth
+		list[i].Score = user.Props.Score
+		list[i].Level = user.Props.Level + 1
+
+		//list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
 		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
 			if user.TimeLimit > time.Now().Unix() {
@@ -504,16 +588,18 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		}
 
 		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
-		pups := redis.UserProps(user.Id)
-		if pups != nil {
-			ups := *pups
-			list[i].Physical = ups.Physical
-			list[i].Literal = ups.Literal
-			list[i].Mental = ups.Mental
-			list[i].Wealth = ups.Wealth
-			list[i].Score = ups.Score
-			list[i].Level = ups.Level
-		}
+		/*
+			pups := redis.UserProps(user.Id)
+			if pups != nil {
+				ups := *pups
+				list[i].Physical = ups.Physical
+				list[i].Literal = ups.Literal
+				list[i].Mental = ups.Mental
+				list[i].Wealth = ups.Wealth
+				list[i].Score = ups.Score
+				list[i].Level = ups.Level
+			}
+		*/
 
 		if user.Equips != nil {
 			eq := *user.Equips
@@ -658,13 +744,22 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].LastLog = user.LastLogin.Unix()
 		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
 		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
-		pps := *redis.UserProps(user.Id)
-		list[i].Physical = pps.Physical
-		list[i].Literal = pps.Literal
-		list[i].Mental = pps.Mental
-		list[i].Wealth = pps.Wealth
-		list[i].Score = pps.Score
-		list[i].Level = pps.Level
+		/*
+			pps := *redis.UserProps(user.Id)
+			list[i].Physical = pps.Physical
+			list[i].Literal = pps.Literal
+			list[i].Mental = pps.Mental
+			list[i].Wealth = pps.Wealth
+			list[i].Score = pps.Score
+			list[i].Level = pps.Level
+		*/
+		list[i].Physical = user.Props.Physical
+		list[i].Literal = user.Props.Literal
+		list[i].Mental = user.Props.Mental
+		list[i].Wealth = user.Props.Wealth
+		list[i].Score = user.Props.Score
+		list[i].Level = user.Props.Level + 1
+
 		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
 			if user.TimeLimit > time.Now().Unix() {
@@ -836,13 +931,12 @@ type userInfoForm struct {
 
 func updateUserInfoToDB(r *models.RedisLogger, m map[string]interface{}, u *models.Account) error {
 	ss := []string{"userid", "access_token", "nickname", "equips_shoes", "equips_hardwares", "equips_softwares",
-		"phone", "role", "about", "profile", "hobby", "height", "weight", "birthday", "physique_value", "literature_value",
-		"magic_value", "coin_value", "address", "loc_latitude", "loc_longitude", "gender", "photos"}
+		"phone", "role", "about", "profile", "hobby", "height", "weight", "birthday",
+		"address", "loc_latitude", "loc_longitude", "gender", "photos"}
 	changeFields := map[string]interface{}{}
-	propChanged := false
-	var prop1, prop2 *models.Props
+
 	for _, vv := range ss {
-		log.Println("vv is :", vv)
+
 		if value, exists := m[vv]; exists {
 			log.Println("value is :", value)
 			switch vv {
@@ -870,60 +964,6 @@ func updateUserInfoToDB(r *models.RedisLogger, m map[string]interface{}, u *mode
 				changeFields["weight"] = value
 			case "birthday":
 				changeFields["birth"] = value
-			case "physique_value":
-				v, _ := value.(float64)
-				//v := reflect.ValueOf(value).Int()
-				if !propChanged {
-					propChanged = true
-					prop1 = r.UserProps(u.Id)
-				}
-				if int64(v)-prop1.Physical != 0 {
-					if prop2 == nil {
-						prop2 = new(models.Props)
-					}
-					prop2.Physical = int64(v) - prop1.Physical
-				}
-			case "literature_value":
-				v, _ := value.(float64)
-				//v := reflect.ValueOf(value).Int()
-				if !propChanged {
-					propChanged = true
-					prop1 = r.UserProps(u.Id)
-				}
-				if int64(v)-prop1.Literal != 0 {
-					if prop2 == nil {
-						prop2 = new(models.Props)
-					}
-					prop2.Literal = int64(v) - prop1.Literal
-				}
-			case "magic_value":
-				v, _ := value.(float64)
-				//v := reflect.ValueOf(value).Int()
-				if !propChanged {
-					propChanged = true
-					prop1 = r.UserProps(u.Id)
-				}
-				if int64(v)-prop1.Mental != 0 {
-					if prop2 == nil {
-						prop2 = new(models.Props)
-					}
-					prop2.Mental = int64(v) - prop1.Mental
-				}
-			case "coin_value":
-				/*
-					v, _ := value.(float64)
-							//v := reflect.ValueOf(value).Int()
-						if !propChanged {
-							propChanged = true
-							prop1 = r.UserProps(u.Id)
-						}
-							if int64(v)-prop1.Wealth != 0 {
-								if prop2 == nil {
-									prop2 = new(models.Props)
-								}
-								prop2.Wealth = int64(v) - prop1.Wealth
-							}
-				*/
 			case "address":
 				v := reflect.ValueOf(value)
 				var Addr = new(models.Address)
@@ -943,10 +983,6 @@ func updateUserInfoToDB(r *models.RedisLogger, m map[string]interface{}, u *mode
 				changeFields["photos"] = value
 			}
 		}
-	}
-	if prop2 != nil {
-		_, err := r.AddProps(u.Id, prop2)
-		return err
 	}
 
 	change := bson.M{

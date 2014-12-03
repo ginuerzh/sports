@@ -21,7 +21,7 @@ func init() {
 	//dur, _ = time.ParseDuration("-30h") // auto logout after 15 minutes since last access
 
 	ensureIndex(accountColl, "_id", "password")
-	ensureIndex(accountColl, "-score")
+	ensureIndex(accountColl, "-props.score")
 	ensureIndex(accountColl, "nickname")
 	ensureIndex(accountColl, "-reg_time")
 	ensureIndex(accountColl, "-lastlogin")
@@ -62,33 +62,43 @@ type Equip struct {
 	Softwares   []string `json:"step_tool"`
 }
 
-type Account struct {
-	Id          string    `bson:"_id,omitempty" json:"-"`
-	Nickname    string    `bson:",omitempty" json:"nickname,omitempty"`
-	Password    string    `bson:",omitempty" json:"password,omitempty"`
-	Profile     string    `bson:",omitempty" json:"profile,omitempty"`
-	RegTime     time.Time `bson:"reg_time,omitempty" json:"-"`
-	Role        string    `bson:",omitempty" json:"-"`
-	Hobby       string    `bson:",omitempty" json:"hobby,omitempty"`
-	Height      int       `bson:",omitempty" json:"height,omitempty"`
-	Weight      int       `bson:",omitempty" json:"weight,omitempty"`
-	Birth       int64     `bson:",omitempty" json:"birth,omitempty"`
-	Actor       string    `bson:",omitempty" json:"actor,omitempty"`
-	Gender      string    `bson:",omitempty" json:"gender,omitempty"`
-	Url         string    `bson:",omitempty" json:"url,omitempty"`
-	Phone       string    `bson:",omitempty" json:"phone,omitempty"`
-	About       string    `bson:",omitempty" json:"about,omitempty"`
-	Addr        *Address  `bson:",omitempty" json:"addr,omitempty"`
-	Loc         *Location `bson:",omitempty" json:"-"`
-	Photos      []string  `json:"-"`
-	Setinfo     bool      `json:"setinfo,omitempty"`
-	Wallet      DbWallet  `json:"-"`
-	LastLogin   time.Time `bson:"lastlogin" json:"-"`
-	LoginCount  int       `bson:"login_count" json:"-"`
-	LoginAwards []int     `bson:"login_awards" json:"-"`
+type Props struct {
+	Physical int64 `json:"physique_value"`
+	Literal  int64 `json:"literature_value"`
+	Mental   int64 `json:"magic_value"`
+	Wealth   int64 `json:"coin_value"`
+	Score    int64 `json:"rankscore"`
+	Level    int64 `json:"rankLevel"`
+}
 
-	Score int `json:"-"`
-	Level int `json:"-"`
+type Account struct {
+	Id        string    `bson:"_id,omitempty" json:"-"`
+	Nickname  string    `bson:",omitempty" json:"nickname,omitempty"`
+	Password  string    `bson:",omitempty" json:"password,omitempty"`
+	Profile   string    `bson:",omitempty" json:"profile,omitempty"`
+	RegTime   time.Time `bson:"reg_time,omitempty" json:"-"`
+	Role      string    `bson:",omitempty" json:"-"`
+	Hobby     string    `bson:",omitempty" json:"hobby,omitempty"`
+	Height    int       `bson:",omitempty" json:"height,omitempty"`
+	Weight    int       `bson:",omitempty" json:"weight,omitempty"`
+	Birth     int64     `bson:",omitempty" json:"birth,omitempty"`
+	Actor     string    `bson:",omitempty" json:"actor,omitempty"`
+	Gender    string    `bson:",omitempty" json:"gender,omitempty"`
+	Url       string    `bson:",omitempty" json:"url,omitempty"`
+	Phone     string    `bson:",omitempty" json:"phone,omitempty"`
+	About     string    `bson:",omitempty" json:"about,omitempty"`
+	Addr      *Address  `bson:",omitempty" json:"addr,omitempty"`
+	Loc       *Location `bson:",omitempty" json:"-"`
+	Photos    []string  `json:"-"`
+	Setinfo   bool      `json:"setinfo,omitempty"`
+	Wallet    DbWallet  `json:"-"`
+	LastLogin time.Time `bson:"lastlogin" json:"-"`
+	LoginDays int       `bson:"login_days" json:"-"`
+	//LoginAwards []int     `bson:"login_awards" json:"-"`
+
+	Props Props `json:"-"`
+	//Score int   `json:"-"`
+	//Level int   `json:"-"`
 
 	Equips *Equip `bson:",omitempty" json:"-"`
 
@@ -122,22 +132,37 @@ func (this *Account) findOne(query interface{}) (bool, error) {
 }
 
 func (this *Account) FindByUserid(userid string) (bool, error) {
+	if len(userid) == 0 {
+		return false, nil
+	}
 	return this.findOne(bson.M{"_id": userid})
 }
 
 func (this *Account) FindByNickname(nickname string) (bool, error) {
+	if len(nickname) == 0 {
+		return false, nil
+	}
 	return this.findOne(bson.M{"nickname": nickname})
 }
 
 func (this *Account) FindByUserPass(userid, password string) (bool, error) {
+	if len(userid) == 0 || len(password) == 0 {
+		return false, nil
+	}
 	return this.findOne(bson.M{"_id": userid, "password": password})
 }
 
 func (this *Account) FindByWalletAddr(addr string) (bool, error) {
+	if len(addr) == 0 {
+		return false, nil
+	}
 	return this.findOne(bson.M{"wallet.addrs": addr})
 }
 
 func (this *Account) CheckExists() (bool, error) {
+	if len(this.Id) == 0 || len(this.Nickname) == 0 {
+		return false, nil
+	}
 	return this.findOne(bson.M{"$or": []bson.M{{"_id": this.Id}, {"nickname": this.Nickname}}})
 }
 
@@ -197,11 +222,12 @@ func (this *Account) UpdateBanTime(banTime int64) error {
 	return nil
 }
 
+/*
 func (this *Account) UpdateLevel(score int, level int) error {
 	change := bson.M{
 		"$set": bson.M{
-			"score": score,
-			"level": level,
+			"props.score": score,
+			"props.level": level,
 		},
 	}
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
@@ -209,7 +235,7 @@ func (this *Account) UpdateLevel(score int, level int) error {
 	}
 	return nil
 }
-
+*/
 func (this *Account) UpdateLocation(loc Location) error {
 	change := bson.M{
 		"$set": bson.M{
@@ -222,13 +248,14 @@ func (this *Account) UpdateLocation(loc Location) error {
 	return nil
 }
 
+/*
 func (this *Account) SetLogin(count int, lastlog time.Time) (int64, error) {
 	this.LoginCount = count
 	this.LoginAwards = []int{1, 2, 3, 4, 5, 6, 7}
 	change := bson.M{
 		"$set": bson.M{
 			"lastlogin":    lastlog,
-			"login_count":  count,
+			"login_days":  count,
 			"login_awards": this.LoginAwards,
 		},
 	}
@@ -243,6 +270,41 @@ func (this *Account) SetLogin(count int, lastlog time.Time) (int64, error) {
 		award = this.LoginAwards[count-1]
 	}
 	return int64(award), nil
+}
+*/
+
+func (this *Account) SetLastLogin(days int, lastlog time.Time) error {
+	change := bson.M{
+		"$set": bson.M{
+			"lastlogin":  lastlog,
+			"login_days": days,
+		},
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+
+	return nil
+}
+
+func (this *Account) UpdateProps(awards Props) error {
+	change := bson.M{
+		"$inc": bson.M{
+			"props.physical": awards.Physical,
+			"props.literal":  awards.Literal,
+			"props.mental":   awards.Mental,
+			"props.wealth":   awards.Wealth,
+			"props.score":    awards.Score,
+			"props.level":    awards.Level,
+		},
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+
+	return nil
 }
 
 func (this *Account) SetWallet(wallet DbWallet) error {
@@ -338,9 +400,9 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 	case "-nickname":
 		sortby = "-nickname"
 	case "score":
-		sortby = "score"
+		sortby = "props.score"
 	case "-score":
-		sortby = "-score"
+		sortby = "-props.score"
 	case "regtime":
 		sortby = "reg_time"
 	case "-regtime":
@@ -390,9 +452,9 @@ func GetSearchListBySort(id, nickname, keywords string,
 	case "-nickname":
 		sortby = "-nickname"
 	case "score":
-		sortby = "score"
+		sortby = "props.score"
 	case "-score":
-		sortby = "-score"
+		sortby = "-props.score"
 	case "regtime":
 		sortby = "reg_time"
 	case "-regtime":
@@ -616,31 +678,31 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 	case "score":
 		if len(nextCursor) > 0 {
 			query = bson.M{
-				"score": bson.M{
-					"$lte": user.Score,
+				"props.score": bson.M{
+					"$lte": user.Props.Score,
 				},
 				"_id": bson.M{
 					"$in": uids,
 				},
 			}
-			sortby = "-score"
+			sortby = "-props.score"
 		} else if len(preCursor) > 0 {
 			query = bson.M{
-				"score": bson.M{
-					"$gte": user.Score,
+				"props.score": bson.M{
+					"$gte": user.Props.Score,
 				},
 				"_id": bson.M{
 					"$in": uids,
 				},
 			}
-			sortby = "score"
+			sortby = "props.score"
 		} else {
 			query = bson.M{
 				"_id": bson.M{
 					"$in": ids,
 				},
 			}
-			sortby = "-score"
+			sortby = "-props.score"
 		}
 		query["reg_time"] = bson.M{
 			"$gt": time.Unix(0, 0),
@@ -824,8 +886,8 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			return nil, err
 		}
 		query = bson.M{
-			"score": bson.M{
-				"$gte": user.Score,
+			"props.score": bson.M{
+				"$gte": user.Props.Score,
 			},
 			"_id": bson.M{
 				"$in": ids,
@@ -837,8 +899,8 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			return nil, err
 		}
 		query = bson.M{
-			"score": bson.M{
-				"$lte": user.Score,
+			"props.score": bson.M{
+				"$lte": user.Props.Score,
 			},
 			"_id": bson.M{
 				"$in": ids,
@@ -859,10 +921,10 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 	total := 0
 
 	pageUp := false
-	sortFields := []string{"-score"}
+	sortFields := []string{"-props.score"}
 	if len(paging.First) > 0 {
 		pageUp = true
-		sortFields = []string{"score"}
+		sortFields = []string{"props.score"}
 	}
 
 	if err := psearch(accountColl, nil, nil, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
@@ -894,7 +956,7 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 
 func (this *Account) ArticleCount() (count int) {
 	query := bson.M{"author": this.Id, "parent": nil}
-	search(accountColl, query, nil, 0, 0, nil, &count, nil)
+	search(articleColl, query, nil, 0, 0, nil, &count, nil)
 	return
 }
 
@@ -1046,4 +1108,10 @@ func (this *Account) UpdateInfo(change bson.M) error {
 		return errors.NewError(errors.DbError, err.Error())
 	}
 	return nil
+}
+
+func (this *Account) ArticleTimeline(pageIndex, pageCount int) (total int, articles []Article, err error) {
+	err = search(articleColl, bson.M{"author": this.Id, "parent": nil}, nil,
+		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &articles)
+	return
 }

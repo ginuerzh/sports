@@ -51,12 +51,18 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 		Time:    time.Unix(form.Record.Time, 0),
 		PubTime: time.Now(),
 	}
-	awards := Awards{Wealth: 1 * models.Satoshi}
-
+	//awards := Awards{Wealth: 1 * models.Satoshi}
+	awards := Awards{}
 	switch form.Record.Type {
 	case "game":
 		rec.Game = &models.GameRecord{Name: form.Record.GameName, Score: form.Record.GameScore}
-		awards.Mental = 1
+		awards.Wealth = 5 * models.Satoshi
+		awards.Mental = 5 + user.Props.Level
+		awards.Score = 5 + user.Props.Level
+		if err := giveAwards(user, awards); err != nil {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+			return
+		}
 	default:
 		rec.Sport = &models.SportRecord{
 			Duration: form.Record.Duration,
@@ -66,7 +72,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 		if form.Record.Duration > 0 {
 			rec.Sport.Speed = float64(form.Record.Distance) / float64(form.Record.Duration)
 		}
-		awards.Physical = 1
+		// awards.Physical = 1
 	}
 	if err := rec.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
@@ -84,11 +90,6 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 	recDiff := 0
 	if maxDis > 0 {
 		recDiff = redis.MaxDisRecord(user.Id) - maxDis
-	}
-
-	if err := giveAwards(user, &awards, redis); err != nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
-		return
 	}
 
 	respData := map[string]interface{}{
@@ -136,8 +137,8 @@ type leaderboardResp struct {
 	Nickname string `json:"nikename"`
 	Profile  string `json:"user_profile_image"`
 	Rank     int    `json:"index,omitempty"`
-	Score    int    `json:"score"`
-	Level    int    `json:"rankLevel"`
+	Score    int64  `json:"score"`
+	Level    int64  `json:"rankLevel"`
 	Gender   string `json:"sex_type"`
 	Birth    int64  `json:"birthday"`
 	models.Location
@@ -202,8 +203,8 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 		lb := make([]leaderboardResp, len(friends))
 		for i, _ := range friends {
 			lb[i].Userid = friends[i].Id
-			lb[i].Score = friends[i].Score
-			lb[i].Level = friends[i].Level
+			lb[i].Score = friends[i].Props.Score
+			lb[i].Level = friends[i].Props.Level
 			lb[i].Profile = friends[i].Profile
 			lb[i].Nickname = friends[i].Nickname
 			lb[i].Gender = friends[i].Gender
@@ -259,7 +260,7 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 	for i, _ := range kv {
 		lb[i].Userid = kv[i].K
 		lb[i].Rank = start + i + 1
-		lb[i].Score = int(kv[i].V)
+		lb[i].Score = kv[i].V
 		for _, user := range users {
 			if user.Id == kv[i].K {
 				lb[i].Nickname = user.Nickname
@@ -296,8 +297,8 @@ type statResp struct {
 	MaxDistance   *record `json:"max_distance_record"`
 	MaxSpeed      *record `json:"max_speed_record"`
 	Actor         string  `json:"actor"`
-	Score         int     `json:"rankscore"`
-	Level         int     `json:"rankLevel"`
+	Score         int64   `json:"rankscore"`
+	Level         int64   `json:"rankLevel"`
 	Rank          string  `json:"rankName"`
 	Index         int     `json:"top_index"`
 	LBCount       int     `json:"leaderboard_max_items"`
@@ -338,10 +339,10 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 		stats.MaxSpeed.Distance = maxSpeedRec.Sport.Distance
 	}
 
-	stats.Score = models.UserScore(redis.UserProps(form.Userid))
+	stats.Score = user.Props.Score
 	stats.Actor = userActor(user.Actor)
-	stats.Level = models.UserLevel(stats.Score)
-	stats.Rank = userRank(stats.Level)
+	stats.Level = user.Props.Level
+	//stats.Rank = userRank(stats.Level)
 
 	stats.Index = redis.LBDisRank(form.Userid) + 1
 	stats.LBCount = redis.LBDisCard()

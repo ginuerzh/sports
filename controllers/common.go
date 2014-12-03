@@ -162,6 +162,7 @@ func userActor(actor string) string {
 	return actor
 }
 
+/*
 func userRank(level int) string {
 	if level <= 10 {
 		return "初级"
@@ -173,13 +174,14 @@ func userRank(level int) string {
 		return "至尊"
 	}
 }
-
+*/
 func nowDate() time.Time {
 	now := time.Now()
 	year, month, day := now.Date()
 	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
 }
 
+/*
 var actionExps = map[string]int{
 	ActLogin:   1,
 	ActPost:    10,
@@ -189,7 +191,24 @@ var actionExps = map[string]int{
 	ActProfile: 20,
 	ActInfo:    20,
 }
+*/
 
+func decodeJson(r io.Reader, v interface{}) error {
+	return json.NewDecoder(r).Decode(v)
+}
+
+/*
+func updateProps(userid string, props *models.Props, redis *models.RedisLogger) (int, int, error) {
+	props, err := redis.AddProps(userid, props)
+	if err != nil {
+		return 0, 0, err
+	}
+	score := models.UserScore(props)
+	level := models.UserLevel(score)
+
+	return score, level, nil
+}
+*/
 type Awards struct {
 	Physical int64 `json:"exp_physique,omitempty"`
 	Literal  int64 `json:"exp_literature,omitempty"`
@@ -199,11 +218,25 @@ type Awards struct {
 	Level    int64 `json:"exp_rankLevel,omitempty"`
 }
 
-func decodeJson(r io.Reader, v interface{}) error {
-	return json.NewDecoder(r).Decode(v)
+func giveAwards(user *models.Account, awards Awards) error {
+	if _, err := sendCoin(user.Wallet.Addr, awards.Wealth); err != nil {
+		return err
+	}
+
+	return user.UpdateProps(models.Props{
+		Physical: awards.Physical,
+		Literal:  awards.Literal,
+		Mental:   awards.Mental,
+		Wealth:   awards.Wealth,
+		Score:    awards.Score,
+		Level:    awards.Level,
+	})
 }
 
 func sendCoin(toAddr string, amount int64) (string, error) {
+	if len(toAddr) == 0 || amount <= 0 {
+		return "", nil
+	}
 	resp, err := http.PostForm(CoinAddr+"/send", url.Values{"to": {toAddr}, "amount": {strconv.FormatInt(amount, 10)}})
 	if err != nil {
 		return "", err
@@ -222,40 +255,4 @@ func sendCoin(toAddr string, amount int64) (string, error) {
 	}
 
 	return r.Txid, nil
-}
-
-func updateProps(userid string, props *models.Props, redis *models.RedisLogger) (int, int, error) {
-	props, err := redis.AddProps(userid, props)
-	if err != nil {
-		return 0, 0, err
-	}
-	score := models.UserScore(props)
-	level := models.UserLevel(score)
-
-	return score, level, nil
-}
-
-func giveAwards(user *models.Account, awards *Awards, redis *models.RedisLogger) error {
-	if awards.Wealth > 0 {
-		_, err := sendCoin(user.Wallet.Addr, awards.Wealth)
-		if err != nil {
-			return err
-		}
-	}
-
-	props := &models.Props{
-		Physical: awards.Physical,
-		Literal:  awards.Literal,
-		Mental:   awards.Mental,
-		Wealth:   awards.Wealth,
-	}
-
-	score, level, err := updateProps(user.Id, props, redis)
-	if err != nil {
-		return err
-	}
-	awards.Score = int64(score - user.Score)
-	awards.Level = int64(level - user.Level)
-
-	return user.UpdateLevel(score, level)
 }

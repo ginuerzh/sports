@@ -285,8 +285,8 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	lb := make([]leaderboardResp, len(users))
 	for i, _ := range users {
 		lb[i].Userid = users[i].Id
-		lb[i].Score = users[i].Score
-		lb[i].Level = users[i].Level
+		lb[i].Score = users[i].Props.Score
+		lb[i].Level = users[i].Props.Level
 		lb[i].Profile = users[i].Profile
 		lb[i].Nickname = users[i].Nickname
 		lb[i].Gender = users[i].Gender

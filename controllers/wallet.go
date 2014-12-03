@@ -84,8 +84,6 @@ func newAddrHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisL
 	}
 
 	writeResponse(r.RequestURI, w, k, nil)
-
-	redis.SetOnlineUser(form.Token, user, false)
 }
 
 func balanceHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form walletForm) {

@@ -176,6 +176,36 @@ func guestLogin(redis *models.RedisLogger) (*models.Account, error) {
 	return user, nil
 }
 
+var ran = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func loginAwards(days, level int) Awards {
+	awards := Awards{}
+
+	// calc wealth
+	scale := 1.0
+	factor := 0.5
+	r := ran.Intn(level) + 1
+	if days > 7 {
+		scale = 1.5
+		factor = 1.0
+		r = ran.Intn(level*2) + 1
+	}
+	awards.Wealth = int64(float64(days)*scale+float64(level)*factor+float64(r)) * models.Satoshi
+
+	// calc score
+	scale = 5.0
+	factor = 1.0
+	r = ran.Intn(level) + 1
+	if days > 7 {
+		scale = 10.0
+		factor = 1.5
+		r = ran.Intn(level*5) + 1
+	}
+	awards.Score = int64(float64(days)*scale + float64(level)*factor + float64(r))
+
+	return awards
+}
+
 func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getU getUser) {
 	form := getU.(loginForm)
 	user := &models.Account{}
@@ -206,28 +236,29 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 	}
 
 	//user.UpdateAction(ActLogin, d)
-	redis.SetOnlineUser(token, user, true)
+	redis.SetOnlineUser(token, user.Id)
 	redis.LogLogin(user.Id)
 
-	lastlog := time.Now()
-	d := nowDate()
-	count := user.LoginCount
-
-	if user.LastLogin.Unix() < d.Unix()-24*3600 {
-		count = 1
-	} else if user.LastLogin.Unix() < d.Unix() {
-		count++
-	}
-
-	award, _ := user.SetLogin(count, lastlog)
 	awards := Awards{}
-	if user.LastLogin.Unix() < d.Unix() {
-		awards.Wealth = award * models.Satoshi
-		if err := giveAwards(user, &awards, redis); err != nil {
+	d := nowDate()
+	if user.LastLogin.Unix() < d.Unix() { // check wether first time login of one day
+		days := user.LoginDays + 1
+		if user.LastLogin.Unix() < d.Unix()-24*3600 {
+			days = 1
+		}
+
+		awards = loginAwards(days, int(user.Props.Level+1))
+		awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
+
+		if err := giveAwards(user, awards); err != nil {
 			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+			log.Println(err)
 			return
 		}
+
+		user.SetLastLogin(days, time.Now())
 	}
+
 	data := map[string]interface{}{
 		"access_token":    token,
 		"userid":          user.Id,
@@ -272,7 +303,7 @@ type userJsonStruct struct {
 	//Followed bool   `json:"beFriend"`
 	Online bool `json:"beOnline"`
 
-	Props *models.Props `json:"proper_info"`
+	Props models.Props `json:"proper_info"`
 
 	Addr string `json:"location_desc"`
 	models.Location
@@ -315,14 +346,15 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		Birth:    user.Birth,
 		Actor:    userActor(user.Actor),
 
-		Rank:   userRank(user.Level),
+		//Rank:   userRank(user.Level),
 		Online: redis.IsOnline(user.Id),
 		Gender: user.Gender,
 		//Follows:   len(redis.Follows(user.Id)),
 		//Followers: len(redis.Followers(user.Id)),
 		Posts: user.ArticleCount(),
 
-		Props: redis.UserProps(user.Id),
+		//Props: redis.UserProps(user.Id),
+		Props: user.Props,
 
 		Photos: user.Photos,
 
@@ -422,20 +454,21 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 	if addr.String() != "" {
 		user.Addr = addr
 	}
-	setinfo := user.Setinfo
+	//setinfo := user.Setinfo
 	user.Setinfo = true
 	err := user.Update()
 
 	score := 0
-	if !setinfo && err == nil {
-		score = actionExps[ActInfo]
-		//redis.AddScore(user.Id, score)
-	}
+	/*
+		if !setinfo && err == nil {
+			score = actionExps[ActInfo]
+		}
+	*/
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{Wealth: int64(score)}}, err)
 
 	user.UpdateAction(ActInfo, nowDate())
-	redis.SetOnlineUser(form.Token, user, false)
+	//redis.SetOnlineUser(form.Token, user, false)
 }
 
 type setProfileForm struct {
@@ -456,7 +489,7 @@ func setProfileHandler(request *http.Request, resp http.ResponseWriter, redis *m
 	}
 
 	err := user.ChangeProfile(form.ImageId)
-	redis.SetOnlineUser(form.Token, user, false)
+	//redis.SetOnlineUser(form.Token, user, false)
 	/*
 		score := 0
 		if len(user.Profile) == 0 && err == nil {
@@ -519,8 +552,8 @@ func loginAwardsHandler(request *http.Request, resp http.ResponseWriter, redis *
 	}
 	user.FindByUserid(user.Id)
 	respData := map[string]interface{}{
-		"continuous_logined_days": user.LoginCount,
-		"login_reward_list":       user.LoginAwards,
+		"continuous_logined_days": user.LoginDays,
+		//"login_reward_list":       user.LoginAwards,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
@@ -576,14 +609,24 @@ func scoreDiffHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 		return
 	}
 
-	me := redis.UserProps(user.Id)
-	you := redis.UserProps(form.Uid)
+	/*
+		me := redis.UserProps(user.Id)
+		you := redis.UserProps(form.Uid)
 
+		respData := map[string]int64{
+			"physique_times":   you.Physical - me.Physical,
+			"literature_times": you.Literal - me.Literal,
+			"magic_times":      you.Mental - me.Mental,
+		}
+	*/
+	other := &models.Account{}
+	other.FindByUserid(form.Uid)
 	respData := map[string]int64{
-		"physique_times":   you.Physical - me.Physical,
-		"literature_times": you.Literal - me.Literal,
-		"magic_times":      you.Mental - me.Mental,
+		"physique_times":   other.Props.Physical - user.Props.Physical,
+		"literature_times": other.Props.Literal - user.Props.Literal,
+		"magic_times":      other.Props.Mental - user.Props.Mental,
 	}
+
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
 
@@ -592,7 +635,9 @@ type getPropsForm struct {
 }
 
 func getPropsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getPropsForm) {
-	writeResponse(request.RequestURI, resp, redis.UserProps(form.Uid), nil)
+	user := &models.Account{}
+	user.FindByUserid(form.Uid)
+	writeResponse(request.RequestURI, resp, user.Props, nil)
 }
 
 type setEquipForm struct {
@@ -643,8 +688,8 @@ func searchHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLo
 	list := make([]leaderboardResp, len(users))
 	for i, _ := range users {
 		list[i].Userid = users[i].Id
-		list[i].Score = users[i].Score
-		list[i].Level = users[i].Level
+		list[i].Score = users[i].Props.Score
+		list[i].Level = users[i].Props.Level + 1
 		list[i].Profile = users[i].Profile
 		list[i].Nickname = users[i].Nickname
 		list[i].Gender = users[i].Gender

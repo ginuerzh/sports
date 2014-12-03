@@ -7,6 +7,7 @@ import (
 	"labix.org/v2/mgo/bson"
 	"labix.org/v2/mgo/txn"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -42,10 +43,10 @@ func (this *Article) Cover() (text string, image string) {
 		if len(text) > 0 && len(image) > 0 {
 			break
 		}
-		if len(text) == 0 && seg.ContentType == "TEXT" {
+		if len(text) == 0 && strings.ToUpper(seg.ContentType) == "TEXT" {
 			text = seg.ContentText
 		}
-		if len(image) == 0 && seg.ContentType == "IMAGE" {
+		if len(image) == 0 && strings.ToUpper(seg.ContentType) == "IMAGE" {
 			image = seg.ContentText
 		}
 	}
@@ -363,6 +364,12 @@ func (this *Article) Comments(paging *Paging) (int, []Article, error) {
 	return total, articles, nil
 }
 
+func (this *Article) AdminComments(pageIndex, pageCount int) (total int, articles []Article, err error) {
+	err = search(articleColl, bson.M{"parent": this.Id.Hex()}, nil,
+		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &articles)
+	return
+}
+
 func (this *Article) Reward(userid string, amount int64) error {
 	change := mgo.Change{
 		Update: bson.M{
@@ -429,4 +436,37 @@ func SearchArticle(keyword string, paging *Paging) (int, []Article, error) {
 	}
 
 	return total, articles, nil
+}
+
+func AdminSearchArticle(keyword string,
+	pageIndex, pageCount int) (total int, articles []Article, err error) {
+
+	query := bson.M{
+		"parent": nil,
+		"$or": []bson.M{
+			{"contents.seg_content": bson.M{
+				"$regex":   keyword,
+				"$options": "i",
+			}},
+			{"tags": keyword},
+		},
+	}
+
+	err = search(articleColl, query, nil,
+		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &articles)
+	return
+}
+
+func ArticleList(sort string, pageIndex, pageCount int) (total int, articles []Article, err error) {
+	switch sort {
+	case "pubtime":
+		sort = "pub_time"
+	case "-pubtime":
+		sort = "-pub_time"
+	default:
+		sort = "-pub_time"
+	}
+	err = search(articleColl, bson.M{"parent": nil}, nil,
+		pageIndex*pageCount, pageCount, []string{sort}, &total, &articles)
+	return
 }
