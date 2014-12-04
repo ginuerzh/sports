@@ -59,7 +59,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 		awards.Wealth = 5 * models.Satoshi
 		awards.Mental = 5 + user.Props.Level
 		awards.Score = 5 + user.Props.Level
-		if err := giveAwards(user, awards); err != nil {
+		if err := GiveAwards(user, awards, redis); err != nil {
 			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
 			return
 		}

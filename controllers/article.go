@@ -104,7 +104,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	// only new article
 	if len(form.Parent) == 0 {
 		awards = Awards{Literal: 10 + user.Props.Level, Wealth: 10 * models.Satoshi, Score: 10 + user.Props.Level}
-		if err := giveAwards(user, awards); err != nil {
+		if err := GiveAwards(user, awards, redis); err != nil {
 			log.Println(err)
 			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
 			return

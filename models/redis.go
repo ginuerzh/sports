@@ -22,6 +22,7 @@ const (
 	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:" // set per half an hour, current online users
 	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"  // string per user, online user token <->userid
 	RedisUserInfoPrefix       = redisPrefix + ":user:info:"    // hashs per user, user's event box at now
+	RedisUserCoins            = redisPrefix + ":user:coins"    // sorted set
 	//redisUserGuest            = redisPrefix + ":user:guest"    // hashes for all guests
 	//redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
 	redisUserFollowPrefix    = redisPrefix + ":user:follow:"       // set per user
@@ -954,13 +955,22 @@ func (logger *RedisLogger) GetDisLB(start, stop int) []KV {
 	return s
 }
 
+func (logger *RedisLogger) GetCoins(userid string) int64 {
+	coins, _ := redis.Int64(logger.conn.Do("ZSCORE", RedisUserCoins, userid))
+	return coins
+}
+
+func (logger *RedisLogger) AddCoins(userid string, value int64) {
+	logger.conn.Do("ZINCRBY", RedisUserCoins, value, userid)
+}
+
 func (logger *RedisLogger) Transaction(from, to string, amount int64) {
 	if len(from) == 0 || len(to) == 0 || amount <= 0 {
 		return
 	}
 	conn := logger.conn
 	conn.Send("MULTI")
-	conn.Send("ZINCRBY", redisScoreWealthLB, -amount, from)
-	conn.Send("ZINCRBY", redisScoreWealthLB, amount, to)
+	conn.Send("ZINCRBY", RedisUserCoins, -amount, from)
+	conn.Send("ZINCRBY", RedisUserCoins, amount, to)
 	conn.Do("EXEC")
 }

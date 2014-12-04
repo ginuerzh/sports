@@ -2,7 +2,7 @@
 package admin
 
 import (
-	//"github.com/ginuerzh/sports/errors"
+	"github.com/ginuerzh/sports/controllers"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -101,6 +101,20 @@ func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 	if err := u.SetTaskComplete(form.Id, form.Pass, form.Reason); err != nil {
 		writeResponse(w, err)
 		return
+	}
+
+	if form.Pass {
+		user := &models.Account{}
+		user.FindByUserid(form.Userid)
+		awards := controllers.Awards{
+			Physical: 30 + user.Props.Level,
+			Wealth:   30 * models.Satoshi,
+			Score:    30 + user.Props.Level,
+		}
+		if err := controllers.GiveAwards(user, awards, redis); err != nil {
+			writeResponse(w, err)
+			return
+		}
 	}
 
 	writeResponse(w, map[string]bool{"pass": form.Pass})

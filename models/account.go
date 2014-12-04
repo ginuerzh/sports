@@ -294,9 +294,9 @@ func (this *Account) UpdateProps(awards Props) error {
 			"props.physical": awards.Physical,
 			"props.literal":  awards.Literal,
 			"props.mental":   awards.Mental,
-			"props.wealth":   awards.Wealth,
-			"props.score":    awards.Score,
-			"props.level":    awards.Level,
+			//"props.wealth":   awards.Wealth,
+			"props.score": awards.Score,
+			"props.level": awards.Level,
 		},
 	}
 

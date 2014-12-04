@@ -250,7 +250,7 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 		awards = loginAwards(days, int(user.Props.Level+1))
 		awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
 
-		if err := giveAwards(user, awards); err != nil {
+		if err := GiveAwards(user, awards, redis); err != nil {
 			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
 			log.Println(err)
 			return
@@ -354,7 +354,14 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		Posts: user.ArticleCount(),
 
 		//Props: redis.UserProps(user.Id),
-		Props: user.Props,
+		Props: models.Props{
+			Physical: user.Props.Physical,
+			Literal:  user.Props.Literal,
+			Mental:   user.Props.Mental,
+			Wealth:   redis.GetCoins(user.Id),
+			Score:    user.Props.Score,
+			Level:    int64(models.Score2Level(user.Props.Score)),
+		},
 
 		Photos: user.Photos,
 

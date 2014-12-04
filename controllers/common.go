@@ -218,18 +218,19 @@ type Awards struct {
 	Level    int64 `json:"exp_rankLevel,omitempty"`
 }
 
-func giveAwards(user *models.Account, awards Awards) error {
+func GiveAwards(user *models.Account, awards Awards, redis *models.RedisLogger) error {
 	if _, err := sendCoin(user.Wallet.Addr, awards.Wealth); err != nil {
 		return err
 	}
+	redis.AddCoins(user.Id, awards.Wealth)
 
 	return user.UpdateProps(models.Props{
 		Physical: awards.Physical,
 		Literal:  awards.Literal,
 		Mental:   awards.Mental,
-		Wealth:   awards.Wealth,
-		Score:    awards.Score,
-		Level:    awards.Level,
+		//Wealth:   awards.Wealth,
+		Score: awards.Score,
+		Level: awards.Level,
 	})
 }
 

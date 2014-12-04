@@ -187,7 +187,7 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		Physical: user.Props.Physical,
 		Literal:  user.Props.Literal,
 		Mental:   user.Props.Mental,
-		Wealth:   user.Props.Wealth,
+		Wealth:   redis.GetCoins(user.Id),
 		Score:    user.Props.Score,
 		Level:    user.Props.Level + 1,
 
@@ -270,9 +270,9 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		Physical: user.Props.Physical,
 		Literal:  user.Props.Literal,
 		Mental:   user.Props.Mental,
-		Wealth:   user.Props.Wealth,
+		Wealth:   redis.GetCoins(user.Id),
 		Score:    user.Props.Score,
-		Level:    user.Props.Level,
+		Level:    user.Props.Level + 1,
 
 		Gender: user.Gender,
 		Posts:  user.ArticleCount(),
@@ -394,7 +394,7 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		list[i].Physical = user.Props.Physical
 		list[i].Literal = user.Props.Literal
 		list[i].Mental = user.Props.Mental
-		list[i].Wealth = user.Props.Wealth
+		list[i].Wealth = redis.GetCoins(user.Id)
 		list[i].Score = user.Props.Score
 		list[i].Level = user.Props.Level + 1
 
@@ -564,7 +564,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].Physical = user.Props.Physical
 		list[i].Literal = user.Props.Literal
 		list[i].Mental = user.Props.Mental
-		list[i].Wealth = user.Props.Wealth
+		list[i].Wealth = redis.GetCoins(user.Id)
 		list[i].Score = user.Props.Score
 		list[i].Level = user.Props.Level + 1
 
@@ -756,7 +756,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].Physical = user.Props.Physical
 		list[i].Literal = user.Props.Literal
 		list[i].Mental = user.Props.Mental
-		list[i].Wealth = user.Props.Wealth
+		list[i].Wealth = redis.GetCoins(user.Id)
 		list[i].Score = user.Props.Score
 		list[i].Level = user.Props.Level + 1
 
