@@ -4,6 +4,7 @@ import (
 	//"encoding/json"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
+	"github.com/jinzhu/now"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
 	"math/rand"
@@ -20,6 +21,10 @@ var tips = []string{
 	"正常摆臂跑.跑步是锻炼骨骼的好方法，所以你有必要补充充足的钙质——每天1000毫克。如果你在50岁以上，则每天需要1500毫克。低脂牛奶，低脂酸奶和深绿色叶片蔬菜都是钙质的重要来源。",
 	"新手跑者通常会觉得胫骨、肋骨或者膝盖酸痛，如果你在训练后能够及时进行冰敷，这些痛感很快就会消失，你还可以把豆子装进袋子冷藏后敷在膝盖上15分钟。如果疼痛还持续的话，就需要停止几天的训练。",
 	"要想呼吸新鲜的空气让肺部健康的话，尽量不要到繁忙的街道或者在交通高峰时跑步。找一个车辆比较少的地方，这样废气就可以很快驱散。最好就是能够找一些绿化带或公园等。",
+}
+
+func init() {
+	now.FirstDayMonday = true
 }
 
 func BindTaskApi(m *martini.ClassicMartini) {
@@ -47,6 +52,10 @@ func getTasksHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	}
 
 	week := len(tasklist.Completed) / 7
+	if week > 0 && len(tasklist.Completed)%7 == 0 &&
+		tasklist.Last.After(now.BeginningOfWeek()) {
+		week -= 1
+	}
 	list := make([]models.Task, 7)
 	copy(list, models.Tasks[week*7:week*7+7])
 	for i, _ := range list {

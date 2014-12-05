@@ -98,13 +98,14 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 				}
 			case "status":
 				if event.Data.Type == "loc" && len(event.Data.Body) > 0 {
+					log.Println("loc", event.Data.Body[0].Content)
 					loc := strings.Split(event.Data.Body[0].Content, ",")
 					if len(loc) != 2 {
 						break
 					}
 					lat, _ := strconv.ParseFloat(loc[0], 64)
 					lng, _ := strconv.ParseFloat(loc[1], 64)
-					log.Println(lat, lng)
+
 					user.UpdateLocation(models.Location{Lat: lat, Lng: lng})
 				}
 			default:
