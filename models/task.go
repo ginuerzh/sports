@@ -32,4 +32,20 @@ var Tasks = []Task{
 	{Id: 7, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
 
 	//week 2
+	{Id: 8, Type: TaskRunning, Desc: "慢跑1分钟,行走2分钟,重复8次"},
+	{Id: 9, Type: TaskRunning, Desc: "慢跑1分钟,行走2分钟,重复6次"},
+	{Id: 10, Type: TaskRunning, Desc: "慢跑1分钟,行走2分钟,重复7次"},
+	{Id: 11, Type: TaskPost, Desc: "发表一篇运动日志"},
+	{Id: 12, Type: TaskPost, Desc: "发表一篇运动日志"},
+	{Id: 13, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
+	{Id: 14, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
+
+	// week 3
+	{Id: 15, Type: TaskRunning, Desc: "慢跑1分钟,行走2分钟,重复8次"},
+	{Id: 16, Type: TaskRunning, Desc: "慢跑1分钟,行走2分钟,重复6次"},
+	{Id: 17, Type: TaskRunning, Desc: "慢跑1分钟,行走2分钟,重复7次"},
+	{Id: 18, Type: TaskPost, Desc: "发表一篇运动日志"},
+	{Id: 19, Type: TaskPost, Desc: "发表一篇运动日志"},
+	{Id: 20, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
+	{Id: 21, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
 }

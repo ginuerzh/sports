@@ -560,7 +560,7 @@ func loginAwardsHandler(request *http.Request, resp http.ResponseWriter, redis *
 	user.FindByUserid(user.Id)
 	respData := map[string]interface{}{
 		"continuous_logined_days": user.LoginDays,
-		//"login_reward_list":       user.LoginAwards,
+		"login_reward_list":       []int{1, 2, 3, 4, 5, 6, 7},
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }

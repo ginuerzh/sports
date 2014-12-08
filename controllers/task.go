@@ -57,7 +57,9 @@ func getTasksHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		week -= 1
 	}
 	list := make([]models.Task, 7)
-	copy(list, models.Tasks[week*7:week*7+7])
+	if week*7+7 <= len(models.Tasks)+1 {
+		copy(list, models.Tasks[week*7:week*7+7])
+	}
 	for i, _ := range list {
 		list[i].Status = tasklist.TaskStatus(list[i].Id)
 	}
