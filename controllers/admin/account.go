@@ -89,8 +89,8 @@ type adminLogoutForm struct {
 }
 
 func checkToken(r *models.RedisLogger, t string) (valid bool, err error) {
-	user := r.OnlineUser(t)
-	if user == nil {
+	uid := r.OnlineUser(t)
+	if len(uid) == 0 {
 		err = errors.NewError(errors.AccessError)
 		valid = false
 		return

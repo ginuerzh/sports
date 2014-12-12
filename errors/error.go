@@ -32,9 +32,9 @@ const (
 
 var errMap map[int]string = map[int]string{
 	NoError:             "success",
-	AuthError:           "auth error",
-	UserExistError:      "user exists",
-	AccessError:         "access token error",
+	AuthError:           "用户名或密码错误",
+	UserExistError:      "用户已注册",
+	AccessError:         "无效的访问请求",
 	DbError:             "database error",
 	JsonError:           "json data error",
 	NotFoundError:       "not found",
@@ -42,7 +42,7 @@ var errMap map[int]string = map[int]string{
 	InvalidFileError:    "file invalid",
 	HttpError:           "http error",
 	FileNotFoundError:   "file not found",
-	NotExistsError:      "not exists",
+	NotExistsError:      "用户不存在",
 	InvalidAddrError:    "address invalid",
 	InvalidMsgError:     "message invalid",
 	DeviceTokenError:    "device token invalid",

@@ -225,11 +225,12 @@ type postForm struct {
 }
 
 func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form postForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
+	uid := redis.OnlineUser(form.Token)
+	if len(uid) == 0 {
 		writeResponse(w, errors.NewError(errors.AccessError))
 		return
 	}
+	user := &models.Account{Id: uid}
 
 	article := &models.Article{
 		Parent:  form.Id,
@@ -262,12 +263,6 @@ type delArticleForm struct {
 }
 
 func delArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form delArticleForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(w, errors.NewError(errors.AccessError))
-		return
-	}
-
 	article := &models.Article{}
 
 	if bson.IsObjectIdHex(form.Id) {
@@ -284,6 +279,7 @@ func delArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form de
 
 type articleSearchForm struct {
 	Keyword string `form:"keyword" binding:"required"`
+	Tag     string `form:"tag"`
 	AdminPaging
 	Token string `form:"access_token"`
 }
@@ -299,7 +295,7 @@ func articleSearchHandler(w http.ResponseWriter, redis *models.RedisLogger, form
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
-	total, articles, _ := models.AdminSearchArticle(form.Keyword, form.PageIndex, form.PageCount)
+	total, articles, _ := models.AdminSearchArticle(form.Keyword, form.Tag, form.PageIndex, form.PageCount)
 
 	list := make([]*articleInfo, len(articles))
 	for i, _ := range articles {

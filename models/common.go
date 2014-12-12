@@ -41,9 +41,9 @@ const (
 var (
 	databaseName = "sports"
 	accountColl  = "accounts"
-	userColl     = "users"
-	articleColl  = "articles"
-	msgColl      = "messages"
+	//userColl     = "users"
+	articleColl = "articles"
+	msgColl     = "messages"
 	//reviewColl   = "reviews"
 	fileColl   = "files"
 	recordColl = "records"

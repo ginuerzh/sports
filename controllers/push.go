@@ -49,17 +49,19 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		return
 	}
 	//log.Println(auth.Token)
-	user := redisLogger.OnlineUser(auth.Token)
-	if user != nil {
-		r.Userid = user.Id
+	uid := redisLogger.OnlineUser(auth.Token)
+	if len(uid) > 0 {
+		r.Userid = uid
 	}
 	if err := conn.WriteJSON(r); err != nil {
 		return
 	}
 
-	if user == nil {
+	if len(uid) == 0 {
 		return
 	}
+
+	user := &models.Account{Id: uid}
 
 	redisLogger.SetOnline(user.Id)
 	redisLogger.LogVisitor(user.Id)

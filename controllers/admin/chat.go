@@ -4,7 +4,7 @@ package admin
 import (
 	"bytes"
 	"fmt"
-	"github.com/ginuerzh/sports/errors"
+	//"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -72,11 +72,6 @@ type chatlistForm struct {
 }
 
 func chatlistHandler(w http.ResponseWriter, redis *models.RedisLogger, form chatlistForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(w, errors.NewError(errors.AccessError))
-		return
-	}
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
@@ -103,13 +98,9 @@ func chatlistHandler(w http.ResponseWriter, redis *models.RedisLogger, form chat
 }
 
 func chatTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form chatlistForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(w, errors.NewError(errors.AccessError))
-		return
-	}
 
-	u := &models.User{Id: form.From}
+	//u := &models.User{Id: form.From}
+	u := &models.Account{Id: form.From}
 	paging := &models.Paging{First: form.Pre, Last: form.Next, Count: form.Count}
 	total, msgs, _ := u.Messages(form.To, paging)
 
@@ -138,11 +129,6 @@ type delChatForm struct {
 }
 
 func delChatHandler(w http.ResponseWriter, redis *models.RedisLogger, form delChatForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(w, errors.NewError(errors.AccessError))
-		return
-	}
 
 	msg := &models.Message{}
 
@@ -185,11 +171,6 @@ type chatSendForm struct {
 }
 
 func chatSendHandler(w http.ResponseWriter, redis *models.RedisLogger, form chatSendForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(w, errors.NewError(errors.AccessError))
-		return
-	}
 
 	t := time.Now()
 	if form.Time > 0 {

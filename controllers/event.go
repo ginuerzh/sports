@@ -2,7 +2,7 @@
 package controllers
 
 import (
-	"github.com/ginuerzh/sports/errors"
+	//"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -18,24 +18,29 @@ const (
 )
 
 func BindEventApi(m *martini.ClassicMartini) {
-	m.Get("/1/event/news", binding.Form(eventNewsForm{}), ErrorHandler, eventNewsHandler)
-	m.Get("/1/event/news_details", binding.Form(eventNewsForm{}), ErrorHandler, eventDetailHandler)
-	m.Post("/1/event/change_status_read", binding.Json(changeEventStatusForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, changeEventStatusHandler)
+	m.Get("/1/event/news",
+		binding.Form(eventNewsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		eventNewsHandler)
+	m.Get("/1/event/news_details",
+		binding.Form(eventNewsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		eventDetailHandler)
+	m.Post("/1/event/change_status_read",
+		binding.Json(changeEventStatusForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		changeEventStatusHandler)
 }
 
 type eventNewsForm struct {
-	Token string `form:"access_token"  binding:"required"`
+	parameter
 }
 
-func eventNewsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form eventNewsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
-	u := &models.User{}
-	u.FindByUserid(user.Id)
+func eventNewsHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
 	counts := redis.EventCount(user.Id)
 	respData := map[string]int{
@@ -69,46 +74,9 @@ func convertContact(contact *models.Contact) *contactStruct {
 	}
 }
 
-func eventDetailHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form eventNewsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-	/*
-		u := &models.User{}
-		u.FindByUserid(user.Id)
+func eventDetailHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
-
-		contacts := []*contactStruct{}
-		for _, c := range u.Contacts {
-			if c.Count > 0 {
-				contacts = append(contacts, convertContact(&c))
-			}
-		}
-
-
-		ids := []string{}
-		for _, event := range u.Events {
-			ids = append(ids, event.Id)
-		}
-		articles, _ := models.FindArticles(ids...)
-
-		events := []*articleJsonStruct{}
-		for i, _ := range articles {
-			event := convertArticle(&articles[i])
-			for _, e := range u.Events {
-				if e.Id == articles[i].Id.Hex() {
-					event.NewReviews = len(e.Reviews)
-					event.NewThumbs = len(e.Thumbs)
-					break
-				}
-			}
-			if event.NewReviews > 0 || event.NewThumbs > 0 {
-				events = append(events, event)
-			}
-		}
-	*/
 	events, err := models.Events(user.Id)
 	if err != nil {
 		log.Println(err)
@@ -143,28 +111,20 @@ func eventDetailHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type changeEventStatusForm struct {
-	Token string `json:"access_token"  binding:"required"`
-	Type  string `json:"type" binding:"required"`
-	Id    string `json:"id" binding:"required"`
-}
-
-func (this changeEventStatusForm) getTokenId() string {
-	return this.Token
+	Type string `json:"type" binding:"required"`
+	Id   string `json:"id" binding:"required"`
+	parameter
 }
 
 func changeEventStatusHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, getT GetToken) {
-	form := getT.(changeEventStatusForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(changeEventStatusForm)
 
 	count := user.ClearEvent(form.Type, form.Id)
 	if form.Type == models.EventChat {
-		u := &models.User{Id: user.Id}
-		u.MarkRead(form.Type, form.Id)
+		//u := &models.User{Id: user.Id}
+		user.MarkRead(form.Type, form.Id)
 	}
 	redis.IncrEventCount(user.Id, form.Type, -count)
 	writeResponse(request.RequestURI, resp, nil, nil)

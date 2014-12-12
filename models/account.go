@@ -6,8 +6,10 @@ import (
 	"github.com/ginuerzh/sports/errors"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
-	"labix.org/v2/mgo/txn"
+	//"labix.org/v2/mgo/txn"
+	"fmt"
 	"log"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -71,8 +73,19 @@ type Props struct {
 	Level    int64 `json:"rankLevel"`
 }
 
+type Contact struct {
+	Id       string
+	Profile  string
+	Nickname string
+	Count    int
+	Last     *Message `bson:",omitempty"`
+}
+
 type Account struct {
 	Id        string    `bson:"_id,omitempty" json:"-"`
+	Email     string    `json:"-"`
+	Phone     string    `bson:",omitempty" json:"phone,omitempty"`
+	Weibo     string    `json:"-"`
 	Nickname  string    `bson:",omitempty" json:"nickname,omitempty"`
 	Password  string    `bson:",omitempty" json:"password,omitempty"`
 	Profile   string    `bson:",omitempty" json:"profile,omitempty"`
@@ -85,7 +98,6 @@ type Account struct {
 	Actor     string    `bson:",omitempty" json:"actor,omitempty"`
 	Gender    string    `bson:",omitempty" json:"gender,omitempty"`
 	Url       string    `bson:",omitempty" json:"url,omitempty"`
-	Phone     string    `bson:",omitempty" json:"phone,omitempty"`
 	About     string    `bson:",omitempty" json:"about,omitempty"`
 	Addr      *Address  `bson:",omitempty" json:"addr,omitempty"`
 	Loc       *Location `bson:",omitempty" json:"-"`
@@ -96,17 +108,24 @@ type Account struct {
 	LoginDays int       `bson:"login_days" json:"-"`
 	//LoginAwards []int     `bson:"login_awards" json:"-"`
 
-	Props Props `json:"-"`
-	//Score int   `json:"-"`
-	//Level int   `json:"-"`
-
+	Props  Props  `json:"-"`
 	Equips *Equip `bson:",omitempty" json:"-"`
+	Tasks  TaskList
+
+	Contacts []Contact `bson:",omitempty"`
+	Devs     []string  `bson:",omitempty"`
+	Push     bool
 
 	TimeLimit int64 `bson:"timelimit" json:"timelimit"`
 }
 
-func (this *Account) Exists() (bool, error) {
-	return this.findOne(bson.M{"_id": this.Id})
+func (this *Account) Exists(t string) (bool, error) {
+	switch t {
+	case "weibo":
+		return this.findOne(bson.M{"weibo": this.Weibo})
+	default:
+		return this.findOne(bson.M{"$or": []bson.M{{"_id": this.Id}, {"email": this.Email}, {"phone": this.Phone}}})
+	}
 }
 
 func FindUsers(ids []string) ([]Account, error) {
@@ -149,7 +168,14 @@ func (this *Account) FindByUserPass(userid, password string) (bool, error) {
 	if len(userid) == 0 || len(password) == 0 {
 		return false, nil
 	}
-	return this.findOne(bson.M{"_id": userid, "password": password})
+	query := bson.M{
+		"$or": []bson.M{
+			{"email": userid},
+			{"phone": userid},
+		},
+		"password": password,
+	}
+	return this.findOne(query)
 }
 
 func (this *Account) FindByWalletAddr(addr string) (bool, error) {
@@ -166,36 +192,46 @@ func (this *Account) CheckExists() (bool, error) {
 	return this.findOne(bson.M{"$or": []bson.M{{"_id": this.Id}, {"nickname": this.Nickname}}})
 }
 
+var random = rand.New(rand.NewSource(time.Now().Unix()))
+
 func (this *Account) Save() error {
-	f := func(c *mgo.Collection) error {
-		runner := txn.NewRunner(c)
-		ops := []txn.Op{
-			{
-				C:      accountColl,
-				Id:     this.Id,
-				Assert: txn.DocMissing,
-				Insert: this,
-			},
-			{
-				C:      userColl,
-				Id:     this.Id,
-				Assert: txn.DocMissing,
-				Insert: &User{Id: this.Id, Push: true},
-			},
-		}
+	now := time.Now()
 
-		return runner.Run(ops, bson.NewObjectId(), nil)
-	}
+	this.Id = fmt.Sprintf("%d%3d", now.Unix(), now.Nanosecond()%1000)
+	this.Push = true
+	return save(accountColl, this, true)
+	/*
+			f := func(c *mgo.Collection) error {
+				runner := txn.NewRunner(c)
+				ops := []txn.Op{
+					{
+						C:      accountColl,
+						Id:     this.Id,
+						Assert: txn.DocMissing,
+						Insert: this,
+					},
+					{
+						C:      userColl,
+						Id:     this.Id,
+						Assert: txn.DocMissing,
+						Insert: &User{Id: this.Id, Push: true},
+					},
+				}
 
-	if err := withCollection("reg_tx", &mgo.Safe{}, f); err != nil {
-		log.Println(err)
-		e := errors.NewError(errors.DbError, err.Error())
-		if err == txn.ErrAborted {
-			e = errors.NewError(errors.UserExistError)
-		}
-		return e
-	}
-	return nil
+				return runner.Run(ops, bson.NewObjectId(), nil)
+			}
+
+			if err := withCollection("reg_tx", &mgo.Safe{}, f); err != nil {
+				log.Println(err)
+				e := errors.NewError(errors.DbError, err.Error())
+				if err == txn.ErrAborted {
+					e = errors.NewError(errors.UserExistError)
+				}
+				return e
+			}
+
+		return nil
+	*/
 }
 
 func (this *Account) Update() error {
@@ -373,11 +409,19 @@ func (this *Account) DelPhoto(id string) error {
 	return nil
 }
 
+/*
 func UserList(skip, limit int) (total int, users []Account, err error) {
 	if err := search(accountColl, nil, nil, skip, limit, []string{"-reg_time"}, &total, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
+	return
+}
+*/
+
+func UserList(sort string, pageIndex, pageCount int) (total int, users []Account, err error) {
+	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
+	err = search(accountColl, query, nil, pageIndex*pageCount, pageCount, []string{"-tasks.last"}, &total, &users)
 	return
 }
 
@@ -1114,4 +1158,340 @@ func (this *Account) ArticleTimeline(pageIndex, pageCount int) (total int, artic
 	err = search(articleColl, bson.M{"author": this.Id, "parent": nil}, nil,
 		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &articles)
 	return
+}
+
+/*
+func (this *Account) GetTasks() (TaskList, error) {
+	_, err := this.FindByUserid(this.Id)
+	return this.Tasks, err
+}
+*/
+func (this *Account) AddTask(typ string, tid int, proofs []string) error {
+	selector := bson.M{
+		"_id": this.Id,
+	}
+
+	update(accountColl, selector, bson.M{"$pull": bson.M{"tasks.proofs": bson.M{"tid": tid}}}, true)
+
+	var change bson.M
+	if typ == TaskRunning {
+		change = bson.M{
+			"$pull": bson.M{
+				"tasks.uncompleted": tid,
+			},
+			"$addToSet": bson.M{
+				"tasks.waited": tid,
+				"tasks.proofs": Proof{Tid: tid, Pics: proofs},
+			},
+			"$set": bson.M{
+				"tasks.last": time.Now(),
+			},
+		}
+	} else {
+		change = bson.M{
+			"$addToSet": bson.M{
+				"tasks.completed": tid,
+			},
+			"$set": bson.M{
+				"tasks.last": time.Now(),
+			},
+		}
+	}
+
+	if err := update(accountColl, selector, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *Account) SetTaskComplete(tid int, completed bool, reason string) error {
+	if len(reason) > 0 {
+		selector := bson.M{
+			"_id":              this.Id,
+			"tasks.proofs.tid": tid,
+		}
+		update(accountColl, selector, bson.M{"$set": bson.M{"tasks.proofs.$.result": reason}}, true)
+	}
+
+	selector := bson.M{
+		"_id": this.Id,
+	}
+	var change bson.M
+
+	if completed {
+		change = bson.M{
+			"$pull": bson.M{
+				"tasks.waited": tid,
+			},
+			"$addToSet": bson.M{
+				"tasks.completed": tid,
+			},
+		}
+	} else {
+		change = bson.M{
+			"$pull": bson.M{
+				"tasks.waited": tid,
+			},
+			"$addToSet": bson.M{
+				"tasks.uncompleted": tid,
+			},
+		}
+	}
+
+	if err := update(accountColl, selector, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error) {
+	var articles []Article
+	total := 0
+	var query bson.M
+	switch typ {
+	case "COMMENTS":
+		query = bson.M{"author": this.Id, "parent": bson.M{"$ne": nil}}
+	case "ARTICLES":
+		query = bson.M{"author": this.Id, "parent": nil}
+	default:
+		query = bson.M{"author": this.Id}
+	}
+
+	pageUp := false
+	sortFields := []string{"-pub_time"}
+	if len(paging.First) > 0 {
+		pageUp = true
+		sortFields = []string{"pub_time"}
+	}
+
+	if err := psearch(articleColl, query, nil, sortFields, &total, &articles,
+		articlePagingFunc, paging); err != nil {
+		e := errors.NewError(errors.DbError, err.Error())
+		if err == mgo.ErrNotFound {
+			e = errors.NewError(errors.NotFoundError, err.Error())
+		}
+		return total, nil, e
+	}
+
+	paging.First = ""
+	paging.Last = ""
+	paging.Count = 0
+	if len(articles) > 0 {
+		if pageUp {
+			for i := 0; i < len(articles)/2; i++ {
+				t := articles[i]
+				articles[i] = articles[len(articles)-i-1]
+				articles[len(articles)-i-1] = t
+			}
+		}
+		paging.First = articles[0].Id.Hex()
+		paging.Last = articles[len(articles)-1].Id.Hex()
+		paging.Count = total
+	}
+
+	return total, articles, nil
+}
+
+func (this *Account) Messages(userid string, paging *Paging) (int, []Message, error) {
+	var msgs []Message
+	total := 0
+	query := bson.M{
+		"$or": []bson.M{
+			bson.M{"from": userid, "to": this.Id},
+			bson.M{"from": this.Id, "to": userid},
+		},
+	}
+
+	pageUp := false
+	sortFields := []string{"-time"}
+	if len(paging.First) > 0 {
+		pageUp = true
+		sortFields = []string{"time"}
+	}
+
+	if err := psearch(msgColl, query, nil, sortFields, &total, &msgs,
+		msgPagingFunc, paging); err != nil {
+		e := errors.NewError(errors.DbError, err.Error())
+		if err == mgo.ErrNotFound {
+			e = errors.NewError(errors.NotFoundError, err.Error())
+		}
+		return total, nil, e
+	}
+
+	paging.First = ""
+	paging.Last = ""
+	paging.Count = 0
+	if len(msgs) > 0 {
+		if pageUp {
+			for i := 0; i < len(msgs)/2; i++ {
+				t := msgs[i]
+				msgs[i] = msgs[len(msgs)-i-1]
+				msgs[len(msgs)-i-1] = t
+			}
+		}
+		paging.First = msgs[0].Id.Hex()
+		paging.Last = msgs[len(msgs)-1].Id.Hex()
+		paging.Count = total
+	}
+
+	return total, msgs, nil
+}
+
+func (this *Account) AddContact(contact *Contact) error {
+	selector := bson.M{
+		"_id":         this.Id,
+		"contacts.id": contact.Id,
+	}
+	change := bson.M{
+		"$inc": bson.M{
+			"contacts.$.count": contact.Count,
+		},
+		"$set": bson.M{
+			"contacts.$.profile":  contact.Profile,
+			"contacts.$.nickname": contact.Nickname,
+			"contacts.$.last":     contact.Last,
+		},
+	}
+	err := update(accountColl, selector, change, true)
+	if err == nil {
+		return nil
+	}
+	log.Println(err)
+	if err != mgo.ErrNotFound {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+
+	// not found
+	selector = bson.M{
+		"_id": this.Id,
+	}
+	change = bson.M{
+		"$push": bson.M{
+			"contacts": contact,
+		},
+	}
+	err = update(accountColl, selector, change, true)
+	if err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *Account) MarkRead(typ, id string) error {
+	var selector, change bson.M
+
+	switch typ {
+	case "chat":
+		selector = bson.M{
+			"_id":         this.Id,
+			"contacts.id": id,
+		}
+		change = bson.M{
+			"$set": bson.M{
+				"contacts.$.count": 0,
+			},
+		}
+	case "article":
+		selector = bson.M{
+			"_id":       this.Id,
+			"events.id": id,
+		}
+		change = bson.M{
+			"$unset": bson.M{
+				"events.$.reviews": 1,
+				"events.$.thumbs":  1,
+			},
+		}
+	default:
+		return nil
+	}
+
+	if err := update(accountColl, selector, change, true); err != nil {
+		if err != mgo.ErrNotFound {
+			return errors.NewError(errors.DbError, err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (this *Account) SetPush(push bool) error {
+	selector := bson.M{
+		"_id": this.Id,
+	}
+	change := bson.M{
+		"$set": bson.M{
+			"push": push,
+		},
+	}
+	if err := update(accountColl, selector, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *Account) PushEnabled() (bool, error) {
+	var users []Account
+	var enabled bool
+
+	err := search(accountColl, bson.M{"_id": this.Id}, bson.M{"push": true},
+		0, 1, nil, nil, &users)
+	if err != nil {
+		return false, errors.NewError(errors.DbError, err.Error())
+	}
+
+	if len(users) > 0 {
+		enabled = users[0].Push
+	}
+
+	return enabled, nil
+}
+
+func (this *Account) Devices() ([]string, bool, error) {
+	var users []Account
+	var devs []string
+	var enabled bool
+
+	err := search(accountColl, bson.M{"_id": this.Id}, bson.M{"devs": true, "push": true},
+		0, 1, nil, nil, &users)
+	if err != nil {
+		return nil, false, errors.NewError(errors.DbError, err.Error())
+	}
+
+	if len(users) > 0 {
+		devs = users[0].Devs
+		enabled = users[0].Push
+	}
+
+	return devs, enabled, nil
+}
+
+func (this *Account) AddDevice(dev string) error {
+	selector := bson.M{
+		"_id": this.Id,
+	}
+	change := bson.M{
+		"$addToSet": bson.M{
+			"devs": dev,
+		},
+	}
+	if err := update(accountColl, selector, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *Account) RmDevice(dev string) error {
+	selector := bson.M{
+		"_id": this.Id,
+	}
+	change := bson.M{
+		"$pull": bson.M{
+			"devs": dev,
+		},
+	}
+	if err := update(accountColl, selector, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
 }

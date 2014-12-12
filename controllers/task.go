@@ -2,7 +2,7 @@ package controllers
 
 import (
 	//"encoding/json"
-	"github.com/ginuerzh/sports/errors"
+	//"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/jinzhu/now"
 	"github.com/martini-contrib/binding"
@@ -28,28 +28,33 @@ func init() {
 }
 
 func BindTaskApi(m *martini.ClassicMartini) {
-	m.Get("/1/tasks/getList", binding.Form(getTasksForm{}), ErrorHandler, getTasksHandler)
-	m.Get("/1/tasks/getInfo", binding.Form(getTaskInfoForm{}), ErrorHandler, getTaskInfoHandler)
-	m.Post("/1/tasks/execute", binding.Json(completeTaskForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, completeTaskHandler)
+	m.Get("/1/tasks/getList",
+		binding.Form(getTasksForm{}),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		getTasksHandler)
+	m.Get("/1/tasks/getInfo",
+		binding.Form(getTaskInfoForm{}),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		getTaskInfoHandler)
+	m.Post("/1/tasks/execute",
+		binding.Json(completeTaskForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		completeTaskHandler)
 }
 
 type getTasksForm struct {
-	Token string `form:"access_token" binding:"required"`
+	parameter
 }
 
-func getTasksHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getTasksForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func getTasksHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
-	u := &models.User{Id: user.Id}
-	tasklist, err := u.GetTasks()
-	if err != nil {
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
-	}
+	tasklist := user.Tasks
 
 	week := len(tasklist.Completed) / 7
 	if week > 0 && len(tasklist.Completed)%7 == 0 &&
@@ -75,23 +80,15 @@ func getTasksHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 }
 
 type getTaskInfoForm struct {
-	Token string `form:"access_token" binding:"required"`
-	Tid   int    `form:"task_id" binding:"required"`
+	Tid int `form:"task_id" binding:"required"`
+	parameter
 }
 
-func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getTaskInfoForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	u := &models.User{Id: user.Id}
-	tasklist, err := u.GetTasks()
-	if err != nil {
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
-	}
+	form := p.(getTaskInfoForm)
+	tasklist := user.Tasks
 	var task models.Task
 	if form.Tid > 0 && form.Tid <= len(models.Tasks) {
 		task = models.Tasks[form.Tid-1]
@@ -106,30 +103,23 @@ func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type completeTaskForm struct {
-	Token  string   `json:"access_token" binding:"required"`
 	Tid    int      `json:"task_id" binding:"required"`
 	Proofs []string `json:"task_pics"`
+	parameter
 }
 
-func (this completeTaskForm) getTokenId() string {
-	return this.Token
-}
+func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-func completeTaskHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(completeTaskForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	form := p.(completeTaskForm)
 
 	if form.Tid < 1 || form.Tid > len(models.Tasks) {
 		writeResponse(request.RequestURI, resp, nil, nil)
 		return
 	}
 
-	u := &models.User{Id: user.Id}
-	err := u.AddTask(models.Tasks[form.Tid-1].Type, form.Tid, form.Proofs)
+	//u := &models.User{Id: user.Id}
+	err := user.AddTask(models.Tasks[form.Tid-1].Type, form.Tid, form.Proofs)
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }

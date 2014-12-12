@@ -22,25 +22,83 @@ var (
 )
 
 func BindAccountApi(m *martini.ClassicMartini) {
-	m.Post("/1/account/register", binding.Json(userRegForm{}), ErrorHandler, registerHandler)
-	m.Post("/1/account/login", binding.Json(loginForm{}, (*GetToken)(nil)), ErrorHandler, CheckUserIDHandler, loginHandler)
-	m.Get("/1/user/getDailyLoginRewardInfo", binding.Form(loginAwardsForm{}), ErrorHandler, loginAwardsHandler)
-	m.Post("/1/user/logout", binding.Json(logoutForm{}), ErrorHandler, logoutHandler)
-	m.Get("/1/user/getInfo", binding.Form(getInfoForm{}), ErrorHandler, userInfoHandler)
-	m.Get("/1/user/getRelatedMembersCount", binding.Form(friendCountForm{}), ErrorHandler, friendCountHandler)
-	m.Post("/1/user/setInfo", binding.Json(setInfoForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setInfoHandler)
-	m.Post("/1/user/setProfileImage", binding.Json(setProfileForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setProfileHandler)
-	m.Post("/1/account/importFriends", binding.Json(importFriendsForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, importFriendsHandler)
-
-	m.Post("/1/user/setLifePhotos", binding.Json(setPhotosForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setPhotosHandler)
-	m.Post("/1/user/deleteLifePhoto", binding.Json(delPhotoForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, delPhotoHandler)
+	m.Post("/1/account/register",
+		binding.Json(userRegForm{}),
+		ErrorHandler,
+		registerHandler)
+	m.Post("/1/account/login",
+		binding.Json(loginForm{}),
+		ErrorHandler,
+		loginHandler)
+	m.Get("/1/user/getDailyLoginRewardInfo",
+		binding.Form(loginAwardsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		loginAwardsHandler)
+	m.Post("/1/user/logout",
+		binding.Json(logoutForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		logoutHandler)
+	m.Get("/1/user/getInfo",
+		binding.Form(getInfoForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		userInfoHandler)
+	m.Get("/1/user/getRelatedMembersCount",
+		binding.Form(friendCountForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		friendCountHandler)
+	m.Post("/1/user/setInfo",
+		binding.Json(setInfoForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		setInfoHandler)
+	m.Post("/1/user/setProfileImage",
+		binding.Json(setProfileForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		setProfileHandler)
+	m.Post("/1/account/importFriends",
+		binding.Json(importFriendsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		importFriendsHandler)
+	m.Post("/1/user/setLifePhotos",
+		binding.Json(setPhotosForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		setPhotosHandler)
+	m.Post("/1/user/deleteLifePhoto",
+		binding.Json(delPhotoForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		delPhotoHandler)
 	//m.Get("/1/user/news", binding.Form(userNewsForm{}), ErrorHandler, userNewsHandler)
-	m.Get("/1/users", binding.Form(userListForm{}), ErrorHandler, userListHandler)
+	//m.Get("/1/users", binding.Form(userListForm{}), ErrorHandler, userListHandler)
 
-	m.Get("/1/user/getPKPropertiesInfo", binding.Form(scoreDiffForm{}), ErrorHandler, scoreDiffHandler)
-	m.Get("/1/user/getPropertiesValue", binding.Form(getPropsForm{}), getPropsHandler)
-	m.Post("/1/user/updateEquipment", binding.Json(setEquipForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setEquipHandler)
-	m.Get("/1/user/search", binding.Form(searchForm{}), ErrorHandler, searchHandler)
+	m.Get("/1/user/getPKPropertiesInfo",
+		binding.Form(scoreDiffForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		scoreDiffHandler)
+	m.Get("/1/user/getPropertiesValue",
+		binding.Form(getPropsForm{}),
+		getPropsHandler)
+	m.Post("/1/user/updateEquipment",
+		binding.Json(setEquipForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		setEquipHandler)
+	m.Get("/1/user/search",
+		binding.Form(searchForm{}),
+		ErrorHandler,
+		searchHandler)
+	m.Get("/1/user/articles",
+		binding.Form(userArticlesForm{}),
+		ErrorHandler,
+		userArticlesHandler)
 }
 
 // user register parameter
@@ -54,7 +112,16 @@ type userRegForm struct {
 func registerHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form userRegForm) {
 	user := &models.Account{}
 
-	user.Id = strings.ToLower(form.Email)
+	if phone, _ := strconv.ParseUint(form.Email, 10, 64); phone > 0 {
+		user.Phone = form.Email
+	} else {
+		user.Email = strings.ToLower(form.Email)
+	}
+
+	if exists, _ := user.Exists(""); exists {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.UserExistError))
+		return
+	}
 	user.Nickname = form.Nickname
 	user.Password = Md5(form.Password)
 	user.Role = "usrpass"
@@ -115,13 +182,14 @@ type loginForm struct {
 	Type     string `json:"account_type"`
 }
 
+/*
 func (this loginForm) getUserId() string {
 	return this.Userid
 }
-
+*/
 func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.Account, error) {
-	user := &models.Account{Id: strings.ToLower(uid)}
-	exists, err := user.Exists()
+	user := &models.Account{Weibo: strings.ToLower(uid)}
+	exists, err := user.Exists("weibo")
 	if err != nil {
 		return false, nil, err
 	}
@@ -206,8 +274,8 @@ func loginAwards(days, level int) Awards {
 	return awards
 }
 
-func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getU getUser) {
-	form := getU.(loginForm)
+func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form loginForm) {
+	//form := getU.(loginForm)
 	user := &models.Account{}
 	var err error
 	var reg bool
@@ -232,6 +300,11 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 
 	if err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
+		return
+	}
+
+	if user.TimeLimit < 0 {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AuthError))
 		return
 	}
 
@@ -270,33 +343,33 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 }
 
 type logoutForm struct {
-	Token string `json:"access_token" binding:"required"`
+	parameter
 }
 
-func logoutHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form logoutForm) {
-	redis.DelOnlineUser(form.Token)
+func logoutHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, p Parameter) {
+	redis.DelOnlineUser(p.TokenId())
 	writeResponse(request.RequestURI, resp, nil, nil)
 
 }
 
 type getInfoForm struct {
 	Userid string `form:"userid" binding:"required"`
-	Token  string `form:"access_token"`
+	parameter
 }
 
 type userJsonStruct struct {
 	Userid   string `json:"userid"`
 	Nickname string `json:"nikename"`
-
-	Phone   string `json:"phone_number"`
-	Type    string `json:"account_type"`
-	About   string `json:"about"`
-	Profile string `json:"profile_image"`
-	RegTime int64  `json:"register_time"`
-	Hobby   string `json:"hobby"`
-	Height  int    `json:"height"`
-	Weight  int    `json:"weight"`
-	Birth   int64  `json:"birthday"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone_number"`
+	Type     string `json:"account_type"`
+	About    string `json:"about"`
+	Profile  string `json:"profile_image"`
+	RegTime  int64  `json:"register_time"`
+	Hobby    string `json:"hobby"`
+	Height   int    `json:"height"`
+	Weight   int    `json:"weight"`
+	Birth    int64  `json:"birthday"`
 
 	Actor string `json:"actor"`
 	Rank  string `json:"rankName"`
@@ -321,12 +394,12 @@ type userJsonStruct struct {
 	LastLog  int64  `json:"last_login_time"`
 }
 
-func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getInfoForm) {
+func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, p Parameter) {
 	user := &models.Account{}
-
+	form := p.(getInfoForm)
 	if find, err := user.FindByUserid(form.Userid); !find {
 		if err == nil {
-			err = errors.NewError(errors.NotExistsError, "user '"+form.Userid+"' not exists")
+			err = errors.NewError(errors.NotExistsError)
 		}
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
@@ -335,6 +408,7 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	info := &userJsonStruct{
 		Userid:   user.Id,
 		Nickname: user.Nickname,
+		Email:    user.Email,
 		Phone:    user.Phone,
 		Type:     user.Role,
 		About:    user.About,
@@ -386,8 +460,8 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		info.Equips = *user.Equips
 	}
 
-	if u := redis.OnlineUser(form.Token); u != nil {
-		relation := redis.Relationship(u.Id, user.Id)
+	if uid := redis.OnlineUser(p.TokenId()); len(uid) > 0 {
+		relation := redis.Relationship(uid, user.Id)
 		switch relation {
 		case models.RelFriend:
 			info.Relation = "FRIENDS"
@@ -404,16 +478,11 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 }
 
 type friendCountForm struct {
-	Token string `form:"access_token" binding:"required"`
+	parameter
 }
 
-func friendCountHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form friendCountForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
+func friendCountHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 	follows, followers, friends, blacklist := redis.FriendCount(user.Id)
 	respData := map[string]int{
 		"friend_count":    friends,
@@ -425,22 +494,14 @@ func friendCountHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type setInfoForm struct {
-	Token string `json:"access_token" binding:"required"`
 	models.UserInfo
+	parameter
 }
 
-func (this setInfoForm) getTokenId() string {
-	return this.Token
-}
+func setInfoHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(setInfoForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
+	form := p.(setInfoForm)
 	user.Nickname = form.UserInfo.Nickname
 	user.Hobby = form.UserInfo.Hobby
 	user.Height = form.UserInfo.Height
@@ -480,84 +541,45 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 
 type setProfileForm struct {
 	ImageId string `json:"image_id" binding:"required"`
-	Token   string `json:"access_token" binding:"required"`
+	parameter
 }
 
-func (this setProfileForm) getTokenId() string {
-	return this.Token
-}
-
-func setProfileHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(setProfileForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
+func setProfileHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(setProfileForm)
 	err := user.ChangeProfile(form.ImageId)
-	//redis.SetOnlineUser(form.Token, user, false)
-	/*
-		score := 0
-		if len(user.Profile) == 0 && err == nil {
-			score = actionExps[ActProfile]
-			//redis.AddScore(user.Id, score)
-		}
-	*/
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }
 
 type setPhotosForm struct {
-	Token string   `json:"access_token" binding:"required"`
-	Pics  []string `json:"pic_ids"`
+	Pics []string `json:"pic_ids"`
+	parameter
 }
 
-func (this setPhotosForm) getTokenId() string {
-	return this.Token
-}
-
-func setPhotosHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(setPhotosForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func setPhotosHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(setPhotosForm)
 	err := user.AddPhotos(form.Pics)
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }
 
 type delPhotoForm struct {
-	Token string `json:"access_token" binding:"required"`
 	Photo string `json:"pic_id"`
+	parameter
 }
 
-func (this delPhotoForm) getTokenId() string {
-	return this.Token
-}
-
-func delPhotoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(delPhotoForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-	err := user.DelPhoto(form.Photo)
+func delPhotoHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	err := user.DelPhoto(p.(delPhotoForm).Photo)
 	writeResponse(request.RequestURI, resp, nil, err)
 }
 
 type loginAwardsForm struct {
-	Token string `form:"access_token" binding:"required"`
+	parameter
 }
 
-func loginAwardsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form loginAwardsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-	user.FindByUserid(user.Id)
+func loginAwardsHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 	respData := map[string]interface{}{
 		"continuous_logined_days": user.LoginDays,
 		"login_reward_list":       []int{1, 2, 3, 4, 5, 6, 7},
@@ -565,6 +587,7 @@ func loginAwardsHandler(request *http.Request, resp http.ResponseWriter, redis *
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
 
+/*
 type userListForm struct {
 	PageNumber int `form:"page_number" json:"page_number"`
 	//AccessToken string `form:"access_token" json:"access_token"`
@@ -603,31 +626,17 @@ func userListHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	respData["users"] = jsonStructs
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
-
+*/
 type scoreDiffForm struct {
-	Token string `form:"access_token" binding:"required"`
-	Uid   string `form:"userid" binding:"required"`
+	Uid string `form:"userid" binding:"required"`
+	parameter
 }
 
-func scoreDiffHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form scoreDiffForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func scoreDiffHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	/*
-		me := redis.UserProps(user.Id)
-		you := redis.UserProps(form.Uid)
-
-		respData := map[string]int64{
-			"physique_times":   you.Physical - me.Physical,
-			"literature_times": you.Literal - me.Literal,
-			"magic_times":      you.Mental - me.Mental,
-		}
-	*/
 	other := &models.Account{}
-	other.FindByUserid(form.Uid)
+	other.FindByUserid(p.(scoreDiffForm).Uid)
 	respData := map[string]int64{
 		"physique_times":   other.Props.Physical - user.Props.Physical,
 		"literature_times": other.Props.Literal - user.Props.Literal,
@@ -648,22 +657,14 @@ func getPropsHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 }
 
 type setEquipForm struct {
-	Token  string       `json:"access_token" binding:"required"`
 	Equips models.Equip `json:"user_equipInfo"`
+	parameter
 }
 
-func (this setEquipForm) getTokenId() string {
-	return this.Token
-}
+func setEquipHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-func setEquipHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(setEquipForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
+	form := p.(setEquipForm)
 	err := user.SetEquip(form.Equips)
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }
@@ -676,17 +677,17 @@ type searchForm struct {
 }
 
 func searchHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form searchForm) {
-
 	users := []models.Account{}
 	var err error
 
 	if form.Nearby {
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
+		uid := redis.OnlineUser(form.Token)
+		if len(uid) == 0 {
 			writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
 			return
 		}
 		form.Paging.Count = 50
+		user := &models.Account{Id: uid}
 		users, err = user.SearchNear(&form.Paging)
 	} else {
 		users, err = models.Search(form.Nickname, &form.Paging)
@@ -720,20 +721,16 @@ type importFriendsForm struct {
 	Uid      string `json:"userid" binding:"required"`
 	AppKey   string `json:"appkey"`
 	AppToken string `json:"verfiycode" binding:"required"`
-	Token    string `json:"access_token" binding:"required"`
+	parameter
 }
 
 func (this importFriendsForm) getTokenId() string {
 	return this.Token
 }
 
-func importFriendsHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(importFriendsForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func importFriendsHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(importFriendsForm)
 
 	switch form.Type {
 	case "weibo":
@@ -754,7 +751,7 @@ func importFriendsHandler(r *http.Request, w http.ResponseWriter, redis *models.
 				Gender:   friend.Gender,
 				Addr:     &models.Address{Desc: friend.Location},
 			}
-			if find, _ := u.Exists(); find {
+			if find, _ := u.Exists(""); find {
 				if u.RegTime.Unix() > 0 { // registered users only
 					redis.ImportFriend(user.Id, u.Id)
 				}
@@ -767,4 +764,34 @@ func importFriendsHandler(r *http.Request, w http.ResponseWriter, redis *models.
 	default:
 	}
 	writeResponse(r.RequestURI, w, map[string]interface{}{"ExpEffect": Awards{}}, nil)
+}
+
+type userArticlesForm struct {
+	Id    string `form:"userid" binding:"required"`
+	Type  string `form:"article_type"`
+	Token string `form:"access_token"`
+	models.Paging
+}
+
+func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, form userArticlesForm) {
+
+	//user := &models.User{Id: form.Id}
+	user := &models.Account{Id: form.Id}
+	_, articles, err := user.Articles(form.Type, &form.Paging)
+
+	jsonStructs := make([]*articleJsonStruct, len(articles))
+	for i, _ := range articles {
+		jsonStructs[i] = convertArticle(&articles[i])
+	}
+
+	respData := make(map[string]interface{})
+	if len(articles) > 0 {
+		respData["page_frist_id"] = form.Paging.First
+		respData["page_last_id"] = form.Paging.Last
+		//respData["page_item_count"] = total
+	}
+	respData["articles_without_content"] = jsonStructs
+
+	writeResponse(request.RequestURI, resp, respData, err)
 }

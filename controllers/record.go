@@ -12,10 +12,25 @@ import (
 )
 
 func BindRecordApi(m *martini.ClassicMartini) {
-	m.Post("/1/record/new", binding.Json(newRecordForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, newRecordHandler)
-	m.Get("/1/record/timeline", binding.Form(recTimelineForm{}), ErrorHandler, recTimelineHandler)
-	m.Get("/1/record/statistics", binding.Form(userRecStatForm{}), ErrorHandler, userRecStatHandler)
-	m.Get("/1/leaderboard/list", binding.Form(leaderboardForm{}), ErrorHandler, leaderboardHandler)
+	m.Post("/1/record/new",
+		binding.Json(newRecordForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
+		newRecordHandler)
+	m.Get("/1/record/timeline",
+		binding.Form(recTimelineForm{}),
+		ErrorHandler,
+		recTimelineHandler)
+	m.Get("/1/record/statistics",
+		binding.Form(userRecStatForm{}),
+		ErrorHandler,
+		userRecStatHandler)
+	m.Get("/1/leaderboard/list",
+		binding.Form(leaderboardForm{}),
+		ErrorHandler,
+		leaderboardHandler)
 }
 
 type record struct {
@@ -30,20 +45,13 @@ type record struct {
 
 type newRecordForm struct {
 	Record *record `json:"record_item" binding:"required"`
-	Token  string  `json:"access_token" binding:"required"`
+	parameter
 }
 
-func (this newRecordForm) getTokenId() string {
-	return this.Token
-}
+func newRecordHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-func newRecordHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(newRecordForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	form := p.(newRecordForm)
 
 	rec := &models.Record{
 		Uid:     user.Id,
@@ -188,13 +196,13 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 	switch form.Type {
 	case "FRIEND":
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
+		uid := redis.OnlineUser(form.Token)
+		if len(uid) == 0 {
 			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
 			return
 		}
 
-		ids := redis.Friends("friend", user.Id)
+		ids := redis.Friends("friend", uid)
 		friends, err := models.Users(ids, &form.Paging)
 		if err != nil {
 			writeResponse(request.RequestURI, resp, nil, err)

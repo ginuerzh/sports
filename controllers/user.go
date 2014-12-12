@@ -18,110 +18,87 @@ import (
 )
 
 func BindUserApi(m *martini.ClassicMartini) {
-	m.Get("/1/user/articles", binding.Form(userArticlesForm{}), ErrorHandler, userArticlesHandler)
-	m.Post("/1/user/send_device_token", binding.Json(sendDevForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, sendDevHandler)
-	m.Post("/1/user/set_push_enable", binding.Json(setPushForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setPushHandler)
-	m.Get("/1/user/is_push_enabled", binding.Form(pushStatusForm{}), ErrorHandler, pushStatusHandler)
-	m.Post("/1/user/enableAttention", binding.Json(relationshipForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, followHandler)
-	m.Post("/1/user/enableDefriend", binding.Json(relationshipForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, blacklistHandler)
-	m.Get("/1/user/getAttentionFriendsList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowsHandler)
-	m.Get("/1/user/getAttentedMembersList", binding.Form(getFollowsForm{}), ErrorHandler, getFollowersHandler)
-	m.Get("/1/user/getJoinedGroupsList", binding.Form(getFollowsForm{}), ErrorHandler, getGroupsHandler)
-	m.Get("/1/user/getRelatedMembersList", binding.Form(socialListForm{}), ErrorHandler, socialListHandler)
-}
-
-type userArticlesForm struct {
-	Id    string `form:"userid" binding:"required"`
-	Type  string `form:"article_type"`
-	Token string `form:"access_token"`
-	models.Paging
-}
-
-func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form userArticlesForm) {
-
-	user := &models.User{Id: form.Id}
-	_, articles, err := user.Articles(form.Type, &form.Paging)
-
-	jsonStructs := make([]*articleJsonStruct, len(articles))
-	for i, _ := range articles {
-		jsonStructs[i] = convertArticle(&articles[i])
-	}
-
-	respData := make(map[string]interface{})
-	if len(articles) > 0 {
-		respData["page_frist_id"] = form.Paging.First
-		respData["page_last_id"] = form.Paging.Last
-		//respData["page_item_count"] = total
-	}
-	respData["articles_without_content"] = jsonStructs
-
-	writeResponse(request.RequestURI, resp, respData, err)
+	m.Post("/1/user/send_device_token",
+		binding.Json(sendDevForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		sendDevHandler)
+	m.Post("/1/user/set_push_enable",
+		binding.Json(setPushForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		setPushHandler)
+	m.Get("/1/user/is_push_enabled",
+		binding.Form(pushStatusForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		pushStatusHandler)
+	m.Post("/1/user/enableAttention",
+		binding.Json(relationshipForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		followHandler)
+	m.Post("/1/user/enableDefriend",
+		binding.Json(relationshipForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		blacklistHandler)
+	m.Get("/1/user/getAttentionFriendsList",
+		binding.Form(getFollowsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		getFollowsHandler)
+	m.Get("/1/user/getAttentedMembersList",
+		binding.Form(getFollowsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		getFollowersHandler)
+	m.Get("/1/user/getJoinedGroupsList",
+		binding.Form(getFollowsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		getGroupsHandler)
+	m.Get("/1/user/getRelatedMembersList",
+		binding.Form(socialListForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		socialListHandler)
 }
 
 type sendDevForm struct {
-	Token string `json:"access_token" binding:"required"`
-	Dev   string `json:"device_token" binding:"required"`
-}
-
-func (this sendDevForm) getTokenId() string {
-	return this.Token
+	Dev string `json:"device_token" binding:"required"`
+	parameter
 }
 
 func sendDevHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, getT GetToken) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	form := getT.(sendDevForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
-	u := &models.User{Id: user.Id}
-	err := u.AddDevice(form.Token)
+	form := p.(sendDevForm)
+	err := user.AddDevice(form.Token)
 	writeResponse(request.RequestURI, resp, nil, err)
 }
 
 type setPushForm struct {
-	Token   string `json:"access_token" binding:"required"`
-	Enabled bool   `json:"is_enabled"`
-}
-
-func (this setPushForm) getTokenId() string {
-	return this.Token
+	Enabled bool `json:"is_enabled"`
+	parameter
 }
 
 func setPushHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, getT GetToken) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	form := getT.(setPushForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
-	u := &models.User{Id: user.Id}
-	err := u.SetPush(form.Enabled)
+	form := p.(setPushForm)
+	err := user.SetPush(form.Enabled)
 	writeResponse(request.RequestURI, resp, nil, err)
 }
 
 type pushStatusForm struct {
-	Token string `json:"access_token" binding:"required"`
+	parameter
 }
 
 func pushStatusHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form pushStatusForm) {
+	redis *models.RedisLogger, user *models.Account) {
 
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
-	u := &models.User{Id: user.Id}
-	enabled, err := u.PushEnabled()
+	enabled, err := user.PushEnabled()
 	writeResponse(request.RequestURI, resp, map[string]bool{"is_enabled": enabled}, err)
 }
 
@@ -129,21 +106,13 @@ type relationshipForm struct {
 	Userid    string `json:"userid"`
 	Follow    bool   `json:"bAttention"`
 	Blacklist bool   `json:"bDefriend"`
-	Token     string `json:"access_token" binding:"required"`
+	parameter
 }
 
-func (this relationshipForm) getTokenId() string {
-	return this.Token
-}
+func followHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-func followHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(relationshipForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
+	form := p.(relationshipForm)
 	u := &models.Account{}
 	if find, err := u.FindByUserid(form.Userid); !find {
 		if err == nil {
@@ -182,13 +151,9 @@ func followHandler(request *http.Request, resp http.ResponseWriter, redis *model
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }
 
-func blacklistHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(relationshipForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func blacklistHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(relationshipForm)
 
 	u := &models.Account{}
 	if find, err := u.FindByUserid(form.Userid); !find {
@@ -205,63 +170,37 @@ func blacklistHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 }
 
 type getFollowsForm struct {
-	Token string `form:"access_token" binding:"required"`
+	parameter
 }
 
-func getFollowsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func getFollowsHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
-	//u := &models.User{Id: user.Id}
 	writeResponse(request.RequestURI, resp, redis.Friends(models.RelFollowing, user.Id), nil)
 }
 
-func getFollowersHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func getFollowersHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
-	//u := &models.User{Id: user.Id}
 	writeResponse(request.RequestURI, resp, redis.Friends(models.RelFollower, user.Id), nil)
 }
 
-func getFriendsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-	writeResponse(request.RequestURI, resp, redis.Friends(models.RelFriend, user.Id), nil)
-}
+func getGroupsHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
-func getGroupsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getFollowsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-
-	//u := &models.User{Id: user.Id}
 	writeResponse(request.RequestURI, resp, redis.Groups(user.Id), nil)
 }
 
 type socialListForm struct {
-	Token string `form:"access_token" binding:"required"`
-	Type  string `form:"member_type" binding:"required"`
+	Type string `form:"member_type" binding:"required"`
 	models.Paging
+	parameter
 }
 
-func socialListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form socialListForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func socialListHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(socialListForm)
 
 	var ids []string
 	switch form.Type {

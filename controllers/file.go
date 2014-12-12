@@ -26,24 +26,18 @@ var (
 )
 
 func BindFileApi(m *martini.ClassicMartini) {
-	m.Post("/1/file/upload", binding.Form(fileUploadForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, fileUploadHandler)
+	m.Post("/1/file/upload",
+		binding.Form(fileUploadForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		fileUploadHandler)
 	//m.Post("/1/file/upload", binding.MultipartForm(fileUploadForm2{}), ErrorHandler, fileUploadHandler2)
 	//m.Get(ImageDownloadV1Uri, binding.Form(imageDownloadForm{}), ErrorHandler, imageDownloadHandler)
 	//m.Post(FileDeleteV1Uri, binding.Json(fileDeleteForm{}), ErrorHandler, fileDeleteHandler)
 }
 
 type fileUploadForm struct {
-	AccessToken string `form:"access_token" binding:"required"`
-	//user        models.User `form:"-"`
-}
-
-func (this fileUploadForm) getTokenId() string {
-	return this.AccessToken
-}
-
-func (form *fileUploadForm) Validate(e *binding.Errors, req *http.Request) {
-	//log.Println(form.AccessToken)
-	//form.user = userAuth(form.AccessToken, e)
+	parameter
 }
 
 type fileUploadForm2 struct {
@@ -51,19 +45,15 @@ type fileUploadForm2 struct {
 	File  *multipart.FileHeader `form:"filedata"`
 }
 
-func fileUploadHandler2(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form fileUploadForm2) {
+func fileUploadHandler2(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, form fileUploadForm2) {
 	//_, err := form.File.Open()
 
 	log.Println(form.File.Filename)
 }
 
-func fileUploadHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(fileUploadForm)
-	user := redis.OnlineUser(form.AccessToken)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func fileUploadHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
 	filedata, header, err := request.FormFile("filedata")
 	if err != nil {

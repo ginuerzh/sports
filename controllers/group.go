@@ -2,7 +2,7 @@
 package controllers
 
 import (
-	"github.com/ginuerzh/sports/errors"
+	//"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -11,30 +11,37 @@ import (
 )
 
 func BindGroupApi(m *martini.ClassicMartini) {
-	m.Post("/1/user/joinGroup", binding.Json(joinGroupForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, joinGroupHandler)
-	m.Post("/1/user/newGroup", binding.Json(setGroupForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, setGroupHandler)
-	m.Get("/1/user/getGroupInfo", binding.Form(groupInfoForm{}), ErrorHandler, groupInfoHandler)
-	m.Get("/1/user/deleteGroup", binding.Json(groupDelForm{}), ErrorHandler, delGroupHandler)
+	m.Post("/1/user/joinGroup",
+		binding.Json(joinGroupForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		joinGroupHandler)
+	m.Post("/1/user/newGroup",
+		binding.Json(setGroupForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		setGroupHandler)
+	m.Get("/1/user/getGroupInfo",
+		binding.Form(groupInfoForm{}),
+		ErrorHandler,
+		groupInfoHandler)
+	m.Get("/1/user/deleteGroup",
+		binding.Json(groupDelForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		delGroupHandler)
 }
 
 type joinGroupForm struct {
 	Gid   string `json:"group_id" binding:"required"`
 	Leave bool   `json:"leave"`
-	Token string `json:"access_token" binding:"required"`
-}
-
-func (this joinGroupForm) getTokenId() string {
-	return this.Token
+	parameter
 }
 
 func joinGroupHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, getT GetToken) {
-	form := getT.(joinGroupForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(joinGroupForm)
 
 	redis.JoinGroup(user.Id, form.Gid, !form.Leave)
 	writeResponse(request.RequestURI, resp, nil, nil)
@@ -71,21 +78,13 @@ type Group struct {
 
 type setGroupForm struct {
 	Group
-	Token string `json:"access_token" binding:"required"`
-}
-
-func (this setGroupForm) getTokenId() string {
-	return this.Token
+	parameter
 }
 
 func setGroupHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, getT GetToken) {
-	form := getT.(setGroupForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(setGroupForm)
 
 	group := &models.Group{
 		Gid:     form.Id,
@@ -143,18 +142,14 @@ func groupInfoHandler(request *http.Request, resp http.ResponseWriter, form grou
 }
 
 type groupDelForm struct {
-	Gid   string `json:"group_id" binding:"required"`
-	Token string `json:"access_token" binding:"required"`
+	Gid string `json:"group_id" binding:"required"`
+	parameter
 }
 
 func delGroupHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form groupDelForm) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	form := p.(groupDelForm)
 
 	group := &models.Group{Gid: form.Gid}
 	group.Remove(user.Id)

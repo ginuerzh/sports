@@ -11,8 +11,9 @@ import (
 	"github.com/martini-contrib/binding"
 	"github.com/nu7hatch/gouuid"
 	"github.com/zhengying/apns"
+	"gopkg.in/go-martini/martini.v1"
 	"io"
-	"log"
+	//"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -102,47 +103,39 @@ func ErrorHandler(err binding.Errors, request *http.Request, resp http.ResponseW
 	}
 }
 
-type GetToken interface {
-	getTokenId() string
+type Parameter interface {
+	TokenId() string
 }
 
-func CheckHandler(getT GetToken, redis *models.RedisLogger, request *http.Request, resp http.ResponseWriter) {
-	token := getT.getTokenId()
-	user := redis.OnlineUser(token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+type parameter struct {
+	Token string `form:"access_token" json:"access_token"`
+}
+
+func (p parameter) TokenId() string {
+	return p.Token
+}
+
+func checkTokenHandler(c martini.Context, p Parameter, redis *models.RedisLogger, r *http.Request, w http.ResponseWriter) {
+	uid := redis.OnlineUser(p.TokenId())
+	if len(uid) == 0 {
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
 	}
-	log.Println("user.TimeLimit is :", user.TimeLimit, "cur time is:", time.Now().Unix())
-	if user.TimeLimit == -1 || user.TimeLimit > time.Now().Unix() {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-	}
+	c.Map(&models.Account{Id: uid})
 }
 
-type getUser interface {
-	getUserId() string
-}
-
-func CheckUserIDHandler(getU getUser, redis *models.RedisLogger, request *http.Request, resp http.ResponseWriter) {
-	uid := getU.getUserId()
-	user := &models.Account{}
-	if find, err := user.FindByUserid(uid); !find {
+func loadUserHandler(c martini.Context, user *models.Account, redis *models.RedisLogger, r *http.Request, w http.ResponseWriter) {
+	if find, err := user.FindByUserid(user.Id); !find {
 		if err == nil {
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.NotExistsError, "user '"+uid+"' not exists"))
-			return
+			err = errors.NewError(errors.NotExistsError)
 		}
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.NotExistsError))
+		writeResponse(r.RequestURI, w, nil, err)
 		return
 	}
+}
 
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
-	log.Println("user.TimeLimit is :", user.TimeLimit, "cur time is:", time.Now().Unix())
-	//if user.TimeLimit == -1 || user.TimeLimit > time.Now().Unix() {
-	if user.TimeLimit == -1 {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
+func checkLimitHandler(user *models.Account, r *http.Request, w http.ResponseWriter) {
+	if user.TimeLimit < 0 || user.TimeLimit > time.Now().Unix() {
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
 	}
 }
 

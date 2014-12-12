@@ -13,28 +13,36 @@ import (
 )
 
 func BindChatApi(m *martini.ClassicMartini) {
-	m.Get("/1/chat/recent_chat_infos", binding.Form(contactsForm{}), ErrorHandler, contactsHandler)
-	m.Post("/1/chat/send_message", binding.Json(sendMsgForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, sendMsgHandler)
-	m.Get("/1/chat/get_list", binding.Form(msgListForm{}), ErrorHandler, msgListHandler)
+	m.Get("/1/chat/recent_chat_infos",
+		binding.Form(contactsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		contactsHandler)
+	m.Post("/1/chat/send_message",
+		binding.Json(sendMsgForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
+		sendMsgHandler)
+	m.Get("/1/chat/get_list",
+		binding.Form(msgListForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		msgListHandler)
 }
 
 type contactsForm struct {
-	Token string `form:"access_token" binding:"required"`
+	parameter
 }
 
-func contactsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form contactsForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func contactsHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	u := &models.User{}
-	u.FindByUserid(user.Id)
-
-	contacts := make([]*contactStruct, len(u.Contacts))
-	for i, _ := range u.Contacts {
-		contacts[i] = convertContact(&u.Contacts[i])
+	contacts := make([]*contactStruct, len(user.Contacts))
+	for i, _ := range user.Contacts {
+		contacts[i] = convertContact(&user.Contacts[i])
 	}
 
 	respData := map[string]interface{}{
@@ -44,25 +52,16 @@ func contactsHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 }
 
 type sendMsgForm struct {
-	Token   string `json:"access_token" binding:"required"`
 	To      string `json:"to_id" binding:"required"`
 	Type    string `json:"type" binding:"required"`
-	Content string `json:"content" binding:"required"`
-}
-
-func (this sendMsgForm) getTokenId() string {
-	return this.Token
+	Content string `json:"content"`
+	parameter
 }
 
 func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(sendMsgForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	client *apns.Client, redis *models.RedisLogger, user *models.Account, p Parameter) {
 
+	form := p.(sendMsgForm)
 	if redis.Relationship(user.Id, form.To) == models.RelBlacklist ||
 		redis.Relationship(form.To, user.Id) == models.RelBlacklist {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
@@ -72,7 +71,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	touser := &models.Account{}
 	if find, err := touser.FindByUserid(form.To); !find {
 		if err == nil {
-			err = errors.NewError(errors.NotExistsError, "user '"+form.To+"' not exists")
+			err = errors.NewError(errors.NotExistsError)
 		}
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
@@ -90,23 +89,23 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	u := &models.User{Id: user.Id}
+	//u := &models.User{Id: user.Id}
 	contact := &models.Contact{
 		Id:       touser.Id,
 		Profile:  touser.Profile,
 		Nickname: touser.Nickname,
 		Last:     msg,
 	}
-	if err := u.AddContact(contact); err != nil {
+	if err := user.AddContact(contact); err != nil {
 		log.Println(err)
 	}
 
-	u.Id = touser.Id
+	//u.Id = touser.Id
 	contact.Id = user.Id
 	contact.Profile = user.Profile
 	contact.Nickname = user.Nickname
 	contact.Count = 1
-	if err := u.AddContact(contact); err != nil {
+	if err := touser.AddContact(contact); err != nil {
 		log.Println(err)
 	}
 
@@ -132,7 +131,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		redis.IncrEventCount(form.To, event.Data.Type, 1)
 	}
 
-	devs, enabled, _ := u.Devices()
+	devs, enabled, _ := touser.Devices()
 	if enabled {
 		for _, dev := range devs {
 			if err := sendApns(client, dev, user.Nickname+": "+msg.Body[0].Content, 1, ""); err != nil {
@@ -165,20 +164,16 @@ func convertMsg(msg *models.Message) *msgJsonStruct {
 }
 
 type msgListForm struct {
-	Token  string `form:"access_token" binding:"required"`
 	Userid string `form:"userid" binding:"required"`
 	models.Paging
+	parameter
 }
 
-func msgListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form msgListForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func msgListHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	u := &models.User{Id: user.Id}
-	_, msgs, err := u.Messages(form.Userid, &form.Paging)
+	form := p.(msgListForm)
+	_, msgs, err := user.Messages(form.Userid, &form.Paging)
 	jsonStructs := make([]*msgJsonStruct, len(msgs))
 	for i, _ := range msgs {
 		jsonStructs[i] = convertMsg(&msgs[i])

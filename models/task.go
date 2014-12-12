@@ -1,6 +1,10 @@
 // task
 package models
 
+import (
+	"time"
+)
+
 const (
 	TaskRunning = "PHYSIQUE"
 	TaskPost    = "LITERATURE"
@@ -11,6 +15,49 @@ const (
 	TaskCompleted = iota
 	TaskUncompleted
 )
+
+type Proof struct {
+	Tid    int
+	Pics   []string
+	Result string `bson:",omitempty"`
+}
+
+type TaskList struct {
+	Completed   []int
+	Uncompleted []int
+	Waited      []int
+	Proofs      []Proof
+	Last        time.Time
+}
+
+func (tl *TaskList) TaskStatus(tid int) (status string) {
+	for i := len(tl.Completed) - 1; i >= 0; i-- {
+		if tid == tl.Completed[i] {
+			return "FINISH"
+		}
+	}
+	for _, id := range tl.Waited {
+		if tid == id {
+			return "AUTHENTICATION"
+		}
+	}
+	for _, id := range tl.Uncompleted {
+		if tid == id {
+			return "UNFINISH"
+		}
+	}
+
+	return "NORMAL"
+}
+
+func (tl *TaskList) GetProof(tid int) Proof {
+	for _, proof := range tl.Proofs {
+		if proof.Tid == tid {
+			return proof
+		}
+	}
+	return Proof{}
+}
 
 type Task struct {
 	Id     int      `json:"task_id"`

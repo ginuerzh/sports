@@ -7,12 +7,15 @@ import (
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
 	//"labix.org/v2/mgo/bson"
+	"github.com/jinzhu/now"
 	"net/http"
 	//"time"
+	"log"
 )
 
 func BindTaskApi(m *martini.ClassicMartini) {
 	m.Get("/admin/task/list", binding.Form(tasklistForm{}), adminErrorHandler, tasklistHandler)
+	m.Get("/admin/task/timeline", binding.Form(taskTimelineForm{}), adminErrorHandler, taskTimelineHandler)
 	m.Post("/admin/task/auth", binding.Json(taskAuthForm{}), adminErrorHandler, taskAuthHandler)
 }
 
@@ -40,12 +43,63 @@ func convertTask(task *models.Task, tl *models.TaskList) *taskinfo {
 }
 
 type tasklistForm struct {
+	AdminPaging
+	Token string `form:"access_token"`
+}
+
+type userTask struct {
+	Id       string      `json:"userid"`
+	Nickname string      `json:"nickname"`
+	Profile  string      `json:"profile"`
+	Tasks    []*taskinfo `json:"tasks"`
+}
+
+func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form tasklistForm) {
+	if form.PageCount == 0 {
+		form.PageCount = 50
+	}
+	total, users, _ := models.UserList("", form.PageIndex, form.PageCount)
+	log.Println(total, len(users))
+	usertasks := make([]*userTask, len(users))
+	for i, user := range users {
+		usertasks[i] = &userTask{}
+		usertasks[i].Id = user.Id
+		usertasks[i].Nickname = user.Nickname
+		usertasks[i].Profile = user.Profile
+
+		tasklist := user.Tasks
+		week := len(tasklist.Completed) / 7
+		if week > 0 && len(tasklist.Completed)%7 == 0 &&
+			tasklist.Last.After(now.BeginningOfWeek()) {
+			week -= 1
+		}
+		usertasks[i].Tasks = make([]*taskinfo, 7)
+		for j, t := range models.Tasks[week*7 : week*7+7] {
+			usertasks[i].Tasks[j] = convertTask(&t, &tasklist)
+		}
+	}
+
+	pages := total / form.PageCount
+	if total%form.PageCount > 0 {
+		pages++
+	}
+	resp := map[string]interface{}{
+		"users":        usertasks,
+		"page_index":   form.PageIndex,
+		"page_total":   pages,
+		"total_number": total,
+	}
+
+	writeResponse(w, resp)
+}
+
+type taskTimelineForm struct {
 	Userid string `form:"userid" binding:"required"`
 	Week   int    `form:"week"`
 	Token  string `form:"access_token"`
 }
 
-func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form tasklistForm) {
+func taskTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form taskTimelineForm) {
 	/*
 		user := redis.OnlineUser(form.Token)
 		if user == nil {
@@ -53,13 +107,14 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			return
 		}
 	*/
+	/*
+		u := &models.User{Id: form.Userid}
+		tl, err := u.GetTasks()
+	*/
+	u := &models.Account{}
+	u.FindByUserid(form.Userid)
 
-	u := &models.User{Id: form.Userid}
-	tl, err := u.GetTasks()
-	if err != nil {
-		writeResponse(w, err)
-		return
-	}
+	tl := u.Tasks
 
 	var tasks []*taskinfo
 	if form.Week > 0 {
@@ -97,15 +152,16 @@ func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 		}
 	*/
 
-	u := &models.User{Id: form.Userid}
-	if err := u.SetTaskComplete(form.Id, form.Pass, form.Reason); err != nil {
+	//u := &models.User{Id: form.Userid}
+	user := &models.Account{}
+	user.FindByUserid(form.Userid)
+	if err := user.SetTaskComplete(form.Id, form.Pass, form.Reason); err != nil {
 		writeResponse(w, err)
 		return
 	}
 
 	if form.Pass {
-		user := &models.Account{}
-		user.FindByUserid(form.Userid)
+
 		awards := controllers.Awards{
 			Physical: 30 + user.Props.Level,
 			Wealth:   30 * models.Satoshi,

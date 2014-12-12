@@ -19,13 +19,42 @@ import (
 )
 
 func BindArticleApi(m *martini.ClassicMartini) {
-	m.Post("/1/article/new", binding.Json(newArticleForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, newArticleHandler)
-	m.Post("/1/article/delete", binding.Json(deleteArticleForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, deleteArticleHandler)
-	m.Post("/1/article/thumb", binding.Json(articleThumbForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, articleThumbHandler)
-	m.Get("/1/article/is_thumbed", binding.Form(articleIsThumbedForm{}), ErrorHandler, articleIsThumbedHandler)
-	m.Get("/1/article/timelines", binding.Form(articleListForm{}), ErrorHandler, articleListHandler)
-	m.Get("/1/article/get", binding.Form(articleInfoForm{}), ErrorHandler, articleInfoHandler)
-	m.Post("/1/article/comments", binding.Json(articleCommentsForm{}), ErrorHandler, CheckHandler, articleCommentsHandler)
+	m.Post("/1/article/new",
+		binding.Json(newArticleForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
+		newArticleHandler)
+	m.Post("/1/article/delete",
+		binding.Json(deleteArticleForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		deleteArticleHandler)
+	m.Post("/1/article/thumb",
+		binding.Json(articleThumbForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
+		articleThumbHandler)
+	m.Get("/1/article/is_thumbed",
+		binding.Form(articleIsThumbedForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		articleIsThumbedHandler)
+	m.Get("/1/article/timelines",
+		binding.Form(articleListForm{}),
+		ErrorHandler,
+		articleListHandler)
+	m.Get("/1/article/get",
+		binding.Form(articleInfoForm{}),
+		ErrorHandler,
+		articleInfoHandler)
+	m.Post("/1/article/comments",
+		binding.Json(articleCommentsForm{}),
+		ErrorHandler,
+		articleCommentsHandler)
 }
 
 type articleJsonStruct struct {
@@ -67,21 +96,12 @@ type newArticleForm struct {
 	Parent   string           `json:"parent_article_id"`
 	Contents []models.Segment `json:"article_segments" binding:"required"`
 	Tags     []string         `json:"article_tag"`
-	Token    string           `json:"access_token" binding:"required"`
-}
-
-func (this newArticleForm) getTokenId() string {
-	return this.Token
+	parameter
 }
 
 func newArticleHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(newArticleForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	client *apns.Client, redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(newArticleForm)
 
 	article := &models.Article{
 		Author:   user.Id,
@@ -123,7 +143,8 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			return
 		}
 
-		u := &models.User{Id: parent.Author}
+		//u := &models.User{Id: parent.Author}
+		u := &models.Account{Id: parent.Author}
 
 		_, coverImage := parent.Cover()
 		// ws push
@@ -164,21 +185,14 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type deleteArticleForm struct {
-	Id    string `json:"article_id" binding:"required"`
-	Token string `json:"access_token" binding:"required"`
+	Id string `json:"article_id" binding:"required"`
+	parameter
 }
 
-func (this deleteArticleForm) getTokenId() string {
-	return this.Token
-}
+func deleteArticleHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-func deleteArticleHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(deleteArticleForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	form := p.(deleteArticleForm)
 
 	article := &models.Article{}
 	article.Author = user.Id
@@ -191,22 +205,13 @@ func deleteArticleHandler(request *http.Request, resp http.ResponseWriter, redis
 type articleThumbForm struct {
 	Id     string `json:"article_id" binding:"required"`
 	Status bool   `json:"thumb_status"`
-	Token  string `json:"access_token" binding:"required"`
-}
-
-func (this articleThumbForm) getTokenId() string {
-	return this.Token
+	parameter
 }
 
 func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(articleThumbForm)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+	client *apns.Client, redis *models.RedisLogger, user *models.Account, p Parameter) {
 
+	form := p.(articleThumbForm)
 	article := &models.Article{}
 	if find, err := article.FindById(form.Id); !find {
 		e := errors.NewError(errors.NotExistsError)
@@ -234,7 +239,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 
 	if form.Status {
-		u := &models.User{Id: article.Author}
+		u := &models.Account{Id: article.Author}
 
 		_, coverImage := article.Cover()
 		// ws push
@@ -270,16 +275,14 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type articleIsThumbedForm struct {
-	Id    string `form:"article_id" binding:"required"`
-	Token string `form:"access_token" binding:"required"`
+	Id string `form:"article_id" binding:"required"`
+	parameter
 }
 
-func articleIsThumbedHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form articleIsThumbedForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func articleIsThumbedHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(articleIsThumbedForm)
 
 	article := &models.Article{}
 	article.Id = bson.ObjectIdHex(form.Id)
@@ -330,7 +333,8 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 		return
 	}
 
-	if user := redis.OnlineUser(form.Token); user != nil && user.Id == article.Author {
+	if uid := redis.OnlineUser(form.Token); uid == article.Author {
+		user := &models.Account{Id: uid}
 		count := user.ClearEvent(models.EventThumb, article.Id.Hex())
 		redis.IncrEventCount(user.Id, models.EventThumb, -count)
 
@@ -346,17 +350,13 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type articleCommentsForm struct {
-	Id    string `json:"article_id"  binding:"required"`
-	Token string `json:"access_token" binding:"required"`
+	Id string `json:"article_id"  binding:"required"`
 	models.Paging
 }
 
-func (this articleCommentsForm) getTokenId() string {
-	return this.Token
-}
+func articleCommentsHandler(request *http.Request, resp http.ResponseWriter,
+	form articleCommentsForm) {
 
-func articleCommentsHandler(request *http.Request, resp http.ResponseWriter, getT GetToken) {
-	form := getT.(articleCommentsForm)
 	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
 	_, comments, err := article.Comments(&form.Paging)
 

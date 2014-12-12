@@ -438,18 +438,26 @@ func SearchArticle(keyword string, paging *Paging) (int, []Article, error) {
 	return total, articles, nil
 }
 
-func AdminSearchArticle(keyword string,
+func AdminSearchArticle(keyword string, tag string,
 	pageIndex, pageCount int) (total int, articles []Article, err error) {
+	query := bson.M{}
 
-	query := bson.M{
-		"parent": nil,
-		"$or": []bson.M{
-			{"contents.seg_content": bson.M{
+	if len(keyword) == 0 {
+		query = bson.M{
+			"parent": nil,
+			"tags":   tag,
+		}
+	} else {
+		query = bson.M{
+			"parent": nil,
+			"contents.seg_content": bson.M{
 				"$regex":   keyword,
 				"$options": "i",
-			}},
-			{"tags": keyword},
-		},
+			},
+		}
+		if len(tag) > 0 {
+			query["tags"] = tag
+		}
 	}
 
 	err = search(articleColl, query, nil,

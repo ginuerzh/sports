@@ -194,21 +194,11 @@ type redisUser struct {
 }
 */
 
-func (logger *RedisLogger) OnlineUser(accessToken string) *Account {
-	if len(accessToken) == 0 {
-		return nil
-	}
-	//user := &redisUser{}
+func (logger *RedisLogger) OnlineUser(token string) (id string) {
 	conn := logger.conn
 
-	userid, _ := redis.String(conn.Do("GET", redisUserOnlineUserPrefix+accessToken))
-
-	account := &Account{}
-	find, _ := account.FindByUserid(userid)
-	if !find {
-		return nil
-	}
-	return account
+	id, _ = redis.String(conn.Do("GET", redisUserOnlineUserPrefix+token))
+	return
 	/*
 		if strings.HasPrefix(accessToken, GuestUserPrefix) {
 			//user.Userid, _ = redis.String(conn.Do("HGET", redisUserGuest, accessToken))

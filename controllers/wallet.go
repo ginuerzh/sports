@@ -26,24 +26,42 @@ var (
 )
 
 func BindWalletApi(m *martini.ClassicMartini) {
-	m.Get("/1/wallet/get", binding.Form(walletForm{}), ErrorHandler, getWalletHandler)
-	m.Get("/1/wallet/balance", binding.Form(walletForm{}), ErrorHandler, balanceHandler)
-	m.Get("/1/wallet/newaddr", binding.Form(walletForm{}), ErrorHandler, newAddrHandler)
-	m.Post("/1/wallet/send", binding.Json(txForm{}, (*GetToken)(nil)), ErrorHandler, CheckHandler, txHandler)
-	m.Get("/1/wallet/txs", binding.Form(addrTxsForm{}), addrTxsHandler)
+	m.Get("/1/wallet/get",
+		binding.Form(walletForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		getWalletHandler)
+	m.Get("/1/wallet/balance",
+		binding.Form(walletForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		balanceHandler)
+	m.Get("/1/wallet/newaddr",
+		binding.Form(walletForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		newAddrHandler)
+	m.Post("/1/wallet/send",
+		binding.Json(txForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
+		txHandler)
+	m.Get("/1/wallet/txs",
+		binding.Form(addrTxsForm{}),
+		addrTxsHandler)
 }
 
 type walletForm struct {
-	Token string `form:"access_token" binding:"required"`
-	//WalletId string `form:"wallet_id"`
+	parameter
 }
 
-func getWalletHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form walletForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func getWalletHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
 	wal, err := getWallet(user.Wallet.Id, user.Wallet.Key)
 	if err != nil {
@@ -54,12 +72,8 @@ func getWalletHandler(r *http.Request, w http.ResponseWriter, redis *models.Redi
 	writeResponse(r.RequestURI, w, wal, nil)
 }
 
-func newAddrHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form walletForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func newAddrHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
 	wal, err := getWallet(user.Wallet.Id, user.Wallet.Key)
 	if err != nil {
@@ -86,12 +100,8 @@ func newAddrHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisL
 	writeResponse(r.RequestURI, w, k, nil)
 }
 
-func balanceHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form walletForm) {
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func balanceHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
 
 	/*
 		wal, err := getWallet(user.Wallet.Id, user.Wallet.Key)
@@ -144,26 +154,17 @@ func addrTxsHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisL
 }
 
 type txForm struct {
-	Token    string `json:"access_token" binding:"required"`
 	Type     string `json:"trade_type"`
 	Id       string `json:"article_id"`
 	FromAddr string `json:"from"`
 	ToAddr   string `json:"to" binding:"required"`
 	Value    int64  `json:"value" binding:"required"`
+	parameter
 }
 
-func (this txForm) getTokenId() string {
-	return this.Token
-}
-
-func txHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, getT GetToken) {
-	form := getT.(txForm)
-	log.Println(form)
-	user := redis.OnlineUser(form.Token)
-	if user == nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
-		return
-	}
+func txHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(txForm)
 
 	receiver := &models.Account{}
 	if find, err := receiver.FindByWalletAddr(form.ToAddr); !find {
