@@ -40,6 +40,12 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(logoutForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		logoutHandler)
+	m.Get("/	1/user/recommend",
+		binding.Form(recommendForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		recommendHandler)
 	m.Get("/1/user/getInfo",
 		binding.Form(getInfoForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -109,6 +115,22 @@ type userRegForm struct {
 	//Role     string `json:"role"`
 }
 
+func regNotice(uid string, redis *models.RedisLogger) {
+	notice := &models.Event{
+		Type: models.EventWallet,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventTx,
+			Id:   uid,
+			From: uid,
+			Body: []models.MsgBody{
+				{Type: "rule", Content: "1"},
+			},
+		},
+	}
+	redis.Notice(notice.Bytes())
+}
+
 func registerHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form userRegForm) {
 	user := &models.Account{}
 
@@ -146,22 +168,7 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		//redis.SetOnlineUser(token, user, true)
 
 		// ws push
-		notice := &models.Event{
-			Type: models.EventWallet,
-			Time: time.Now().Unix(),
-			Data: models.EventData{
-				Type: models.EventTx,
-				Id:   user.Id,
-				From: user.Id,
-				Body: []models.MsgBody{
-					{Type: "rule", Content: "1"},
-					{Type: "nikename", Content: user.Id},
-					{Type: "total_count", Content: "1"},
-					{Type: "image", Content: user.Profile},
-				},
-			},
-		}
-		redis.Notice(notice.Bytes())
+		regNotice(user.Id, redis)
 	}
 }
 
@@ -234,6 +241,9 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 		}
 	}
 	redis.LogRegister(user.Id)
+
+	// ws push
+	regNotice(user.Id, redis)
 
 	return true, user, nil
 }
@@ -346,10 +356,47 @@ type logoutForm struct {
 	parameter
 }
 
-func logoutHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, p Parameter) {
+func logoutHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, p Parameter) {
 	redis.DelOnlineUser(p.TokenId())
 	writeResponse(request.RequestURI, resp, nil, nil)
 
+}
+
+type recommendForm struct {
+	models.Paging
+	parameter
+}
+
+func recommendHandler(r *http.Request, w http.ResponseWriter,
+	user *models.Account, p Parameter) {
+
+	form := p.(recommendForm)
+
+	users, _ := user.Recommend()
+
+	list := make([]leaderboardResp, len(users))
+	for i, _ := range users {
+		if users[i].Id == user.Id {
+			continue
+		}
+		list[i].Userid = users[i].Id
+		list[i].Score = users[i].Props.Score
+		list[i].Level = users[i].Props.Level + 1
+		list[i].Profile = users[i].Profile
+		list[i].Nickname = users[i].Nickname
+		list[i].Gender = users[i].Gender
+		list[i].LastLog = users[i].LastLogin.Unix()
+		list[i].Birth = users[i].Birth
+		list[i].Location = users[i].Loc
+	}
+
+	respData := map[string]interface{}{
+		"members_list":  list,
+		"page_frist_id": form.Paging.First,
+		"page_last_id":  form.Paging.Last,
+	}
+	writeResponse(r.RequestURI, w, respData, nil)
 }
 
 type getInfoForm struct {
@@ -419,6 +466,7 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		Weight:   user.Weight,
 		Birth:    user.Birth,
 		Actor:    userActor(user.Actor),
+		Location: user.Loc,
 
 		//Rank:   userRank(user.Level),
 		Online: redis.IsOnline(user.Id),
@@ -445,15 +493,8 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 
 	info.Follows, info.Followers, _, _ = redis.FriendCount(user.Id)
 
-	if user.Equips != nil {
-		info.Equips = *user.Equips
-	}
-
 	if user.Addr != nil {
 		info.Addr = user.Addr.String()
-	}
-	if user.Loc != nil {
-		info.Location = *user.Loc
 	}
 
 	if user.Equips != nil {
@@ -499,7 +540,7 @@ type setInfoForm struct {
 }
 
 func setInfoHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 
 	form := p.(setInfoForm)
 	user.Nickname = form.UserInfo.Nickname
@@ -545,7 +586,7 @@ type setProfileForm struct {
 }
 
 func setProfileHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 	form := p.(setProfileForm)
 	err := user.ChangeProfile(form.ImageId)
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
@@ -557,7 +598,7 @@ type setPhotosForm struct {
 }
 
 func setPhotosHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 	form := p.(setPhotosForm)
 	err := user.AddPhotos(form.Pics)
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
@@ -569,7 +610,7 @@ type delPhotoForm struct {
 }
 
 func delPhotoHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 	err := user.DelPhoto(p.(delPhotoForm).Photo)
 	writeResponse(request.RequestURI, resp, nil, err)
 }
@@ -579,7 +620,7 @@ type loginAwardsForm struct {
 }
 
 func loginAwardsHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account) {
+	user *models.Account) {
 	respData := map[string]interface{}{
 		"continuous_logined_days": user.LoginDays,
 		"login_reward_list":       []int{1, 2, 3, 4, 5, 6, 7},
@@ -633,7 +674,7 @@ type scoreDiffForm struct {
 }
 
 func scoreDiffHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 
 	other := &models.Account{}
 	other.FindByUserid(p.(scoreDiffForm).Uid)
@@ -650,10 +691,10 @@ type getPropsForm struct {
 	Uid string `form:"userid" binding:"required"`
 }
 
-func getPropsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getPropsForm) {
+func getPropsHandler(r *http.Request, w http.ResponseWriter, form getPropsForm) {
 	user := &models.Account{}
 	user.FindByUserid(form.Uid)
-	writeResponse(request.RequestURI, resp, user.Props, nil)
+	writeResponse(r.RequestURI, w, user.Props, nil)
 }
 
 type setEquipForm struct {
@@ -662,7 +703,7 @@ type setEquipForm struct {
 }
 
 func setEquipHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 
 	form := p.(setEquipForm)
 	err := user.SetEquip(form.Equips)
@@ -676,9 +717,12 @@ type searchForm struct {
 	models.Paging
 }
 
-func searchHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form searchForm) {
+func searchHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, form searchForm) {
 	users := []models.Account{}
 	var err error
+
+	uid := redis.OnlineUser(form.Token)
 
 	if form.Nearby {
 		uid := redis.OnlineUser(form.Token)
@@ -688,13 +732,16 @@ func searchHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLo
 		}
 		form.Paging.Count = 50
 		user := &models.Account{Id: uid}
-		users, err = user.SearchNear(&form.Paging)
+		users, err = user.SearchNear(&form.Paging, 0)
 	} else {
 		users, err = models.Search(form.Nickname, &form.Paging)
 	}
 
 	list := make([]leaderboardResp, len(users))
 	for i, _ := range users {
+		if users[i].Id == uid {
+			continue
+		}
 		list[i].Userid = users[i].Id
 		list[i].Score = users[i].Props.Score
 		list[i].Level = users[i].Props.Level + 1
@@ -703,9 +750,8 @@ func searchHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLo
 		list[i].Gender = users[i].Gender
 		list[i].LastLog = users[i].LastLogin.Unix()
 		list[i].Birth = users[i].Birth
-		if users[i].Loc != nil {
-			list[i].Location = *users[i].Loc
-		}
+		list[i].Location = users[i].Loc
+
 	}
 
 	respData := map[string]interface{}{

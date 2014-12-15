@@ -3,6 +3,7 @@ package controllers
 import (
 	//"encoding/json"
 	//"github.com/ginuerzh/sports/errors"
+	"fmt"
 	"github.com/ginuerzh/sports/models"
 	"github.com/jinzhu/now"
 	"github.com/martini-contrib/binding"
@@ -51,8 +52,7 @@ type getTasksForm struct {
 	parameter
 }
 
-func getTasksHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account) {
+func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Account) {
 
 	tasklist := user.Tasks
 
@@ -67,16 +67,24 @@ func getTasksHandler(request *http.Request, resp http.ResponseWriter,
 	}
 	for i, _ := range list {
 		list[i].Status = tasklist.TaskStatus(list[i].Id)
+		if list[i].Type == "game" && list[i].Status == "FINISH" {
+			rec := &models.Record{Uid: user.Id}
+			rec.FindByTask(list[i].Id)
+			if rec.Game != nil {
+				list[i].Desc = fmt.Sprintf("你在%s游戏中得了%d分",
+					rec.Game.Name, rec.Game.Score)
+			}
+		}
 	}
 
-	r := rand.New(rand.NewSource(time.Now().Unix()))
+	random := rand.New(rand.NewSource(time.Now().Unix()))
 	respData := map[string]interface{}{
 		"week_id":   week + 1,
 		"task_list": list,
-		"week_desc": tips[r.Int()%len(tips)],
+		"week_desc": tips[random.Int()%len(tips)],
 	}
 
-	writeResponse(request.RequestURI, resp, respData, nil)
+	writeResponse(r.RequestURI, w, respData, nil)
 }
 
 type getTaskInfoForm struct {
@@ -85,7 +93,7 @@ type getTaskInfoForm struct {
 }
 
 func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 
 	form := p.(getTaskInfoForm)
 	tasklist := user.Tasks
@@ -109,7 +117,7 @@ type completeTaskForm struct {
 }
 
 func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	user *models.Account, p Parameter) {
 
 	form := p.(completeTaskForm)
 

@@ -231,9 +231,7 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter,
 		lb[i].Gender = users[i].Gender
 		lb[i].LastLog = users[i].LastLogin.Unix()
 		lb[i].Birth = users[i].Birth
-		if users[i].Loc != nil {
-			lb[i].Location = *users[i].Loc
-		}
+		lb[i].Location = users[i].Loc
 	}
 
 	respData := map[string]interface{}{

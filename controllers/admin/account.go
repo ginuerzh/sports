@@ -226,11 +226,8 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 	if user.Addr != nil {
 		info.Addr = user.Addr.String()
 	}
-	if user.Loc != nil {
-		loction := *user.Loc
-		info.Lat = loction.Lat
-		info.Lng = loction.Lng
-	}
+	info.Lat = user.Loc.Lat
+	info.Lng = user.Loc.Lng
 
 	return info
 }
@@ -315,11 +312,8 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 	if user.Addr != nil {
 		info.Addr = user.Addr.String()
 	}
-	if user.Loc != nil {
-		loction := *user.Loc
-		info.Lat = loction.Lat
-		info.Lng = loction.Lng
-	}
+	info.Lat = user.Loc.Lat
+	info.Lng = user.Loc.Lng
 
 	writeResponse(resp, info)
 }
@@ -441,11 +435,8 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		if user.Addr != nil {
 			list[i].Addr = user.Addr.String()
 		}
-		if user.Loc != nil {
-			loction := *user.Loc
-			list[i].Lat = loction.Lat
-			list[i].Lng = loction.Lng
-		}
+		list[i].Lat = user.Loc.Lat
+		list[i].Lng = user.Loc.Lng
 	}
 	/*
 		var pc, nc string
@@ -612,11 +603,8 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		if user.Addr != nil {
 			list[i].Addr = user.Addr.String()
 		}
-		if user.Loc != nil {
-			loction := *user.Loc
-			list[i].Lat = loction.Lat
-			list[i].Lng = loction.Lng
-		}
+		list[i].Lat = user.Loc.Lat
+		list[i].Lng = user.Loc.Lng
 	}
 
 	totalPage := count / getCount
@@ -789,11 +777,8 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		if user.Addr != nil {
 			list[i].Addr = user.Addr.String()
 		}
-		if user.Loc != nil {
-			loction := *user.Loc
-			list[i].Lat = loction.Lat
-			list[i].Lng = loction.Lng
-		}
+		list[i].Lat = user.Loc.Lat
+		list[i].Lng = user.Loc.Lng
 	}
 	/*
 		var pc, nc string

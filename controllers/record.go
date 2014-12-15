@@ -45,6 +45,7 @@ type record struct {
 
 type newRecordForm struct {
 	Record *record `json:"record_item" binding:"required"`
+	Task   int     `json:"task_id"`
 	parameter
 }
 
@@ -55,6 +56,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 
 	rec := &models.Record{
 		Uid:     user.Id,
+		Task:    form.Task,
 		Type:    form.Record.Type,
 		Time:    time.Unix(form.Record.Time, 0),
 		PubTime: time.Now(),
@@ -218,9 +220,8 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 			lb[i].Gender = friends[i].Gender
 			lb[i].LastLog = friends[i].LastLogin.Unix()
 			lb[i].Birth = friends[i].Birth
-			if friends[i].Loc != nil {
-				lb[i].Location = *friends[i].Loc
-			}
+			lb[i].Location = friends[i].Loc
+
 		}
 
 		respData := map[string]interface{}{

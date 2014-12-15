@@ -100,7 +100,7 @@ type Account struct {
 	Url       string    `bson:",omitempty" json:"url,omitempty"`
 	About     string    `bson:",omitempty" json:"about,omitempty"`
 	Addr      *Address  `bson:",omitempty" json:"addr,omitempty"`
-	Loc       *Location `bson:",omitempty" json:"-"`
+	Loc       Location  `bson:",omitempty" json:"-"`
 	Photos    []string  `json:"-"`
 	Setinfo   bool      `json:"setinfo,omitempty"`
 	Wallet    DbWallet  `json:"-"`
@@ -409,19 +409,49 @@ func (this *Account) DelPhoto(id string) error {
 	return nil
 }
 
-/*
-func UserList(skip, limit int) (total int, users []Account, err error) {
-	if err := search(accountColl, nil, nil, skip, limit, []string{"-reg_time"}, &total, &users); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
+func (this *Account) Recommend() (users []Account, err error) {
+	var query bson.M
+
+	if this.Loc.Lat != 0 && this.Loc.Lng != 0 {
+		query = bson.M{
+			"loc": bson.M{
+				"$near":        []float64{this.Loc.Lat, this.Loc.Lng},
+				"$maxDistance": float64(50000) / float64(111319),
+			},
+		}
+		if err = search(accountColl, query, nil, 0, 50, nil, nil, &users); err != nil {
+			return
+		}
+	}
+
+	if len(users) < 10 {
+		var u []Account
+		err = search(accountColl, nil, nil, 0, 50, []string{"-score"}, nil, &u)
+		users = append(users, u...)
 	}
 
 	return
 }
-*/
 
 func UserList(sort string, pageIndex, pageCount int) (total int, users []Account, err error) {
+	switch sort {
+	case "regtime":
+		sort = "reg_time"
+	case "-regtime":
+		sort = "-reg_time"
+	case "score":
+		sort = "props.score"
+	case "-score":
+		sort = "-props.score"
+	case "task":
+		sort = "tasks.last"
+	case "-task":
+		sort = "-tasks.last"
+	default:
+		sort = "-reg_time"
+	}
 	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
-	err = search(accountColl, query, nil, pageIndex*pageCount, pageCount, []string{"-tasks.last"}, &total, &users)
+	err = search(accountColl, query, nil, pageIndex*pageCount, pageCount, []string{sort}, &total, &users)
 	return
 }
 
@@ -1098,16 +1128,25 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 	return users, nil
 }
 
-func (this *Account) SearchNear(paging *Paging) ([]Account, error) {
+func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error) {
 	var users []Account
 	total := 0
-	if this.Loc == nil || this.Loc.Lat == 0 || this.Loc.Lng == 0 {
+	if this.Loc.Lat == 0 && this.Loc.Lng == 0 {
 		return nil, nil
 	}
 	query := bson.M{
 		"loc": bson.M{
 			"$near": []float64{this.Loc.Lat, this.Loc.Lng},
 		},
+	}
+	if distance > 0 {
+		maxdis := float64(distance) / float64(111319)
+		query = bson.M{
+			"loc": bson.M{
+				"$near":        []float64{this.Loc.Lat, this.Loc.Lng},
+				"$maxDistance": maxdis,
+			},
+		}
 	}
 
 	if err := psearch(accountColl, query, nil, nil, nil, &users, nil, paging); err != nil {

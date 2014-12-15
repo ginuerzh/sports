@@ -30,6 +30,7 @@ type GameRecord struct {
 type Record struct {
 	Id      bson.ObjectId `bson:"_id,omitempty"`
 	Uid     string
+	Task    int
 	Type    string
 	Sport   *SportRecord `bson:",omitempty"`
 	Game    *GameRecord  `bson:",omitempty"`
@@ -49,6 +50,9 @@ func (this *Record) findOne(query interface{}) (bool, error) {
 	}
 
 	return len(records) > 0, nil
+}
+func (this *Record) FindByTask(tid int) (bool, error) {
+	return this.findOne(bson.M{"uid": this.Uid, "task": tid})
 }
 
 func TotalRecords(userid string) (int, error) {

@@ -58,7 +58,7 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
-	total, users, _ := models.UserList("", form.PageIndex, form.PageCount)
+	total, users, _ := models.UserList("-task", form.PageIndex, form.PageCount)
 	log.Println(total, len(users))
 	usertasks := make([]*userTask, len(users))
 	for i, user := range users {

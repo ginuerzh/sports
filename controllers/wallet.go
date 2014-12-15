@@ -248,10 +248,11 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 			},
 		}
 	}
-
-	redis.PubMsg("wallet", receiver.Id, event.Bytes())
-	if err := event.Save(); err == nil {
-		redis.IncrEventCount(receiver.Id, event.Data.Type, 1)
+	if user.Id != receiver.Id {
+		redis.PubMsg("wallet", receiver.Id, event.Bytes())
+		if err := event.Save(); err == nil {
+			redis.IncrEventCount(receiver.Id, event.Data.Type, 1)
+		}
 	}
 
 	writeResponse(r.RequestURI, w, map[string]string{"txid": txid}, nil)
