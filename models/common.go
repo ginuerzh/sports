@@ -32,6 +32,7 @@ const (
 )
 
 const (
+	RelNone      = ""
 	RelFriend    = "friend"
 	RelFollowing = "following"
 	RelFollower  = "follower"

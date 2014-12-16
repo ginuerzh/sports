@@ -312,33 +312,38 @@ func (logger *RedisLogger) Relationship(userid, peer string) string {
 	return ""
 }
 
-func (logger *RedisLogger) SetRelationship(userid, peer string, relation string, enable bool) {
-	if userid == peer || len(userid) == 0 || len(peer) == 0 {
+func (logger *RedisLogger) SetRelationship(userid string, peers []string, relation string, enable bool) {
+	if len(userid) == 0 || len(peers) == 0 {
 		return
 	}
 	conn := logger.conn
 	conn.Send("MULTI")
 
-	switch relation {
-	case RelFollowing:
-		if enable {
-			conn.Send("SADD", redisUserFollowPrefix+userid, peer)
-			conn.Send("SADD", redisUserFollowerPrefix+peer, userid)
-		} else {
-			conn.Send("SREM", redisUserFollowPrefix+userid, peer)
-			conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
+	for _, peer := range peers {
+		if peer == userid {
+			continue
 		}
-	case RelBlacklist:
-		if enable {
-			conn.Send("SREM", redisUserFollowPrefix+userid, peer)
-			conn.Send("SREM", redisUserFollowPrefix+peer, userid)
-			conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
-			conn.Send("SREM", redisUserFollowerPrefix+userid, peer)
-			conn.Send("SADD", redisUserBlacklistPrefix+userid, peer)
-		} else {
-			conn.Send("SREM", redisUserBlacklistPrefix+userid, peer)
+		switch relation {
+		case RelFollowing:
+			if enable {
+				conn.Send("SADD", redisUserFollowPrefix+userid, peer)
+				conn.Send("SADD", redisUserFollowerPrefix+peer, userid)
+			} else {
+				conn.Send("SREM", redisUserFollowPrefix+userid, peer)
+				conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
+			}
+		case RelBlacklist:
+			if enable {
+				conn.Send("SREM", redisUserFollowPrefix+userid, peer)
+				conn.Send("SREM", redisUserFollowPrefix+peer, userid)
+				conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
+				conn.Send("SREM", redisUserFollowerPrefix+userid, peer)
+				conn.Send("SADD", redisUserBlacklistPrefix+userid, peer)
+			} else {
+				conn.Send("SREM", redisUserBlacklistPrefix+userid, peer)
+			}
+		default:
 		}
-	default:
 	}
 
 	conn.Do("EXEC")
@@ -350,7 +355,7 @@ func (logger *RedisLogger) SetWBImport(userid, wb string) {
 
 func (logger *RedisLogger) ImportFriend(userid, friend string) {
 	conn := logger.conn
-	logger.SetRelationship(userid, friend, RelFollowing, true)
+	logger.SetRelationship(userid, []string{friend}, RelFollowing, true)
 	conn.Do("SREM", redisUserWBImportPrefix+friend, userid)
 }
 

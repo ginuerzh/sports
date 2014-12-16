@@ -133,14 +133,16 @@ func regNotice(uid string, redis *models.RedisLogger) {
 
 func registerHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form userRegForm) {
 	user := &models.Account{}
-
+	t := ""
 	if phone, _ := strconv.ParseUint(form.Email, 10, 64); phone > 0 {
 		user.Phone = form.Email
+		t = "phone"
 	} else {
 		user.Email = strings.ToLower(form.Email)
+		t = "email"
 	}
 
-	if exists, _ := user.Exists(""); exists {
+	if exists, _ := user.Exists(t); exists {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.UserExistError))
 		return
 	}
@@ -369,7 +371,7 @@ type recommendForm struct {
 }
 
 func recommendHandler(r *http.Request, w http.ResponseWriter,
-	user *models.Account, p Parameter) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(recommendForm)
 
@@ -377,9 +379,11 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 
 	list := make([]leaderboardResp, len(users))
 	for i, _ := range users {
-		if users[i].Id == user.Id {
+		if users[i].Id == user.Id ||
+			redis.Relationship(user.Id, users[i].Id) != models.RelNone {
 			continue
 		}
+
 		list[i].Userid = users[i].Id
 		list[i].Score = users[i].Props.Score
 		list[i].Level = users[i].Props.Level + 1
@@ -389,6 +393,7 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 		list[i].LastLog = users[i].LastLogin.Unix()
 		list[i].Birth = users[i].Birth
 		list[i].Location = users[i].Loc
+
 	}
 
 	respData := map[string]interface{}{

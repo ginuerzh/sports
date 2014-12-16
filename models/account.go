@@ -123,8 +123,12 @@ func (this *Account) Exists(t string) (bool, error) {
 	switch t {
 	case "weibo":
 		return this.findOne(bson.M{"weibo": this.Weibo})
+	case "email":
+		return this.findOne(bson.M{"email": this.Email})
+	case "phone":
+		return this.findOne(bson.M{"phone": this.Phone})
 	default:
-		return this.findOne(bson.M{"$or": []bson.M{{"_id": this.Id}, {"email": this.Email}, {"phone": this.Phone}}})
+		return this.findOne(bson.M{"_id": this.Id})
 	}
 }
 

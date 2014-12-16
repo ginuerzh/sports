@@ -3,7 +3,7 @@ package controllers
 
 import (
 	//"encoding/json"
-	"github.com/ginuerzh/sports/errors"
+	//"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -103,9 +103,9 @@ func pushStatusHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type relationshipForm struct {
-	Userid    string `json:"userid"`
-	Follow    bool   `json:"bAttention"`
-	Blacklist bool   `json:"bDefriend"`
+	Userids   []string `json:"userids"`
+	Follow    bool     `json:"bAttention"`
+	Blacklist bool     `json:"bDefriend"`
 	parameter
 }
 
@@ -113,39 +113,34 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(relationshipForm)
-	u := &models.Account{}
-	if find, err := u.FindByUserid(form.Userid); !find {
-		if err == nil {
-			err = errors.NewError(errors.NotExistsError)
-		}
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
-	}
 
-	redis.SetRelationship(user.Id, form.Userid, models.RelFollowing, form.Follow)
+	redis.SetRelationship(user.Id, form.Userids, models.RelFollowing, form.Follow)
 
-	if form.Follow {
-		event := &models.Event{
-			Type: models.EventMsg,
-			Time: time.Now().Unix(),
-			Data: models.EventData{
-				Type: models.EventSub,
-				Id:   user.Id,
-				From: user.Id,
-				To:   u.Id,
-				Body: []models.MsgBody{
-					{Type: "nikename", Content: user.Nickname},
-					{Type: "image", Content: user.Profile},
+	for _, userid := range form.Userids {
+		u := &models.Account{Id: userid}
+		if form.Follow {
+			event := &models.Event{
+				Type: models.EventMsg,
+				Time: time.Now().Unix(),
+				Data: models.EventData{
+					Type: models.EventSub,
+					Id:   user.Id,
+					From: user.Id,
+					To:   u.Id,
+					Body: []models.MsgBody{
+						{Type: "nikename", Content: user.Nickname},
+						{Type: "image", Content: user.Profile},
+					},
 				},
-			},
+			}
+			redis.PubMsg(models.EventMsg, u.Id, event.Bytes())
+			if err := event.Save(); err == nil {
+				redis.IncrEventCount(u.Id, event.Data.Type, 1)
+			}
+		} else {
+			count := u.ClearEvent(models.EventSub, user.Id)
+			redis.IncrEventCount(u.Id, models.EventSub, -count)
 		}
-		redis.PubMsg(models.EventMsg, u.Id, event.Bytes())
-		if err := event.Save(); err == nil {
-			redis.IncrEventCount(u.Id, event.Data.Type, 1)
-		}
-	} else {
-		count := u.ClearEvent(models.EventSub, user.Id)
-		redis.IncrEventCount(u.Id, models.EventSub, -count)
 	}
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
@@ -155,16 +150,7 @@ func blacklistHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(relationshipForm)
 
-	u := &models.Account{}
-	if find, err := u.FindByUserid(form.Userid); !find {
-		if err == nil {
-			err = errors.NewError(errors.NotExistsError)
-		}
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
-	}
-
-	redis.SetRelationship(user.Id, form.Userid, models.RelBlacklist, form.Blacklist)
+	redis.SetRelationship(user.Id, form.Userids, models.RelBlacklist, form.Blacklist)
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }
