@@ -379,8 +379,12 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 	users, _ := user.Recommend(redis.Friends(models.RelFollowing, user.Id))
 	var list []*leaderboardResp
 	for i, _ := range users {
-		if users[i].Id == user.Id ||
-			redis.Relationship(user.Id, users[i].Id) != models.RelNone {
+		if users[i].Id == user.Id {
+			continue
+		}
+
+		rel := redis.Relationship(user.Id, users[i].Id)
+		if rel == models.RelFollowing || rel == models.RelFriend {
 			continue
 		}
 
