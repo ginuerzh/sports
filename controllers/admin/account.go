@@ -74,6 +74,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
+	user.SetLastLogin(0, time.Now())
 	redis.SetOnlineUser(token, user.Id)
 	redis.LogLogin(user.Id)
 

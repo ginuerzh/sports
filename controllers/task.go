@@ -8,6 +8,7 @@ import (
 	"github.com/jinzhu/now"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
+	//"log"
 	"math/rand"
 	"net/http"
 	"time"
@@ -67,7 +68,7 @@ func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Accoun
 	}
 	for i, _ := range list {
 		list[i].Status = tasklist.TaskStatus(list[i].Id)
-		if list[i].Type == "game" && list[i].Status == "FINISH" {
+		if list[i].Type == models.TaskGame && list[i].Status == "FINISH" {
 			rec := &models.Record{Uid: user.Id}
 			rec.FindByTask(list[i].Id)
 			if rec.Game != nil {
@@ -106,6 +107,14 @@ func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
 	proof := tasklist.GetProof(task.Id)
 	task.Pics = proof.Pics
 	task.Result = proof.Result
+	if task.Type == models.TaskGame && task.Status == "FINISH" {
+		rec := &models.Record{Uid: user.Id}
+		rec.FindByTask(task.Id)
+		if rec.Game != nil {
+			task.Desc = fmt.Sprintf("你在%s游戏中得了%d分",
+				rec.Game.Name, rec.Game.Score)
+		}
+	}
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"task_info": task}, nil)
 }

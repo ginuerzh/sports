@@ -101,6 +101,7 @@ type Account struct {
 	About     string    `bson:",omitempty" json:"about,omitempty"`
 	Addr      *Address  `bson:",omitempty" json:"addr,omitempty"`
 	Loc       Location  `bson:",omitempty" json:"-"`
+	LocAddr   string    `bson:"locaddr" json:"-"`
 	Photos    []string  `json:"-"`
 	Setinfo   bool      `json:"setinfo,omitempty"`
 	Wallet    DbWallet  `json:"-"`
@@ -108,15 +109,16 @@ type Account struct {
 	LoginDays int       `bson:"login_days" json:"-"`
 	//LoginAwards []int     `bson:"login_awards" json:"-"`
 
-	Props  Props  `json:"-"`
-	Equips *Equip `bson:",omitempty" json:"-"`
-	Tasks  TaskList
+	Props  Props    `json:"-"`
+	Equips *Equip   `bson:",omitempty" json:"-"`
+	Tasks  TaskList `json:"-"`
 
-	Contacts []Contact `bson:",omitempty"`
-	Devs     []string  `bson:",omitempty"`
-	Push     bool
+	Contacts []Contact `bson:",omitempty" json:"-"`
+	Devs     []string  `bson:",omitempty" json:"-"`
+	Push     bool      `json:"-"`
 
 	TimeLimit int64 `bson:"timelimit" json:"timelimit"`
+	Privilege int   `json:"-"`
 }
 
 func (this *Account) Exists(t string) (bool, error) {
@@ -201,7 +203,7 @@ var random = rand.New(rand.NewSource(time.Now().Unix()))
 func (this *Account) Save() error {
 	now := time.Now()
 
-	this.Id = fmt.Sprintf("%d%3d", now.Unix(), now.Nanosecond()%1000)
+	this.Id = fmt.Sprintf("%d%03d", now.Unix(), now.Nanosecond()%1000)
 	this.Push = true
 	return save(accountColl, this, true)
 	/*
@@ -276,10 +278,11 @@ func (this *Account) UpdateLevel(score int, level int) error {
 	return nil
 }
 */
-func (this *Account) UpdateLocation(loc Location) error {
+func (this *Account) UpdateLocation(loc Location, locaddr string) error {
 	change := bson.M{
 		"$set": bson.M{
-			"loc": loc,
+			"loc":     loc,
+			"locaddr": locaddr,
 		},
 	}
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
@@ -413,25 +416,49 @@ func (this *Account) DelPhoto(id string) error {
 	return nil
 }
 
-func (this *Account) Recommend() (users []Account, err error) {
-	var query bson.M
+func (this *Account) Recommend(friends []string) (users []Account, err error) {
+	var list []Account
+
+	query := bson.M{
+		"_id": bson.M{
+			"$nin": friends,
+		},
+		"privilege": 10,
+	}
+	err = search(accountColl, query, nil, 0, 10, nil, nil, &list)
+	users = append(users, list...)
+
+	for _, user := range list {
+		friends = append(friends, user.Id)
+	}
 
 	if this.Loc.Lat != 0 && this.Loc.Lng != 0 {
-		query = bson.M{
-			"loc": bson.M{
-				"$near":        []float64{this.Loc.Lat, this.Loc.Lng},
-				"$maxDistance": float64(50000) / float64(111319),
+		query := bson.M{
+			"loc": bson.D{
+				{"$near", []float64{this.Loc.Lat, this.Loc.Lng}},
+				{"$maxDistance", float64(50000) / float64(111319)},
+			},
+			"_id": bson.M{
+				"$nin": friends,
 			},
 		}
-		if err = search(accountColl, query, nil, 0, 50, nil, nil, &users); err != nil {
-			return
+		list = nil
+		err = search(accountColl, query, nil, 0, 50, nil, nil, &list)
+		users = append(users, list...)
+		for _, user := range list {
+			friends = append(friends, user.Id)
 		}
 	}
 
 	if len(users) < 10 {
-		var u []Account
-		err = search(accountColl, nil, nil, 0, 50, []string{"-score"}, nil, &u)
-		users = append(users, u...)
+		query := bson.M{
+			"_id": bson.M{
+				"$nin": friends,
+			},
+		}
+		list = nil
+		err = search(accountColl, query, nil, 0, 50, []string{"-score"}, nil, &list)
+		users = append(users, list...)
 	}
 
 	return
@@ -1135,6 +1162,7 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error) {
 	var users []Account
 	total := 0
+	fmt.Println("search nearby:", this.Loc.Lat, this.Loc.Lng, distance)
 	if this.Loc.Lat == 0 && this.Loc.Lng == 0 {
 		return nil, nil
 	}
@@ -1144,15 +1172,15 @@ func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error)
 		},
 	}
 	if distance > 0 {
-		maxdis := float64(distance) / float64(111319)
 		query = bson.M{
-			"loc": bson.M{
-				"$near":        []float64{this.Loc.Lat, this.Loc.Lng},
-				"$maxDistance": maxdis,
+			"loc": bson.D{
+				{"$near", []float64{this.Loc.Lat, this.Loc.Lng}},
+				{"$maxDistance", float64(distance) / float64(111319)},
 			},
 		}
 	}
 
+	log.Println(query)
 	if err := psearch(accountColl, query, nil, nil, nil, &users, nil, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
@@ -1537,4 +1565,12 @@ func (this *Account) RmDevice(dev string) error {
 		return errors.NewError(errors.DbError, err.Error())
 	}
 	return nil
+}
+
+func (this *Account) LatestArticle() *Article {
+	article := &Article{}
+	findOne(articleColl, bson.M{"author": this.Id, "parent": nil},
+		[]string{"-pub_time"}, article)
+
+	return article
 }

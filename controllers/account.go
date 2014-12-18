@@ -40,7 +40,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(logoutForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		logoutHandler)
-	m.Get("/	1/user/recommend",
+	m.Get("/1/user/recommend",
 		binding.Form(recommendForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
@@ -98,8 +98,10 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		setEquipHandler)
 	m.Get("/1/user/search",
-		binding.Form(searchForm{}),
+		binding.Form(searchForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
 		searchHandler)
 	m.Get("/1/user/articles",
 		binding.Form(userArticlesForm{}),
@@ -287,7 +289,6 @@ func loginAwards(days, level int) Awards {
 }
 
 func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form loginForm) {
-	//form := getU.(loginForm)
 	user := &models.Account{}
 	var err error
 	var reg bool
@@ -316,7 +317,7 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 	}
 
 	if user.TimeLimit < 0 {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AuthError))
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AuthError, "账户已禁用"))
 		return
 	}
 
@@ -375,25 +376,29 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 
 	form := p.(recommendForm)
 
-	users, _ := user.Recommend()
-
-	list := make([]leaderboardResp, len(users))
+	users, _ := user.Recommend(redis.Friends(models.RelFollowing, user.Id))
+	var list []*leaderboardResp
 	for i, _ := range users {
 		if users[i].Id == user.Id ||
 			redis.Relationship(user.Id, users[i].Id) != models.RelNone {
 			continue
 		}
 
-		list[i].Userid = users[i].Id
-		list[i].Score = users[i].Props.Score
-		list[i].Level = users[i].Props.Level + 1
-		list[i].Profile = users[i].Profile
-		list[i].Nickname = users[i].Nickname
-		list[i].Gender = users[i].Gender
-		list[i].LastLog = users[i].LastLogin.Unix()
-		list[i].Birth = users[i].Birth
-		list[i].Location = users[i].Loc
-
+		lb := &leaderboardResp{
+			Userid:   users[i].Id,
+			Score:    users[i].Props.Score,
+			Level:    users[i].Props.Level + 1,
+			Profile:  users[i].Profile,
+			Nickname: users[i].Nickname,
+			Gender:   users[i].Gender,
+			LastLog:  users[i].LastLogin.Unix(),
+			Birth:    users[i].Birth,
+			Location: users[i].Loc,
+			Addr:     users[i].LocAddr,
+		}
+		lb.Distance, _ = redis.RecStats(users[i].Id)
+		lb.Status, _ = users[i].LatestArticle().Cover()
+		list = append(list, lb)
 	}
 
 	respData := map[string]interface{}{
@@ -716,47 +721,41 @@ func setEquipHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type searchForm struct {
-	Token    string `form:"access_token"`
-	Nearby   bool   `form:"search_nearby"`
+	Nearby   int    `form:"search_nearby"`
 	Nickname string `form:"search_nickname"`
 	models.Paging
+	parameter
 }
 
 func searchHandler(r *http.Request, w http.ResponseWriter,
-	redis *models.RedisLogger, form searchForm) {
+	user *models.Account, form searchForm) {
 	users := []models.Account{}
 	var err error
 
-	uid := redis.OnlineUser(form.Token)
-
-	if form.Nearby {
-		uid := redis.OnlineUser(form.Token)
-		if len(uid) == 0 {
-			writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
-			return
-		}
+	if form.Nearby > 0 {
 		form.Paging.Count = 50
-		user := &models.Account{Id: uid}
-		users, err = user.SearchNear(&form.Paging, 0)
+		users, err = user.SearchNear(&form.Paging, 50000)
 	} else {
 		users, err = models.Search(form.Nickname, &form.Paging)
 	}
 
-	list := make([]leaderboardResp, len(users))
+	var list []*leaderboardResp
 	for i, _ := range users {
-		if users[i].Id == uid {
+		if users[i].Id == user.Id {
 			continue
 		}
-		list[i].Userid = users[i].Id
-		list[i].Score = users[i].Props.Score
-		list[i].Level = users[i].Props.Level + 1
-		list[i].Profile = users[i].Profile
-		list[i].Nickname = users[i].Nickname
-		list[i].Gender = users[i].Gender
-		list[i].LastLog = users[i].LastLogin.Unix()
-		list[i].Birth = users[i].Birth
-		list[i].Location = users[i].Loc
-
+		lb := &leaderboardResp{
+			Userid:   users[i].Id,
+			Score:    users[i].Props.Score,
+			Level:    users[i].Props.Level + 1,
+			Profile:  users[i].Profile,
+			Nickname: users[i].Nickname,
+			Gender:   users[i].Gender,
+			LastLog:  users[i].LastLogin.Unix(),
+			Birth:    users[i].Birth,
+			Location: users[i].Loc,
+		}
+		list = append(list, lb)
 	}
 
 	respData := map[string]interface{}{

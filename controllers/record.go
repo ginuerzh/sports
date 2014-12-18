@@ -28,8 +28,10 @@ func BindRecordApi(m *martini.ClassicMartini) {
 		ErrorHandler,
 		userRecStatHandler)
 	m.Get("/1/leaderboard/list",
-		binding.Form(leaderboardForm{}),
+		binding.Form(leaderboardForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
 		leaderboardHandler)
 }
 
@@ -152,14 +154,17 @@ type leaderboardResp struct {
 	Gender   string `json:"sex_type"`
 	Birth    int64  `json:"birthday"`
 	models.Location
-	LastLog int64 `json:"recent_login_time"`
+	LastLog  int64  `json:"recent_login_time"`
+	Addr     string `json:"locaddr"`
+	Distance int    `json:"total_distance"`
+	Status   string `json:"status"`
 }
 
 type leaderboardForm struct {
-	Type  string `form:"query_type"`
-	Info  string `form:"query_info"`
-	Token string `form:"access_token"`
+	Type string `form:"query_type"`
+	Info string `form:"query_info"`
 	models.Paging
+	parameter
 }
 
 func leaderboardPaging(paging *models.Paging) (start, stop int) {
@@ -188,7 +193,8 @@ func leaderboardPaging(paging *models.Paging) (start, stop int) {
 	return
 }
 
-func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form leaderboardForm) {
+func leaderboardHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, form leaderboardForm) {
 	if form.Paging.Count == 0 {
 		form.Paging.Count = models.DefaultPageSize
 	}
@@ -198,13 +204,7 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 	switch form.Type {
 	case "FRIEND":
-		uid := redis.OnlineUser(form.Token)
-		if len(uid) == 0 {
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
-			return
-		}
-
-		ids := redis.Friends("friend", uid)
+		ids := redis.Friends("friend", user.Id)
 		friends, err := models.Users(ids, &form.Paging)
 		if err != nil {
 			writeResponse(request.RequestURI, resp, nil, err)
@@ -214,7 +214,7 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter, redis *
 		for i, _ := range friends {
 			lb[i].Userid = friends[i].Id
 			lb[i].Score = friends[i].Props.Score
-			lb[i].Level = friends[i].Props.Level
+			lb[i].Level = friends[i].Props.Level + 1
 			lb[i].Profile = friends[i].Profile
 			lb[i].Nickname = friends[i].Nickname
 			lb[i].Gender = friends[i].Gender
@@ -350,7 +350,7 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 	stats.Score = user.Props.Score
 	stats.Actor = userActor(user.Actor)
-	stats.Level = user.Props.Level
+	stats.Level = user.Props.Level + 1
 	//stats.Rank = userRank(stats.Level)
 
 	stats.Index = redis.LBDisRank(form.Userid) + 1

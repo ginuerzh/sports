@@ -316,6 +316,7 @@ func (logger *RedisLogger) SetRelationship(userid string, peers []string, relati
 	if len(userid) == 0 || len(peers) == 0 {
 		return
 	}
+	log.Println("set relationship", userid, peers, relation, enable)
 	conn := logger.conn
 	conn.Send("MULTI")
 

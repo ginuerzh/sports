@@ -45,10 +45,10 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	var auth wsAuth
 	if err := conn.ReadJSON(&auth); err != nil {
 		conn.WriteJSON(r)
-		log.Println(auth.Token)
+		log.Println("check token failed:", auth.Token)
 		return
 	}
-	//log.Println(auth.Token)
+	log.Println("check token:", auth.Token)
 	uid := redisLogger.OnlineUser(auth.Token)
 	if len(uid) > 0 {
 		r.Userid = uid
@@ -99,16 +99,27 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 					redisLogger.PubMsg(m.Type, m.To, event.Bytes())
 				}
 			case "status":
-				if event.Data.Type == "loc" && len(event.Data.Body) > 0 {
-					log.Println("loc", event.Data.Body[0].Content)
-					loc := strings.Split(event.Data.Body[0].Content, ",")
-					if len(loc) != 2 {
-						break
-					}
-					lat, _ := strconv.ParseFloat(loc[0], 64)
-					lng, _ := strconv.ParseFloat(loc[1], 64)
+				var lat, lng float64
+				var locaddr string
 
-					user.UpdateLocation(models.Location{Lat: lat, Lng: lng})
+				if event.Data.Type == "loc" && len(event.Data.Body) > 0 {
+					for _, body := range event.Data.Body {
+						switch body.Type {
+						case "latlng":
+							log.Println("latlng:", body.Content)
+							loc := strings.Split(body.Content, ",")
+							if len(loc) != 2 {
+								break
+							}
+							lat, _ = strconv.ParseFloat(loc[0], 64)
+							lng, _ = strconv.ParseFloat(loc[1], 64)
+						case "locaddr":
+							log.Println("locaddr:", body.Content)
+							locaddr = body.Content
+						}
+					}
+
+					user.UpdateLocation(models.Location{Lat: lat, Lng: lng}, locaddr)
 				}
 			default:
 				log.Println("unhandled message type:", event.Type)

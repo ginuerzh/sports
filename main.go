@@ -88,7 +88,6 @@ func main() {
 	//jsgen.BindConfigApi(m)
 	//jsgen.BindAccountApi(m)
 	//jsgen.BindArticleApi(m)
-	//m.Run()
 	log.Fatal(http.ListenAndServe(listenAddr, m))
 }
 

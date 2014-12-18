@@ -37,6 +37,7 @@ func BindUserApi(m *martini.ClassicMartini) {
 		binding.Json(relationshipForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
 		followHandler)
 	m.Post("/1/user/enableDefriend",
 		binding.Json(relationshipForm{}, (*Parameter)(nil)),
@@ -211,7 +212,7 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter,
 	for i, _ := range users {
 		lb[i].Userid = users[i].Id
 		lb[i].Score = users[i].Props.Score
-		lb[i].Level = users[i].Props.Level
+		lb[i].Level = users[i].Props.Level + 1
 		lb[i].Profile = users[i].Profile
 		lb[i].Nickname = users[i].Nickname
 		lb[i].Gender = users[i].Gender
