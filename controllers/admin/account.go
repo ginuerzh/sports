@@ -55,7 +55,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		writeResponse(resp, err)
 		return
 	}
-	token := u4.String()
+	token := u4.String() + "-" + strconv.FormatInt(time.Now().AddDate(0, 0, 30).Unix(), 10)
 	var find bool
 	//var err error
 
@@ -74,7 +74,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	user.SetLastLogin(0, time.Now())
+	user.SetLastLogin(0, 0, time.Now())
 	redis.SetOnlineUser(token, user.Id)
 	redis.LogLogin(user.Id)
 

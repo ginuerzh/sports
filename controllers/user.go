@@ -8,7 +8,7 @@ import (
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
 	//"io/ioutil"
-	//"log"
+	"log"
 	//"math/rand"
 	"net/http"
 	//"net/url"
@@ -60,9 +60,8 @@ func BindUserApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		getGroupsHandler)
 	m.Get("/1/user/getRelatedMembersList",
-		binding.Form(socialListForm{}, (*Parameter)(nil)),
+		binding.Form(socialListForm{}),
 		ErrorHandler,
-		checkTokenHandler,
 		socialListHandler)
 }
 
@@ -111,14 +110,17 @@ type relationshipForm struct {
 }
 
 func followHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(relationshipForm)
 
 	redis.SetRelationship(user.Id, form.Userids, models.RelFollowing, form.Follow)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 
 	for _, userid := range form.Userids {
-		u := &models.Account{Id: userid}
+		u := &models.Account{}
+		u.FindByUserid(userid)
+
 		if form.Follow {
 			event := &models.Event{
 				Type: models.EventMsg,
@@ -138,13 +140,22 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 			if err := event.Save(); err == nil {
 				redis.IncrEventCount(u.Id, event.Data.Type, 1)
 			}
+
+			// apple push
+			if u.Push {
+				for _, dev := range u.Devs {
+					if err := client.Send(dev, user.Nickname+"关注了你!", 1, ""); err != nil {
+						log.Println(err)
+					}
+				}
+			}
+
 		} else {
-			count := u.ClearEvent(models.EventSub, user.Id)
+			count := u.ClearEvent(models.EventSub, u.Id)
 			redis.IncrEventCount(u.Id, models.EventSub, -count)
 		}
 	}
 
-	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }
 
 func blacklistHandler(request *http.Request, resp http.ResponseWriter,
@@ -179,15 +190,15 @@ func getGroupsHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type socialListForm struct {
-	Type string `form:"member_type" binding:"required"`
+	Userid string `form:"userid" binding:"required"`
+	Type   string `form:"member_type" binding:"required"`
 	models.Paging
-	parameter
 }
 
 func socialListHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	redis *models.RedisLogger, form socialListForm) {
 
-	form := p.(socialListForm)
+	user := &models.Account{Id: form.Userid}
 
 	var ids []string
 	switch form.Type {

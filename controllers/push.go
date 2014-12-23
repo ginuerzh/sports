@@ -26,7 +26,9 @@ type wsAuth struct {
 }
 
 type wsAuthResp struct {
-	Userid string `json:"userid"`
+	Userid     string `json:"userid"`
+	LoginCount int    `json:"login_count"`
+	LastLog    int64  `json:"last_login_time"`
 }
 
 func BindWSPushApi(m *martini.ClassicMartini) {
@@ -50,9 +52,31 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	}
 	log.Println("check token:", auth.Token)
 	uid := redisLogger.OnlineUser(auth.Token)
-	if len(uid) > 0 {
-		r.Userid = uid
+
+	user := &models.Account{}
+	if find, _ := user.FindByUserid(uid); !find {
+		conn.WriteJSON(r)
+		return
 	}
+
+	redisLogger.LogLogin(user.Id)
+
+	days := user.LoginDays
+	loginCount := user.LoginCount + 1
+	d := nowDate()
+	if user.LastLogin.Unix() < d.Unix() { // check wether first time login of one day
+		days++
+		if user.LastLogin.Unix() < d.Unix()-24*3600 {
+			days = 1
+		}
+		loginCount = 1
+	}
+	user.SetLastLogin(days, loginCount, time.Now())
+
+	r.Userid = uid
+	r.LastLog = user.LastLogin.Unix()
+	r.LoginCount = loginCount
+
 	if err := conn.WriteJSON(r); err != nil {
 		return
 	}
@@ -60,8 +84,6 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	if len(uid) == 0 {
 		return
 	}
-
-	user := &models.Account{Id: uid}
 
 	redisLogger.SetOnline(user.Id)
 	redisLogger.LogVisitor(user.Id)
@@ -99,10 +121,11 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 					redisLogger.PubMsg(m.Type, m.To, event.Bytes())
 				}
 			case "status":
-				var lat, lng float64
-				var locaddr string
-
-				if event.Data.Type == "loc" && len(event.Data.Body) > 0 {
+				log.Println(event.Data.Body)
+				switch event.Data.Type {
+				case "loc":
+					var lat, lng float64
+					var locaddr string
 					for _, body := range event.Data.Body {
 						switch body.Type {
 						case "latlng":
@@ -118,9 +141,18 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 							locaddr = body.Content
 						}
 					}
-
 					user.UpdateLocation(models.Location{Lat: lat, Lng: lng}, locaddr)
+				case "device":
+					for _, body := range event.Data.Body {
+						switch body.Type {
+						case "token":
+							token := body.Content
+							log.Println("device token:", token)
+							user.AddDevice(token)
+						}
+					}
 				}
+
 			default:
 				log.Println("unhandled message type:", event.Type)
 			}

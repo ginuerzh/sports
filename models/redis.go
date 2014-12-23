@@ -19,10 +19,10 @@ const (
 	redisStatRegisterPrefix = redisPrefix + ":stat:registers:" // set per day, register users per day
 	redisStatLoginPrefix    = redisPrefix + ":stat:logins:"    // set per day, login users per day
 
-	redisUserOnlinesPrefix    = redisPrefix + ":user:onlines:" // set per half an hour, current online users
-	redisUserOnlineUserPrefix = redisPrefix + ":user:online:"  // string per user, online user token <->userid
-	RedisUserInfoPrefix       = redisPrefix + ":user:info:"    // hashs per user, user's event box at now
-	RedisUserCoins            = redisPrefix + ":user:coins"    // sorted set
+	redisUserOnlinesPrefix = redisPrefix + ":user:onlines:" // set per half an hour, current online users
+	redisUserTokens        = redisPrefix + ":user:tokens"   // hash, online user token <->userid
+	RedisUserInfoPrefix    = redisPrefix + ":user:info:"    // hashs per user, user's event box at now
+	RedisUserCoins         = redisPrefix + ":user:coins"    // sorted set
 	//redisUserGuest            = redisPrefix + ":user:guest"    // hashes for all guests
 	//redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
 	redisUserFollowPrefix    = redisPrefix + ":user:follow:"       // set per user
@@ -197,7 +197,7 @@ type redisUser struct {
 func (logger *RedisLogger) OnlineUser(token string) (id string) {
 	conn := logger.conn
 
-	id, _ = redis.String(conn.Do("GET", redisUserOnlineUserPrefix+token))
+	id, _ = redis.String(conn.Do("HGET", redisUserTokens, token))
 	return
 	/*
 		if strings.HasPrefix(accessToken, GuestUserPrefix) {
@@ -242,44 +242,12 @@ func (logger *RedisLogger) OnlineUser(token string) (id string) {
 	*/
 }
 
-func (logger *RedisLogger) SetOnlineUser(accessToken string, userid string) {
-	if len(accessToken) == 0 || len(userid) == 0 {
+func (logger *RedisLogger) SetOnlineUser(token string, userid string) {
+	if len(token) == 0 || len(userid) == 0 {
 		return
 	}
 
-	logger.conn.Do("SETEX", redisUserOnlineUserPrefix+accessToken, onlineUserExpire, userid)
-
-	/*
-		u := &redisUser{
-			Userid:    user.Id,
-			Nickname:  user.Nickname,
-			Profile:   user.Profile,
-			RegTime:   user.RegTime.Unix(),
-			Role:      user.Role,
-			SetInfo:   user.Setinfo,
-			WalletId:  user.Wallet.Id,
-			Sharedkey: user.Wallet.Key,
-			Addr:      user.Wallet.Addr,
-			Addrs:     strings.Join(user.Wallet.Addrs, ","),
-			Physical:  user.Props.Physical,
-			Literal:   user.Props.Literal,
-			Mental:    user.Props.Mental,
-			Wealth:    user.Props.Wealth,
-			Score:     user.Props.Score,
-			Level:     user.Props.Level,
-			TimeLimit: user.TimeLimit,
-		}
-		if user.Loc != nil {
-			u.Lat = user.Loc.Lat
-			u.Lng = user.Loc.Lng
-		}
-
-		logger.conn.Do("HMSET", redis.Args{}.Add(redisUserOnlineUserPrefix+accessToken).AddFlat(u)...)
-
-		if login {
-			logger.conn.Do("EXPIRE", redisUserOnlineUserPrefix+accessToken, onlineUserExpire)
-		}
-	*/
+	logger.conn.Do("HSET", redisUserTokens, token, userid)
 }
 
 func (logger *RedisLogger) SetOnline(userid string) {
@@ -427,24 +395,12 @@ func (logger *RedisLogger) Groups(userid string) []string {
 	return v
 }
 
-func (logger *RedisLogger) DelOnlineUser(accessToken string) {
+func (logger *RedisLogger) DelOnlineUser(token string) {
 	conn := logger.conn
 
-	/*
-		user := &Account{}
-		v, err := redis.Values(conn.Do("HGETALL", redisUserOnlineUserPrefix+accessToken))
-		if err != nil {
-			log.Println(err)
-			return nil
-		}
-		if err := redis.ScanStruct(v, user); err != nil {
-			log.Println(err)
-			return nil
-		}
-	*/
-	userid, _ := redis.String(conn.Do("GET", redisUserOnlineUserPrefix+accessToken))
+	userid, _ := redis.String(conn.Do("HGET", redisUserTokens, token))
 	conn.Send("MULTI")
-	conn.Send("DEL", redisUserOnlineUserPrefix+accessToken)
+	conn.Send("HDEL", redisUserTokens, token)
 	conn.Send("SREM", redisUserOnlinesPrefix+onlineTimeString(), userid)
 	conn.Do("EXEC")
 }

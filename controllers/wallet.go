@@ -163,7 +163,7 @@ type txForm struct {
 }
 
 func txHandler(r *http.Request, w http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(txForm)
 
 	receiver := &models.Account{}
@@ -252,6 +252,20 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 		redis.PubMsg("wallet", receiver.Id, event.Bytes())
 		if err := event.Save(); err == nil {
 			redis.IncrEventCount(receiver.Id, event.Data.Type, 1)
+		}
+	}
+
+	if receiver.Push {
+		msg := user.Nickname + "通过转帐发送给你" +
+			strconv.FormatFloat(float64(form.Value)/float64(models.Satoshi), 'f', 8, 64) + "个贝币"
+		if event.Data.Type == models.EventReward {
+			msg = user.Nickname + "给你的文章打赏了" +
+				strconv.FormatFloat(float64(form.Value)/float64(models.Satoshi), 'f', 8, 64) + "个贝币"
+		}
+		for _, dev := range receiver.Devs {
+			if err := client.Send(dev, msg, 1, ""); err != nil {
+				log.Println(err)
+			}
 		}
 	}
 

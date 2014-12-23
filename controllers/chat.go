@@ -5,7 +5,6 @@ import (
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
-	"github.com/zhengying/apns"
 	"gopkg.in/go-martini/martini.v1"
 	"log"
 	"net/http"
@@ -59,7 +58,7 @@ type sendMsgForm struct {
 }
 
 func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, user *models.Account, p Parameter) {
+	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(sendMsgForm)
 	if redis.Relationship(user.Id, form.To) == models.RelBlacklist ||
@@ -131,10 +130,9 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		redis.IncrEventCount(form.To, event.Data.Type, 1)
 	}
 
-	devs, enabled, _ := touser.Devices()
-	if enabled {
-		for _, dev := range devs {
-			if err := sendApns(client, dev, user.Nickname+": "+msg.Body[0].Content, 1, ""); err != nil {
+	if touser.Push {
+		for _, dev := range touser.Devs {
+			if err := client.Send(dev, user.Nickname+": "+msg.Body[0].Content, 1, ""); err != nil {
 				log.Println(err)
 			}
 		}

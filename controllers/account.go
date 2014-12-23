@@ -152,8 +152,6 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	user.Password = Md5(form.Password)
 	user.Role = "usrpass"
 	user.RegTime = time.Now()
-	//user.LastAccess = time.Now()
-	//user.Online = true
 	dbw, err := getNewWallet()
 	if err != nil {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, "wallet: "+err.Error()))
@@ -164,12 +162,12 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	if err := user.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
 	} else {
-		token := Uuid()
-		data := map[string]string{"access_token": token}
+		token := Uuid() + "-" + strconv.FormatInt(time.Now().AddDate(0, 0, 30).Unix(), 10)
+		data := map[string]string{"access_token": token, "userid": user.Id}
 		writeResponse(request.RequestURI, resp, data, nil)
 
 		redis.LogRegister(user.Id)
-		//redis.SetOnlineUser(token, user, true)
+		redis.SetOnlineUser(token, user.Id)
 
 		// ws push
 		regNotice(user.Id, redis)
@@ -260,39 +258,11 @@ func guestLogin(redis *models.RedisLogger) (*models.Account, error) {
 
 var ran = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-func loginAwards(days, level int) Awards {
-	awards := Awards{}
-
-	// calc wealth
-	scale := 1.0
-	factor := 0.5
-	r := ran.Intn(level) + 1
-	if days > 7 {
-		scale = 1.5
-		factor = 1.0
-		r = ran.Intn(level*2) + 1
-	}
-	awards.Wealth = int64(float64(days)*scale+float64(level)*factor+float64(r)) * models.Satoshi
-
-	// calc score
-	scale = 5.0
-	factor = 1.0
-	r = ran.Intn(level) + 1
-	if days > 7 {
-		scale = 10.0
-		factor = 1.5
-		r = ran.Intn(level*5) + 1
-	}
-	awards.Score = int64(float64(days)*scale + float64(level)*factor + float64(r))
-
-	return awards
-}
-
 func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form loginForm) {
 	user := &models.Account{}
 	var err error
 	var reg bool
-	token := Uuid()
+	token := Uuid() + "-" + strconv.FormatInt(time.Now().AddDate(0, 0, 30).Unix(), 10)
 
 	switch form.Type {
 	case "weibo":
@@ -321,36 +291,14 @@ func loginHandler(request *http.Request, resp http.ResponseWriter, redis *models
 		return
 	}
 
-	//user.UpdateAction(ActLogin, d)
 	redis.SetOnlineUser(token, user.Id)
-	redis.LogLogin(user.Id)
-
-	awards := Awards{}
-	d := nowDate()
-	if user.LastLogin.Unix() < d.Unix() { // check wether first time login of one day
-		days := user.LoginDays + 1
-		if user.LastLogin.Unix() < d.Unix()-24*3600 {
-			days = 1
-		}
-
-		awards = loginAwards(days, int(user.Props.Level+1))
-		awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
-
-		if err := GiveAwards(user, awards, redis); err != nil {
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
-			log.Println(err)
-			return
-		}
-
-		user.SetLastLogin(days, time.Now())
-	}
 
 	data := map[string]interface{}{
 		"access_token":    token,
 		"userid":          user.Id,
 		"register":        reg,
 		"last_login_time": user.LastLogin.Unix(),
-		"ExpEffect":       awards,
+		"ExpEffect":       Awards{},
 	}
 	writeResponse(request.RequestURI, resp, data, nil)
 }
@@ -382,7 +330,6 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 		if users[i].Id == user.Id {
 			continue
 		}
-
 		rel := redis.Relationship(user.Id, users[i].Id)
 		if rel == models.RelFollowing || rel == models.RelFriend {
 			continue
@@ -633,11 +580,52 @@ type loginAwardsForm struct {
 	parameter
 }
 
+func loginAwards(days, level int) Awards {
+	awards := Awards{}
+
+	// calc wealth
+	scale := 1.0
+	factor := 0.5
+	r := ran.Intn(level) + 1
+	if days > 7 {
+		scale = 1.5
+		factor = 1.0
+		r = ran.Intn(level*2) + 1
+	}
+	awards.Wealth = int64(float64(days)*scale+float64(level)*factor+float64(r)) * models.Satoshi
+
+	// calc score
+	scale = 5.0
+	factor = 1.0
+	r = ran.Intn(level) + 1
+	if days > 7 {
+		scale = 10.0
+		factor = 1.5
+		r = ran.Intn(level*5) + 1
+	}
+	awards.Score = int64(float64(days)*scale + float64(level)*factor + float64(r))
+
+	return awards
+}
+
 func loginAwardsHandler(request *http.Request, resp http.ResponseWriter,
-	user *models.Account) {
+	redis *models.RedisLogger, user *models.Account) {
+
+	awards := loginAwards(user.LoginDays, int(user.Props.Level+1))
+	awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
+	GiveAwards(user, awards, redis)
+
 	respData := map[string]interface{}{
 		"continuous_logined_days": user.LoginDays,
-		"login_reward_list":       []int{1, 2, 3, 4, 5, 6, 7},
+		"login_reward_list": []int64{
+			loginAwards(1, int(user.Props.Level+1)).Wealth,
+			loginAwards(2, int(user.Props.Level+1)).Wealth,
+			loginAwards(3, int(user.Props.Level+1)).Wealth,
+			loginAwards(4, int(user.Props.Level+1)).Wealth,
+			loginAwards(5, int(user.Props.Level+1)).Wealth,
+			loginAwards(6, int(user.Props.Level+1)).Wealth,
+			loginAwards(7, int(user.Props.Level+1)).Wealth,
+		},
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }

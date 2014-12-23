@@ -116,11 +116,9 @@ func redisPool() *redis.Pool {
 	}
 }
 
-var (
-	dgw = "gateway.sandbox.push.apple.com:2195"
-	gw  = "gateway.push.apple.com:2195"
-)
-
-func apnsClient() *apns.Client {
-	return apns.ComboPEMClient(dgw, "apns.pem")
+func apnsClient() *controllers.ApnClient {
+	return &controllers.ApnClient{
+		Dev:     apns.ComboPEMClient("gateway.sandbox.push.apple.com:2195", "apns-dev.pem"),
+		Release: apns.ComboPEMClient("gateway.push.apple.com:2195", "apns.pem"),
+	}
 }

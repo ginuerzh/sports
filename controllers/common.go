@@ -10,7 +10,6 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"github.com/nu7hatch/gouuid"
-	"github.com/zhengying/apns"
 	"gopkg.in/go-martini/martini.v1"
 	"io"
 	//"log"
@@ -75,20 +74,6 @@ func Uuid() string {
 	}
 
 	return u4.String()
-}
-
-func sendApns(client *apns.Client, token, alert string, badge int, sound string) error {
-	payload := apns.NewPayload()
-	payload.Alert = alert
-	payload.Badge = badge
-	payload.Sound = sound
-
-	pn := apns.NewPushNotification()
-	pn.DeviceToken = token
-	pn.AddPayload(payload)
-
-	resp := client.Send(pn)
-	return resp.Error
 }
 
 func ErrorHandler(err binding.Errors, request *http.Request, resp http.ResponseWriter) {

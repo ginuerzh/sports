@@ -82,31 +82,32 @@ type Contact struct {
 }
 
 type Account struct {
-	Id        string    `bson:"_id,omitempty" json:"-"`
-	Email     string    `json:"-"`
-	Phone     string    `bson:",omitempty" json:"phone,omitempty"`
-	Weibo     string    `json:"-"`
-	Nickname  string    `bson:",omitempty" json:"nickname,omitempty"`
-	Password  string    `bson:",omitempty" json:"password,omitempty"`
-	Profile   string    `bson:",omitempty" json:"profile,omitempty"`
-	RegTime   time.Time `bson:"reg_time,omitempty" json:"-"`
-	Role      string    `bson:",omitempty" json:"-"`
-	Hobby     string    `bson:",omitempty" json:"hobby,omitempty"`
-	Height    int       `bson:",omitempty" json:"height,omitempty"`
-	Weight    int       `bson:",omitempty" json:"weight,omitempty"`
-	Birth     int64     `bson:",omitempty" json:"birth,omitempty"`
-	Actor     string    `bson:",omitempty" json:"actor,omitempty"`
-	Gender    string    `bson:",omitempty" json:"gender,omitempty"`
-	Url       string    `bson:",omitempty" json:"url,omitempty"`
-	About     string    `bson:",omitempty" json:"about,omitempty"`
-	Addr      *Address  `bson:",omitempty" json:"addr,omitempty"`
-	Loc       Location  `bson:",omitempty" json:"-"`
-	LocAddr   string    `bson:"locaddr" json:"-"`
-	Photos    []string  `json:"-"`
-	Setinfo   bool      `json:"setinfo,omitempty"`
-	Wallet    DbWallet  `json:"-"`
-	LastLogin time.Time `bson:"lastlogin" json:"-"`
-	LoginDays int       `bson:"login_days" json:"-"`
+	Id         string    `bson:"_id,omitempty" json:"-"`
+	Email      string    `json:"-"`
+	Phone      string    `bson:",omitempty" json:"phone,omitempty"`
+	Weibo      string    `json:"-"`
+	Nickname   string    `bson:",omitempty" json:"nickname,omitempty"`
+	Password   string    `bson:",omitempty" json:"password,omitempty"`
+	Profile    string    `bson:",omitempty" json:"profile,omitempty"`
+	RegTime    time.Time `bson:"reg_time,omitempty" json:"-"`
+	Role       string    `bson:",omitempty" json:"-"`
+	Hobby      string    `bson:",omitempty" json:"hobby,omitempty"`
+	Height     int       `bson:",omitempty" json:"height,omitempty"`
+	Weight     int       `bson:",omitempty" json:"weight,omitempty"`
+	Birth      int64     `bson:",omitempty" json:"birth,omitempty"`
+	Actor      string    `bson:",omitempty" json:"actor,omitempty"`
+	Gender     string    `bson:",omitempty" json:"gender,omitempty"`
+	Url        string    `bson:",omitempty" json:"url,omitempty"`
+	About      string    `bson:",omitempty" json:"about,omitempty"`
+	Addr       *Address  `bson:",omitempty" json:"addr,omitempty"`
+	Loc        Location  `bson:",omitempty" json:"-"`
+	LocAddr    string    `bson:"locaddr" json:"-"`
+	Photos     []string  `json:"-"`
+	Setinfo    bool      `json:"setinfo,omitempty"`
+	Wallet     DbWallet  `json:"-"`
+	LastLogin  time.Time `bson:"lastlogin" json:"-"`
+	LoginCount int       `bson:"login_count" json:"-"`
+	LoginDays  int       `bson:"login_days" json:"-"`
 	//LoginAwards []int     `bson:"login_awards" json:"-"`
 
 	Props  Props    `json:"-"`
@@ -316,11 +317,12 @@ func (this *Account) SetLogin(count int, lastlog time.Time) (int64, error) {
 }
 */
 
-func (this *Account) SetLastLogin(days int, lastlog time.Time) error {
+func (this *Account) SetLastLogin(days int, loginCount int, lastlog time.Time) error {
 	change := bson.M{
 		"$set": bson.M{
-			"lastlogin":  lastlog,
-			"login_days": days,
+			"lastlogin":   lastlog,
+			"login_days":  days,
+			"login_count": loginCount,
 		},
 	}
 
@@ -1518,6 +1520,7 @@ func (this *Account) PushEnabled() (bool, error) {
 	return enabled, nil
 }
 
+/*
 func (this *Account) Devices() ([]string, bool, error) {
 	var users []Account
 	var devs []string
@@ -1536,7 +1539,7 @@ func (this *Account) Devices() ([]string, bool, error) {
 
 	return devs, enabled, nil
 }
-
+*/
 func (this *Account) AddDevice(dev string) error {
 	selector := bson.M{
 		"_id": this.Id,

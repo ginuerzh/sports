@@ -7,7 +7,6 @@ import (
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
-	"github.com/zhengying/apns"
 	"gopkg.in/go-martini/martini.v1"
 	//"io/ioutil"
 	"labix.org/v2/mgo/bson"
@@ -100,7 +99,7 @@ type newArticleForm struct {
 }
 
 func newArticleHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, user *models.Account, p Parameter) {
+	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(newArticleForm)
 
 	article := &models.Article{
@@ -144,7 +143,8 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		}
 
 		//u := &models.User{Id: parent.Author}
-		u := &models.Account{Id: parent.Author}
+		author := &models.Account{}
+		author.FindByUserid(parent.Author)
 
 		_, coverImage := parent.Cover()
 		// ws push
@@ -167,10 +167,9 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			redis.IncrEventCount(parent.Author, event.Data.Type, 1)
 		}
 		// apple push
-		devs, enabled, _ := u.Devices()
-		if enabled {
-			for _, dev := range devs {
-				if err := sendApns(client, dev, user.Nickname+"评论了你的主题!", 1, ""); err != nil {
+		if author.Push {
+			for _, dev := range author.Devs {
+				if err := client.Send(dev, user.Nickname+"评论了你的主题!", 1, ""); err != nil {
 					log.Println(err)
 				}
 			}
@@ -209,7 +208,7 @@ type articleThumbForm struct {
 }
 
 func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
-	client *apns.Client, redis *models.RedisLogger, user *models.Account, p Parameter) {
+	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(articleThumbForm)
 	article := &models.Article{}
@@ -239,7 +238,8 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 
 	if form.Status {
-		u := &models.Account{Id: article.Author}
+		author := &models.Account{}
+		author.FindByUserid(article.Author)
 
 		_, coverImage := article.Cover()
 		// ws push
@@ -262,16 +262,17 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 		if err := event.Save(); err == nil {
 			redis.IncrEventCount(article.Author, event.Data.Type, 1)
 		}
-		devs, enabled, _ := u.Devices()
-		if enabled {
-			for _, dev := range devs {
-				if err := sendApns(client, dev, user.Nickname+"赞了你的主题!", 1, ""); err != nil {
+
+		// apple push
+		if author.Push {
+			for _, dev := range author.Devs {
+				if err := client.Send(dev, user.Nickname+"赞了你的主题!", 1, ""); err != nil {
 					log.Println(err)
 				}
 			}
 		}
 	}
-	user.UpdateAction(ActThumb, nowDate())
+	//user.UpdateAction(ActThumb, nowDate())
 }
 
 type articleIsThumbedForm struct {
