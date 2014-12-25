@@ -15,11 +15,6 @@ import (
 	"net/http"
 )
 
-const (
-	ImageDownloadV1Uri = "/1/image/get"
-	FileDeleteV1Uri    = "/1/file/del"
-)
-
 var (
 	Weedfs *weedo.Client
 	//weedfs = weedo.NewClient("localhost:9334")
@@ -31,9 +26,13 @@ func BindFileApi(m *martini.ClassicMartini) {
 		ErrorHandler,
 		checkTokenHandler,
 		fileUploadHandler)
+	m.Post("/1/file/delete",
+		binding.Json(fileDeleteForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		fileDeleteHandler)
 	//m.Post("/1/file/upload", binding.MultipartForm(fileUploadForm2{}), ErrorHandler, fileUploadHandler2)
 	//m.Get(ImageDownloadV1Uri, binding.Form(imageDownloadForm{}), ErrorHandler, imageDownloadHandler)
-	//m.Post(FileDeleteV1Uri, binding.Json(fileDeleteForm{}), ErrorHandler, fileDeleteHandler)
 }
 
 type fileUploadForm struct {
@@ -90,6 +89,30 @@ func fileUploadHandler(request *http.Request, resp http.ResponseWriter,
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
 
+type fileDeleteForm struct {
+	Fids []string `json:"fids"`
+	parameter
+}
+
+func fileDeleteHandler(r *http.Request, w http.ResponseWriter,
+	user *models.Account, p Parameter) {
+
+	form := p.(fileDeleteForm)
+
+	for _, fid := range form.Fids {
+		file := &models.File{Fid: fid}
+		if find, _ := file.OwnedBy(user.Id); !find {
+			continue
+		}
+
+		if err := file.Delete(); err == nil {
+			Weedfs.Delete(fid, 1)
+		}
+	}
+
+	writeResponse(r.RequestURI, w, nil, nil)
+}
+
 /*
 type imageDownloadForm struct {
 	ImageId   string `form:"image_id" binding:"required"`
@@ -127,39 +150,5 @@ func imageDownloadHandler(request *http.Request, resp http.ResponseWriter, form 
 	writeResponse(request.RequestURI, resp, respData, errors.NoError)
 }
 
-type fileDeleteForm struct {
-	Fid         string `json:"image_id" binding:"required"`
-	AccessToken string `json:"access_token" binding:"required"`
-	//user        models.User `json:"-"`
-}
 
-func (form *fileDeleteForm) Validate(e *binding.Errors, req *http.Request) {
-	//form.user = userAuth(form.AccessToken, e)
-}
-
-func fileDeleteHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form fileDeleteForm) {
-	var file models.File
-
-	user := redis.OnlineUser(form.AccessToken)
-	if user == nil {
-		writeResponse(request.RequestURI, resp, nil, errors.AccessError)
-		return
-	}
-
-	if find, err := file.FindByFid(form.Fid); !find {
-		if err == errors.NoError {
-			err = errors.FileNotFoundError
-		}
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
-	}
-
-	if file.Owner != user.Userid {
-		writeResponse(request.RequestURI, resp, nil, errors.FileNotFoundError)
-		return
-	}
-
-	err := file.Delete()
-	writeResponse(request.RequestURI, resp, nil, err)
-}
 */
