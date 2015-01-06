@@ -19,9 +19,17 @@ type AdminPaging struct {
 	PageCount int    `form:"page_count" json:"page_count"`
 }
 
+func writeRawResponse(w http.ResponseWriter, contentType string, data []byte) {
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With,X_Requested_With")
+	w.Write(data)
+}
+
 func writeResponse(w http.ResponseWriter, data interface{}) []byte {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With,X_Requested_With")
 	//w.Header().Set("Access-Control-Allow-Methods", "POST, GET")
 
 	b, _ := json.Marshal(data)

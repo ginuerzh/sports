@@ -25,6 +25,8 @@ type SportRecord struct {
 type GameRecord struct {
 	Name  string
 	Score int
+	Magic int
+	Coin  int64
 }
 
 type Record struct {

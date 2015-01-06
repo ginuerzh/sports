@@ -7,7 +7,7 @@ import (
 	"labix.org/v2/mgo/bson"
 	"labix.org/v2/mgo/txn"
 	"log"
-	"strings"
+	//"strings"
 	"time"
 )
 
@@ -22,12 +22,14 @@ type Segment struct {
 }
 
 type Article struct {
-	Id     bson.ObjectId `bson:"_id,omitempty"`
-	Parent string        `bson:",omitempty"`
-	Author string
-	//Title    string `bson:",omitempty"`
-	//Image    string `bson:",omitempty"`
+	Id       bson.ObjectId `bson:"_id,omitempty"`
+	Parent   string        `bson:",omitempty"`
+	Author   string
+	Title    string   `bson:",omitempty"`
+	Image    string   `bson:",omitempty"`
+	Images   []string `bson:",omitempty"`
 	Contents []Segment
+	Content  string
 	PubTime  time.Time `bson:"pub_time"`
 
 	Views       []string `bson:",omitempty"`
@@ -36,21 +38,6 @@ type Article struct {
 	Rewards     []string `bson:",omitempty"`
 	TotalReward int64    `bson:"total_reward"`
 	Tags        []string `bson:",omitempty"`
-}
-
-func (this *Article) Cover() (text string, image string) {
-	for _, seg := range this.Contents {
-		if len(text) > 0 && len(image) > 0 {
-			break
-		}
-		if len(text) == 0 && strings.ToUpper(seg.ContentType) == "TEXT" {
-			text = seg.ContentText
-		}
-		if len(image) == 0 && strings.ToUpper(seg.ContentType) == "IMAGE" {
-			image = seg.ContentText
-		}
-	}
-	return
 }
 
 func FindArticles(ids ...string) (articles []Article, err error) {

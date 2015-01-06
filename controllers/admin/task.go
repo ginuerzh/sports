@@ -73,9 +73,11 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			tasklist.Last.After(now.BeginningOfWeek()) {
 			week -= 1
 		}
-		usertasks[i].Tasks = make([]*taskinfo, 7)
-		for j, t := range models.Tasks[week*7 : week*7+7] {
-			usertasks[i].Tasks[j] = convertTask(&t, &tasklist)
+
+		for _, t := range models.Tasks[week*7 : week*7+7] {
+			if t.Type == models.TaskRunning {
+				usertasks[i].Tasks = append(usertasks[i].Tasks, convertTask(&t, &tasklist))
+			}
 		}
 	}
 
@@ -161,12 +163,13 @@ func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 	}
 
 	if form.Pass {
-
 		awards := controllers.Awards{
-			Physical: 30 + user.Props.Level,
+			Physical: 30 + user.Props.Level + 1,
 			Wealth:   30 * models.Satoshi,
-			Score:    30 + user.Props.Level,
+			Score:    30 + user.Props.Level + 1,
 		}
+		awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
+
 		if err := controllers.GiveAwards(user, awards, redis); err != nil {
 			writeResponse(w, err)
 			return

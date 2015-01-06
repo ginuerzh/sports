@@ -2,7 +2,7 @@
 package controllers
 
 import (
-	//"bytes"
+	"bytes"
 	//"encoding/json"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
@@ -13,7 +13,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	//"strings"
+	"strings"
 	"time"
 )
 
@@ -68,27 +68,80 @@ type articleJsonStruct struct {
 	Reviews    int              `json:"sub_article_count"`
 	NewReviews int              `json:"new_sub_article_count"`
 	Contents   []models.Segment `json:"article_segments"`
+	Content    string           `json:"content"`
 	Rewards    int64            `json:"reward_total"`
 }
+
+var (
+	header = `<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=310, initial-scale=1, maximum-scale=1, user-scalable=no">
+		<style>
+			body{
+				font-size:16px;
+				line-height:30px;
+				background-color:#f6f6f6;
+				text-align:center;
+				margin: 0;
+			}
+			p{
+				text-align:left;
+				padding-left: 5px;
+				padding-right: 5px;
+			}
+			img{
+				max-width:97%;
+				height:auto;
+				margin:auto;
+			}
+			div.divimg {
+				text-align:center;
+			}
+		</style>
+	</head>
+	<body>`
+
+	footer = `
+	</body>
+</html>`
+)
 
 func convertArticle(article *models.Article) *articleJsonStruct {
 	jsonStruct := &articleJsonStruct{}
 	jsonStruct.Id = article.Id.Hex()
 	jsonStruct.Parent = article.Parent
 	jsonStruct.Author = article.Author
-	jsonStruct.Contents = article.Contents
+	//jsonStruct.Contents = article.Contents
 	jsonStruct.PubTime = article.PubTime.Unix()
 	jsonStruct.Thumbs = len(article.Thumbs)
 	jsonStruct.Reviews = len(article.Reviews)
 	jsonStruct.Rewards = article.TotalReward
 
-	jsonStruct.Title, jsonStruct.Image = article.Cover()
+	jsonStruct.Title = article.Title
+	jsonStruct.Image = article.Image
 
-	if len(jsonStruct.Contents) == 0 {
-		jsonStruct.Contents = []models.Segment{}
+	jsonStruct.Content = header + article.Content + footer
+	if len(article.Contents) > 0 {
+		jsonStruct.Content = header + content2Html(article.Contents) + footer
 	}
 
 	return jsonStruct
+}
+
+func content2Html(contents []models.Segment) string {
+	buf := &bytes.Buffer{}
+	for _, content := range contents {
+		switch strings.ToUpper(content.ContentType) {
+		case "TEXT":
+			buf.WriteString("<p>" + content.ContentText + "</p>")
+		case "IMAGE":
+			buf.WriteString("<div class=\"divimg\"><img src=\"" + content.ContentText + "\" /></div>")
+		}
+	}
+
+	return buf.String()
 }
 
 type newArticleForm struct {
@@ -98,17 +151,33 @@ type newArticleForm struct {
 	parameter
 }
 
+func articleCover(contents []models.Segment) (text string, images []string) {
+	for _, seg := range contents {
+		if len(text) == 0 && strings.ToUpper(seg.ContentType) == "TEXT" {
+			text = seg.ContentText
+		}
+		if strings.ToUpper(seg.ContentType) == "IMAGE" {
+			images = append(images, seg.ContentText)
+		}
+	}
+	return
+}
 func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(newArticleForm)
 
 	article := &models.Article{
-		Author:   user.Id,
-		Contents: form.Contents,
-		PubTime:  time.Now(),
-		Parent:   form.Parent,
-		Tags:     form.Tags,
+		Author:  user.Id,
+		Content: content2Html(form.Contents),
+		PubTime: time.Now(),
+		Parent:  form.Parent,
+		Tags:    form.Tags,
 	}
+	article.Title, article.Images = articleCover(form.Contents)
+	if len(article.Images) > 0 {
+		article.Image = article.Images[0]
+	}
+
 	if len(article.Tags) == 0 {
 		article.Tags = []string{"SPORT_LOG"}
 	}
@@ -146,7 +215,6 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		author := &models.Account{}
 		author.FindByUserid(parent.Author)
 
-		_, coverImage := parent.Cover()
 		// ws push
 		event := &models.Event{
 			Type: models.EventArticle,
@@ -158,7 +226,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 				To:   parent.Author,
 				Body: []models.MsgBody{
 					{Type: "total_count", Content: strconv.Itoa(parent.CommentCount())},
-					{Type: "image", Content: coverImage},
+					{Type: "image", Content: parent.Image},
 				},
 			},
 		}
@@ -241,7 +309,6 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 		author := &models.Account{}
 		author.FindByUserid(article.Author)
 
-		_, coverImage := article.Cover()
 		// ws push
 		event := &models.Event{
 			Type: models.EventArticle,
@@ -253,7 +320,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 				To:   article.Author,
 				Body: []models.MsgBody{
 					{Type: "total_count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
-					{Type: "image", Content: coverImage},
+					{Type: "image", Content: article.Image},
 				},
 			},
 		}

@@ -84,7 +84,7 @@ type Contact struct {
 type Account struct {
 	Id         string    `bson:"_id,omitempty" json:"-"`
 	Email      string    `json:"-"`
-	Phone      string    `bson:",omitempty" json:"phone,omitempty"`
+	Phone      string    `bson:",omitempty" json:"-"`
 	Weibo      string    `json:"-"`
 	Nickname   string    `bson:",omitempty" json:"nickname,omitempty"`
 	Password   string    `bson:",omitempty" json:"password,omitempty"`
@@ -135,9 +135,19 @@ func (this *Account) Exists(t string) (bool, error) {
 	}
 }
 
-func FindUsers(ids []string) ([]Account, error) {
+func FindUsersByIds(ids []string) ([]Account, error) {
 	var users []Account
 	if err := search(accountColl, bson.M{"_id": bson.M{"$in": ids}}, nil, 0, 0, nil, nil, &users); err != nil {
+		return nil, errors.NewError(errors.DbError, err.Error())
+	}
+
+	return users, nil
+}
+
+func FindUsersByPhones(phones []string) ([]Account, error) {
+	var users []Account
+
+	if err := search(accountColl, bson.M{"phone": bson.M{"$in": phones}}, nil, 0, 0, nil, nil, &users); err != nil {
 		return nil, errors.NewError(errors.DbError, err.Error())
 	}
 
@@ -467,6 +477,8 @@ func (this *Account) Recommend(friends []string) (users []Account, err error) {
 }
 
 func UserList(sort string, pageIndex, pageCount int) (total int, users []Account, err error) {
+	var query bson.M
+
 	switch sort {
 	case "regtime":
 		sort = "reg_time"
@@ -478,12 +490,25 @@ func UserList(sort string, pageIndex, pageCount int) (total int, users []Account
 		sort = "-props.score"
 	case "task":
 		sort = "tasks.last"
+		/*
+			query = bson.M{
+				"tasks.count": bson.M{
+					"$gt": 0,
+				},
+			}
+		*/
 	case "-task":
 		sort = "-tasks.last"
+		/*
+			query = bson.M{
+				"tasks.count": bson.M{
+					"$gt": 0,
+				},
+			}
+		*/
 	default:
 		sort = "-reg_time"
 	}
-	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
 	err = search(accountColl, query, nil, pageIndex*pageCount, pageCount, []string{sort}, &total, &users)
 	return
 }
@@ -983,6 +1008,7 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 	if len(args) > 0 {
 		ids = args[0]
 	}
+
 	query = bson.M{
 		"_id": bson.M{
 			"$in": ids,
@@ -993,8 +1019,8 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			return nil, err
 		}
 		query = bson.M{
-			"props.score": bson.M{
-				"$gte": user.Props.Score,
+			"reg_time": bson.M{
+				"$gte": user.RegTime,
 			},
 			"_id": bson.M{
 				"$in": ids,
@@ -1006,8 +1032,8 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			return nil, err
 		}
 		query = bson.M{
-			"props.score": bson.M{
-				"$lte": user.Props.Score,
+			"reg_time": bson.M{
+				"$lte": user.RegTime,
 			},
 			"_id": bson.M{
 				"$in": ids,
@@ -1015,6 +1041,7 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			},
 		}
 	}
+	log.Printf("%#v\n", query)
 	return
 }
 
@@ -1028,10 +1055,10 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 	total := 0
 
 	pageUp := false
-	sortFields := []string{"-props.score"}
+	sortFields := []string{"-reg_time"}
 	if len(paging.First) > 0 {
 		pageUp = true
-		sortFields = []string{"props.score"}
+		sortFields = []string{"reg_time"}
 	}
 
 	if err := psearch(accountColl, nil, nil, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
@@ -1259,6 +1286,9 @@ func (this *Account) AddTask(typ string, tid int, proofs []string) error {
 			"$set": bson.M{
 				"tasks.last": time.Now(),
 			},
+			"$inc": bson.M{
+				"tasks.count": 1,
+			},
 		}
 	} else {
 		change = bson.M{
@@ -1299,6 +1329,9 @@ func (this *Account) SetTaskComplete(tid int, completed bool, reason string) err
 			"$addToSet": bson.M{
 				"tasks.completed": tid,
 			},
+			"$inc": bson.M{
+				"tasks.count": -1,
+			},
 		}
 	} else {
 		change = bson.M{
@@ -1307,6 +1340,9 @@ func (this *Account) SetTaskComplete(tid int, completed bool, reason string) err
 			},
 			"$addToSet": bson.M{
 				"tasks.uncompleted": tid,
+			},
+			"$inc": bson.M{
+				"tasks.count": -1,
 			},
 		}
 	}

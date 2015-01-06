@@ -8,6 +8,7 @@ import (
 	"gopkg.in/go-martini/martini.v1"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 )
 
@@ -83,7 +84,7 @@ func eventDetailHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	news := []*models.Event{}
-	m := make(map[string]*models.Event)
+	m := make(map[string]*models.Event) // TODO: don't use map
 
 	for i, event := range events {
 		key := event.Data.Type + "_" + event.Data.Id
@@ -99,8 +100,13 @@ func eventDetailHandler(request *http.Request, resp http.ResponseWriter,
 		}
 	}
 
-	for _, v := range m {
-		news = append(news, v)
+	var keys []string
+	for k, _ := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		news = append(news, m[key])
 	}
 
 	respData := map[string]interface{}{

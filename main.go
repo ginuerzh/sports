@@ -83,7 +83,7 @@ func main() {
 	admin.BindRecordsApi(m)
 
 	admin.BindRuleApi(m)
-
+	admin.BindUeditorApi(m)
 	//jsgen apis
 	//jsgen.BindConfigApi(m)
 	//jsgen.BindAccountApi(m)

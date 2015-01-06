@@ -107,6 +107,11 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Form(userArticlesForm{}),
 		ErrorHandler,
 		userArticlesHandler)
+	m.Get("/1/user/importContacts",
+		binding.Form(importContactsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		importContactsHandler)
 }
 
 // user register parameter
@@ -348,7 +353,7 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 			Addr:     users[i].LocAddr,
 		}
 		lb.Distance, _ = redis.RecStats(users[i].Id)
-		lb.Status, _ = users[i].LatestArticle().Cover()
+		lb.Status = users[i].LatestArticle().Title
 		list = append(list, lb)
 	}
 
@@ -836,4 +841,31 @@ func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
 	respData["articles_without_content"] = jsonStructs
 
 	writeResponse(request.RequestURI, resp, respData, err)
+}
+
+type importContactsForm struct {
+	Contacts []string `json:"contacts"`
+	parameter
+}
+
+func importContactsHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(importContactsForm)
+	var result []*models.Account
+
+	users, _ := models.FindUsersByPhones(form.Contacts)
+	ids := redis.Friends(models.RelFollowing, user.Id)
+	for j, _ := range users {
+		i := 0
+		for ; i < len(ids); i++ {
+			if users[j].Id == ids[i] {
+				break
+			}
+		}
+		if i >= len(ids) {
+			result = append(result, &users[j])
+		}
+	}
+
+	writeResponse(r.RequestURI, w, map[string]interface{}{"users": result}, nil)
 }

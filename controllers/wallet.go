@@ -288,7 +288,7 @@ type Vout struct {
 }
 
 type Tx struct {
-	Hash    string  `json:"hash"`
+	Hash    string  `json:"tx_hash"`
 	Block   string  `json:"block"`
 	Version int32   `json:"version"`
 	Index   int64   `json:"tx_index"`

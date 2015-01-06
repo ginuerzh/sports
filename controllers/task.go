@@ -111,8 +111,8 @@ func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
 		rec := &models.Record{Uid: user.Id}
 		rec.FindByTask(task.Id)
 		if rec.Game != nil {
-			task.Desc = fmt.Sprintf("你在%s游戏中得了%d分",
-				rec.Game.Name, rec.Game.Score)
+			task.Desc = fmt.Sprintf("你在%s游戏中得了%d分, 得到了%d魔法值和%d贝币",
+				rec.Game.Name, rec.Game.Score, rec.Game.Magic, rec.Game.Coin/models.Satoshi)
 		}
 	}
 

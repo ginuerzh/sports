@@ -43,12 +43,34 @@ type record struct {
 	Pics      []string `json:"sport_pics"`
 	GameScore int      `json:"game_score"`
 	GameName  string   `json:"game_name"`
+	Magic     int      `json:"magic"`
 }
 
 type newRecordForm struct {
 	Record *record `json:"record_item" binding:"required"`
 	Task   int     `json:"task_id"`
 	parameter
+}
+
+func gameAwards(level int64, gameScore int, isTask bool) Awards {
+	awards := Awards{}
+
+	base := 5.0
+	scale := 1.2
+	factor := 1.5
+
+	if !isTask {
+		base = 1.0
+		scale = 0.5
+		factor = 0.5
+	}
+
+	award := int64(scale * (base + factor*float64(level) + factor*(float64(gameScore)/100.0)))
+	awards.Wealth = models.Satoshi * award
+	awards.Mental = award
+	awards.Score = award
+
+	return awards
 }
 
 func newRecordHandler(request *http.Request, resp http.ResponseWriter,
@@ -63,18 +85,27 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		Time:    time.Unix(form.Record.Time, 0),
 		PubTime: time.Now(),
 	}
-	//awards := Awards{Wealth: 1 * models.Satoshi}
+
 	awards := Awards{}
+
 	switch form.Record.Type {
 	case "game":
-		rec.Game = &models.GameRecord{Name: form.Record.GameName, Score: form.Record.GameScore}
-		awards.Wealth = 5 * models.Satoshi
-		awards.Mental = 5 + user.Props.Level
-		awards.Score = 5 + user.Props.Level
-		GiveAwards(user, awards, redis)
 		if form.Task > 0 {
+			awards = gameAwards(user.Props.Level, form.Record.GameScore, true)
 			user.AddTask(models.Tasks[form.Task-1].Type, form.Task, nil)
+		} else {
+			awards = gameAwards(user.Props.Level, form.Record.GameScore, false)
 		}
+		awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
+		GiveAwards(user, awards, redis)
+
+		rec.Game = &models.GameRecord{
+			Name:  form.Record.GameName,
+			Score: form.Record.GameScore,
+			Magic: int(awards.Mental),
+			Coin:  awards.Wealth,
+		}
+
 	default:
 		rec.Sport = &models.SportRecord{
 			Duration: form.Record.Duration,
@@ -84,7 +115,6 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		if form.Record.Duration > 0 {
 			rec.Sport.Speed = float64(form.Record.Distance) / float64(form.Record.Duration)
 		}
-		// awards.Physical = 1
 	}
 	if err := rec.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
@@ -134,6 +164,7 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter, redis *
 		if records[i].Game != nil {
 			recs[i].GameName = records[i].Game.Name
 			recs[i].GameScore = records[i].Game.Score
+			recs[i].Magic = records[i].Game.Magic
 		}
 	}
 	respData := map[string]interface{}{
@@ -263,7 +294,7 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter,
 		ids[i] = kv[i].K
 	}
 
-	users, _ := models.FindUsers(ids)
+	users, _ := models.FindUsersByIds(ids)
 
 	lb := make([]leaderboardResp, len(kv))
 	for i, _ := range kv {

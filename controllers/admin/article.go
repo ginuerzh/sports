@@ -57,9 +57,12 @@ func convertArticle(article *models.Article, redis *models.RedisLogger) *article
 	info.Rewards = article.TotalReward
 	info.RewardUsers = article.Rewards
 	info.Tags = article.Tags
-	info.Title, info.Image = article.Cover()
-	info.Contents = formatArticleContent(article.Contents)
-
+	info.Title = article.Title
+	info.Image = article.Image
+	info.Contents = article.Content
+	if len(article.Contents) > 0 {
+		info.Contents = formatArticleContent(article.Contents)
+	}
 	return info
 }
 
@@ -220,7 +223,9 @@ type postForm struct {
 	Id       string   `json:"article_id"`
 	Author   string   `json:"author"`
 	Contents string   `json:"contents"`
-	Tags     []string `json:"tags"`
+	Title    string   `json:"title"`
+	Image    []string `json:"image"`
+	Tags     string   `json:"tags"`
 	Token    string   `json:"access_token" binding:"required"`
 }
 
@@ -236,9 +241,9 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 		Parent:  form.Id,
 		Author:  form.Author,
 		PubTime: time.Now(),
-		Tags:    form.Tags,
+		Tags:    []string{form.Tags},
 	}
-	if len(article.Tags) == 0 {
+	if len(form.Tags) == 0 {
 		article.Tags = []string{"SPORT_LOG"}
 	}
 
@@ -246,9 +251,16 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 		article.Author = user.Id
 	}
 
-	article.Contents = append(article.Contents,
-		models.Segment{ContentType: "TEXT", ContentText: form.Contents})
-
+	article.Content = form.Contents
+	article.Title = form.Title
+	article.Images = form.Image
+	if len(article.Images) > 0 {
+		article.Image = article.Images[0]
+	}
+	/*
+		article.Contents = append(article.Contents,
+			models.Segment{ContentType: "TEXT", ContentText: form.Contents})
+	*/
 	if err := article.Save(); err != nil {
 		writeResponse(w, err)
 		return
