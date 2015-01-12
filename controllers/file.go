@@ -66,7 +66,7 @@ func fileUploadHandler(request *http.Request, resp http.ResponseWriter,
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
 		return
 	}
-	log.Println(fid, length, header.Filename, header.Header.Get("Content-Type"))
+	//log.Println(fid, length, header.Filename, header.Header.Get("Content-Type"))
 
 	filedata.Seek(0, 0)
 

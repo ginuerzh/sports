@@ -227,14 +227,6 @@ func exists(collection string, query interface{}) (bool, error) {
 func psearch(collection string, query, selector interface{}, sortFields []string,
 	total *int, result interface{}, pagingFunc PagingFunc, paging *Paging, args ...interface{}) (err error) {
 
-	defer func() {
-		if paging != nil {
-			paging.Count = 0
-			paging.First = ""
-			paging.Last = ""
-		}
-	}()
-
 	q := func(c *mgo.Collection) error {
 		var pquery bson.M
 		if pagingFunc != nil {

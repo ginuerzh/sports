@@ -133,7 +133,7 @@ func (this *Article) Remove() error {
 	}
 
 	if len(this.Parent) == 0 {
-		if err := removeId(articleColl, this.Id.Hex(), true); err != nil {
+		if err := removeId(articleColl, this.Id, true); err != nil {
 			if e, ok := err.(*mgo.LastError); ok {
 				return errors.NewError(errors.DbError, e.Error())
 			}
@@ -240,9 +240,6 @@ func articlePagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			"pub_time": bson.M{
 				"$gte": article.PubTime,
 			},
-			"_id": bson.M{
-				"$ne": article.Id,
-			},
 		}
 	} else if bson.IsObjectIdHex(last) {
 		if err := c.FindId(bson.ObjectIdHex(last)).One(article); err != nil {
@@ -252,34 +249,35 @@ func articlePagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			"pub_time": bson.M{
 				"$lte": article.PubTime,
 			},
-			"_id": bson.M{
-				"$ne": article.Id,
-			},
 		}
 	}
 
 	return
 }
 
-func GetArticles(tag string, paging *Paging) (int, []Article, error) {
+func GetArticles(tag string, paging *Paging, withoutContent bool) (int, []Article, error) {
 	var articles []Article
 	total := 0
 
-	selector := bson.M{
+	query := bson.M{
 		"parent": nil,
 	}
 	if len(tag) > 0 {
-		selector["tags"] = tag
+		query["tags"] = tag
 	}
 
-	pageUp := false
-	sortFields := []string{"-pub_time"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"pub_time"}
+	var selector bson.M
+
+	if withoutContent {
+		selector = bson.M{
+			"content":  0,
+			"contents": 0,
+		}
 	}
 
-	if err := psearch(articleColl, selector, nil,
+	sortFields := []string{"-pub_time", "-_id"}
+
+	if err := psearch(articleColl, query, selector,
 		sortFields, nil, &articles, articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -288,17 +286,20 @@ func GetArticles(tag string, paging *Paging) (int, []Article, error) {
 		return total, nil, e
 	}
 
+	for i := 0; i < len(articles); i++ {
+		if articles[i].Id.Hex() == paging.First {
+			articles = articles[:i]
+			break
+		} else if articles[i].Id.Hex() == paging.Last {
+			articles = articles[i+1:]
+			break
+		}
+	}
+
 	paging.First = ""
 	paging.Last = ""
 	paging.Count = 0
 	if len(articles) > 0 {
-		if pageUp {
-			for i := 0; i < len(articles)/2; i++ {
-				t := articles[i]
-				articles[i] = articles[len(articles)-i-1]
-				articles[len(articles)-i-1] = t
-			}
-		}
 		paging.First = articles[0].Id.Hex()
 		paging.Last = articles[len(articles)-1].Id.Hex()
 		paging.Count = total
@@ -312,18 +313,19 @@ func (this *Article) CommentCount() (count int) {
 	return
 }
 
-func (this *Article) Comments(paging *Paging) (int, []Article, error) {
+func (this *Article) Comments(paging *Paging, withoutContent bool) (int, []Article, error) {
 	var articles []Article
 	total := 0
 
-	pageUp := false
-	sortFields := []string{"-pub_time"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"pub_time"}
+	sortFields := []string{"-pub_time", "-_id"}
+
+	var selector bson.M
+
+	if withoutContent {
+		selector = bson.M{"content": 0, "contents": 0}
 	}
 
-	if err := psearch(articleColl, bson.M{"parent": this.Id.Hex()}, nil,
+	if err := psearch(articleColl, bson.M{"parent": this.Id.Hex()}, selector,
 		sortFields, &total, &articles, articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -332,17 +334,20 @@ func (this *Article) Comments(paging *Paging) (int, []Article, error) {
 		return total, nil, e
 	}
 
+	for i := 0; i < len(articles); i++ {
+		if articles[i].Id.Hex() == paging.First {
+			articles = articles[:i]
+			break
+		} else if articles[i].Id.Hex() == paging.Last {
+			articles = articles[i+1:]
+			break
+		}
+	}
+
 	paging.First = ""
 	paging.Last = ""
 	paging.Count = 0
 	if len(articles) > 0 {
-		if pageUp {
-			for i := 0; i < len(articles)/2; i++ {
-				t := articles[i]
-				articles[i] = articles[len(articles)-i-1]
-				articles[len(articles)-i-1] = t
-			}
-		}
 		paging.First = articles[0].Id.Hex()
 		paging.Last = articles[len(articles)-1].Id.Hex()
 		paging.Count = total
@@ -392,17 +397,22 @@ func SearchArticle(keyword string, paging *Paging) (int, []Article, error) {
 		},
 	}
 
-	pageUp := false
-	sortFields := []string{"-pub_time"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"pub_time"}
-	}
+	sortFields := []string{"-pub_time", "-_id"}
 
-	if err := psearch(articleColl, query, nil, sortFields, &total, &articles,
+	if err := psearch(articleColl, query, bson.M{"content": 0, "contents": 0}, sortFields, &total, &articles,
 		articlePagingFunc, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return total, nil, errors.NewError(errors.DbError, err.Error())
+		}
+	}
+
+	for i := 0; i < len(articles); i++ {
+		if articles[i].Id.Hex() == paging.First {
+			articles = articles[:i]
+			break
+		} else if articles[i].Id.Hex() == paging.Last {
+			articles = articles[i+1:]
+			break
 		}
 	}
 
@@ -410,13 +420,6 @@ func SearchArticle(keyword string, paging *Paging) (int, []Article, error) {
 	paging.Last = ""
 	paging.Count = 0
 	if len(articles) > 0 {
-		if pageUp {
-			for i := 0; i < len(articles)/2; i++ {
-				t := articles[i]
-				articles[i] = articles[len(articles)-i-1]
-				articles[len(articles)-i-1] = t
-			}
-		}
 		paging.First = articles[0].Id.Hex()
 		paging.Last = articles[len(articles)-1].Id.Hex()
 		paging.Count = total
@@ -447,7 +450,7 @@ func AdminSearchArticle(keyword string, tag string,
 		}
 	}
 
-	err = search(articleColl, query, nil,
+	err = search(articleColl, query, bson.M{"content": 0, "contents": 0},
 		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &articles)
 	return
 }
@@ -461,7 +464,7 @@ func ArticleList(sort string, pageIndex, pageCount int) (total int, articles []A
 	default:
 		sort = "-pub_time"
 	}
-	err = search(articleColl, bson.M{"parent": nil}, nil,
+	err = search(articleColl, bson.M{"parent": nil}, bson.M{"content": 0, "contents": 0},
 		pageIndex*pageCount, pageCount, []string{sort}, &total, &articles)
 	return
 }

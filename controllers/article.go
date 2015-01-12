@@ -122,7 +122,9 @@ func convertArticle(article *models.Article) *articleJsonStruct {
 	jsonStruct.Title = article.Title
 	jsonStruct.Image = article.Image
 
-	jsonStruct.Content = header + article.Content + footer
+	if len(article.Content) > 0 {
+		jsonStruct.Content = header + article.Content + footer
+	}
 	if len(article.Contents) > 0 {
 		jsonStruct.Content = header + content2Html(article.Contents) + footer
 	}
@@ -367,7 +369,7 @@ type articleListForm struct {
 }
 
 func articleListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
-	_, articles, err := models.GetArticles(form.Tag, &form.Paging)
+	_, articles, err := models.GetArticles(form.Tag, &form.Paging, true)
 	if err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
@@ -426,7 +428,7 @@ func articleCommentsHandler(request *http.Request, resp http.ResponseWriter,
 	form articleCommentsForm) {
 
 	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
-	_, comments, err := article.Comments(&form.Paging)
+	_, comments, err := article.Comments(&form.Paging, true)
 
 	jsonStructs := make([]*articleJsonStruct, len(comments))
 	for i, _ := range comments {

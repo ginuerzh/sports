@@ -166,6 +166,14 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(txForm)
 
+	if form.FromAddr == form.ToAddr {
+		writeResponse(r.RequestURI, w, map[string]string{"txid": ""}, nil)
+		return
+	}
+	if form.Value > redis.GetCoins(user.Id) {
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "余额不足"))
+		return
+	}
 	receiver := &models.Account{}
 	if find, err := receiver.FindByWalletAddr(form.ToAddr); !find {
 		e := errors.NewError(errors.NotFoundError, "address not found")
@@ -190,7 +198,7 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 	//log.Println("amount:", amount, "value:", form.Value)
 
 	if form.Value > amount {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "insufficient balance"))
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "余额不足"))
 		return
 	}
 

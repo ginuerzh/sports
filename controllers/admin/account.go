@@ -38,6 +38,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/admin/user/friendship", binding.Form(getUserFriendsForm{}), adminErrorHandler, getUserFriendsHandler)
 	m.Post("/admin/user/ban", binding.Json(banUserForm{}), adminErrorHandler, banUserHandler)
 	m.Post("/admin/user/update", updateUserInfoHandler)
+	m.Get("/admin/user/balance", binding.Form(userBalanceForm{}), userBalanceHandler)
 	//m.Post("/admin/user/update", binding.Json(userInfoForm{}), adminErrorHandler, updateUserInfoHandler)
 }
 
@@ -127,6 +128,7 @@ type userInfoJsonStruct struct {
 	Userid   string `json:"userid"`
 	Nickname string `json:"nickname"`
 
+	Email   string `json:"email"`
 	Phone   string `json:"phone"`
 	Type    string `json:"role"`
 	About   string `json:"about"`
@@ -174,6 +176,7 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 	info := &userInfoJsonStruct{
 		Userid:     user.Id,
 		Nickname:   user.Nickname,
+		Email:      user.Email,
 		Phone:      user.Phone,
 		Type:       user.Role,
 		About:      user.About,
@@ -254,6 +257,7 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 	info := &userInfoJsonStruct{
 		Userid:     user.Id,
 		Nickname:   user.Nickname,
+		Email:      user.Email,
 		Phone:      user.Phone,
 		Type:       user.Role,
 		About:      user.About,
@@ -282,6 +286,9 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		LastLogStr: user.LastLogin.Format("2006-01-02 15:04:05"),
 	}
 
+	if len(info.Gender) == 0 {
+		info.Gender = "male"
+	}
 	info.BanTime = user.TimeLimit
 	if user.TimeLimit > 0 {
 		if user.TimeLimit > time.Now().Unix() {
@@ -352,14 +359,14 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
 	//count, users, err := models.GetUserListBySort(0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
 
-	log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
+	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
 	count, users, err := models.GetUserListBySort(form.Page*getCount, getCount, form.Sort, "", "")
 	if err != nil {
 		writeResponse(resp, err)
 		return
 	}
 	countvalid := len(users)
-	log.Println("countvalid is :", countvalid)
+	//log.Println("countvalid is :", countvalid)
 	/*
 		if countvalid == 0 {
 			writeResponse(resp, err)
@@ -370,6 +377,7 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 	for i, user := range users {
 		list[i].Userid = user.Id
 		list[i].Nickname = user.Nickname
+		list[i].Email = user.Email
 		list[i].Phone = user.Phone
 		list[i].Type = user.Role
 		list[i].About = user.About
@@ -393,6 +401,9 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		list[i].Score = user.Props.Score
 		list[i].Level = user.Props.Level + 1
 
+		if len(user.Gender) == 0 {
+			list[i].Gender = "male"
+		}
 		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
 			if user.TimeLimit > time.Now().Unix() {
@@ -537,6 +548,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 	for i, user := range users {
 		list[i].Userid = user.Id
 		list[i].Nickname = user.Nickname
+		list[i].Email = user.Email
 		list[i].Phone = user.Phone
 		list[i].Type = user.Role
 		list[i].About = user.About
@@ -560,6 +572,9 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].Score = user.Props.Score
 		list[i].Level = user.Props.Level + 1
 
+		if len(user.Gender) == 0 {
+			list[i].Gender = "male"
+		}
 		//list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
 		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
@@ -716,6 +731,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 	for i, user := range users {
 		list[i].Userid = user.Id
 		list[i].Nickname = user.Nickname
+		list[i].Email = user.Email
 		list[i].Phone = user.Phone
 		list[i].Type = user.Role
 		list[i].About = user.About
@@ -748,6 +764,10 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].Wealth = redis.GetCoins(user.Id)
 		list[i].Score = user.Props.Score
 		list[i].Level = user.Props.Level + 1
+
+		if len(user.Gender) == 0 {
+			list[i].Gender = "male"
+		}
 
 		list[i].BanTime = user.TimeLimit
 		if user.TimeLimit > 0 {
@@ -1037,4 +1057,47 @@ func updateUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 	data := map[string]interface{}{}
 	writeResponse(resp, data)
+}
+
+type userBalanceForm struct {
+	Id string `form:"id"`
+}
+
+func userBalanceHandler(r *http.Request, w http.ResponseWriter, form userBalanceForm) {
+	user := &models.Account{}
+	user.FindByUserid(form.Id)
+	balance, _ := getBalance(user.Wallet.Addrs)
+	writeResponse(w, map[string]interface{}{"balance": balance})
+}
+
+type balance struct {
+	Address     string `json:"address"`
+	Confirmed   int64  `json:"confirmed"`
+	Unconfirmed int64  `json:"unconfirmed"`
+}
+
+type balanceAddrs struct {
+	Addrs []balance `json:"addresses"`
+}
+
+func getBalance(addrs []string) (b *balanceAddrs, err error) {
+	if len(addrs) == 0 {
+		return
+	}
+	resp, err := http.Get("http://localhost:8087" + "/multiaddr?addr=" + strings.Join(addrs, "|"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	ba := new(balanceAddrs)
+	if err = decodeJson(resp.Body, ba); err != nil {
+		log.Println(err)
+		return
+	}
+
+	b = ba
+
+	return
 }

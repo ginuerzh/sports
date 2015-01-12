@@ -52,6 +52,7 @@ func classic() *martini.ClassicMartini {
 	m.Use(martini.Recovery())
 	m.Use(martini.Static(staticDir))
 	m.Use(controllers.RedisLoggerHandler)
+	m.Use(controllers.DumpReqBodyHandler)
 	m.Action(r.Handle)
 	return &martini.ClassicMartini{m, r}
 }
@@ -69,7 +70,6 @@ func main() {
 	controllers.BindEventApi(m)
 	controllers.BindFileApi(m)
 	controllers.BindRecordApi(m)
-	//controllers.BindStatApi(m)
 	controllers.BindWSPushApi(m)
 	controllers.BindGroupApi(m)
 	controllers.BindWalletApi(m)

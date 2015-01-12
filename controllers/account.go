@@ -107,8 +107,8 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Form(userArticlesForm{}),
 		ErrorHandler,
 		userArticlesHandler)
-	m.Get("/1/user/importContacts",
-		binding.Form(importContactsForm{}, (*Parameter)(nil)),
+	m.Post("/1/user/importContacts",
+		binding.Json(importContactsForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
 		importContactsHandler)
@@ -224,7 +224,11 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 
 	user.Nickname = weiboUser.ScreenName
 	user.Password = p
-	user.Gender = weiboUser.Gender
+	if !strings.HasPrefix(weiboUser.Gender, "f") {
+		user.Gender = "male"
+	} else {
+		user.Gender = "female"
+	}
 	user.Url = weiboUser.Url
 	user.Profile = weiboUser.Avatar
 	user.Addr = &models.Address{Desc: weiboUser.Location}
@@ -329,7 +333,10 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 
 	form := p.(recommendForm)
 
-	users, _ := user.Recommend(redis.Friends(models.RelFollowing, user.Id))
+	excludes := redis.Friends(models.RelFollowing, user.Id)
+	excludes = append(excludes, redis.Friends(models.RelBlacklist, user.Id)...)
+
+	users, _ := user.Recommend(excludes)
 	var list []*leaderboardResp
 	for i, _ := range users {
 		if users[i].Id == user.Id {
@@ -363,11 +370,6 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 		"page_last_id":  form.Paging.Last,
 	}
 	writeResponse(r.RequestURI, w, respData, nil)
-}
-
-type getInfoForm struct {
-	Userid string `form:"userid" binding:"required"`
-	parameter
 }
 
 type userJsonStruct struct {
@@ -407,7 +409,66 @@ type userJsonStruct struct {
 	LastLog  int64  `json:"last_login_time"`
 }
 
-func userInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, p Parameter) {
+func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruct {
+	info := &userJsonStruct{
+		Userid:   user.Id,
+		Nickname: user.Nickname,
+		Email:    user.Email,
+		Phone:    user.Phone,
+		Type:     user.Role,
+		About:    user.About,
+		Profile:  user.Profile,
+		RegTime:  user.RegTime.Unix(),
+		Hobby:    user.Hobby,
+		Height:   user.Height,
+		Weight:   user.Weight,
+		Birth:    user.Birth,
+		Actor:    userActor(user.Actor),
+		Location: user.Loc,
+
+		//Rank:   userRank(user.Level),
+		Online: redis.IsOnline(user.Id),
+		Gender: user.Gender,
+		//Follows:   len(redis.Follows(user.Id)),
+		//Followers: len(redis.Followers(user.Id)),
+		Posts: user.ArticleCount(),
+
+		//Props: redis.UserProps(user.Id),
+		Props: models.Props{
+			Physical: user.Props.Physical,
+			Literal:  user.Props.Literal,
+			Mental:   user.Props.Mental,
+			Wealth:   redis.GetCoins(user.Id),
+			Score:    user.Props.Score,
+			Level:    int64(models.Score2Level(user.Props.Score)),
+		},
+
+		Photos: user.Photos,
+
+		Wallet:  user.Wallet.Addr,
+		LastLog: user.LastLogin.Unix(),
+	}
+
+	info.Follows, info.Followers, _, _ = redis.FriendCount(user.Id)
+
+	if user.Addr != nil {
+		info.Addr = user.Addr.String()
+	}
+
+	if user.Equips != nil {
+		info.Equips = *user.Equips
+	}
+
+	return info
+}
+
+type getInfoForm struct {
+	Userid string `form:"userid" binding:"required"`
+	parameter
+}
+
+func userInfoHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, p Parameter) {
 	user := &models.Account{}
 	form := p.(getInfoForm)
 	if find, err := user.FindByUserid(form.Userid); !find {
@@ -615,21 +676,22 @@ func loginAwards(days, level int) Awards {
 
 func loginAwardsHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account) {
-
-	awards := loginAwards(user.LoginDays, int(user.Props.Level+1))
-	awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
+	level := user.Props.Level + 1
+	awards := loginAwards(user.LoginDays, int(level))
+	awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (level + 1)
 	GiveAwards(user, awards, redis)
 
+	startDay := ((user.LoginDays - 1) / 7) * 7
 	respData := map[string]interface{}{
 		"continuous_logined_days": user.LoginDays,
 		"login_reward_list": []int64{
-			loginAwards(1, int(user.Props.Level+1)).Wealth,
-			loginAwards(2, int(user.Props.Level+1)).Wealth,
-			loginAwards(3, int(user.Props.Level+1)).Wealth,
-			loginAwards(4, int(user.Props.Level+1)).Wealth,
-			loginAwards(5, int(user.Props.Level+1)).Wealth,
-			loginAwards(6, int(user.Props.Level+1)).Wealth,
-			loginAwards(7, int(user.Props.Level+1)).Wealth,
+			loginAwards(startDay+1, int(level)).Wealth,
+			loginAwards(startDay+2, int(level)).Wealth,
+			loginAwards(startDay+3, int(level)).Wealth,
+			loginAwards(startDay+4, int(level)).Wealth,
+			loginAwards(startDay+5, int(level)).Wealth,
+			loginAwards(startDay+6, int(level)).Wealth,
+			loginAwards(startDay+7, int(level)).Wealth,
 		},
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
@@ -851,7 +913,7 @@ type importContactsForm struct {
 func importContactsHandler(r *http.Request, w http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(importContactsForm)
-	var result []*models.Account
+	var result []*userJsonStruct
 
 	users, _ := models.FindUsersByPhones(form.Contacts)
 	ids := redis.Friends(models.RelFollowing, user.Id)
@@ -863,7 +925,7 @@ func importContactsHandler(r *http.Request, w http.ResponseWriter,
 			}
 		}
 		if i >= len(ids) {
-			result = append(result, &users[j])
+			result = append(result, convertUser(&users[j], redis))
 		}
 	}
 

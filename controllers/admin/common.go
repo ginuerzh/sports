@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/martini-contrib/binding"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -49,4 +50,8 @@ func adminErrorHandler(err binding.Errors, w http.ResponseWriter) {
 		s += " " + e.Message
 		writeResponse(w, errors.NewError(errors.JsonError, s))
 	}
+}
+
+func decodeJson(r io.Reader, v interface{}) error {
+	return json.NewDecoder(r).Decode(v)
 }

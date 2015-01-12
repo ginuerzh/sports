@@ -12,11 +12,12 @@ import (
 	"github.com/nu7hatch/gouuid"
 	"gopkg.in/go-martini/martini.v1"
 	"io"
-	//"log"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	//"os"
+	"bytes"
 	"strings"
 	"time"
 )
@@ -43,7 +44,7 @@ func writeResponse(uri string, resp http.ResponseWriter, data interface{}, err e
 	}
 	resp.Header().Set("Content-Type", "application/json; charset=utf-8")
 	b, _ := json.Marshal(response{ReqPath: uri, RespData: data, Error: err})
-	fmt.Println(string(b))
+	fmt.Println("<<<", string(b))
 	resp.Write(b)
 
 	return b
@@ -74,6 +75,33 @@ func Uuid() string {
 	}
 
 	return u4.String()
+}
+
+type requestBody struct {
+	bytes.Buffer
+}
+
+func (rb *requestBody) Close() error {
+	rb.Reset()
+	return nil
+}
+
+func DumpReqBodyHandler(r *http.Request) {
+	fmt.Println("###", r.URL)
+
+	if r.MultipartForm != nil ||
+		(r.URL.Path == "/ueditor/controller" && r.URL.Query().Get("action") == "uploadimage") {
+		return
+	}
+	if r.Method == "GET" || r.Body == nil {
+		return
+	}
+	rb := &requestBody{}
+	if _, err := io.Copy(rb, r.Body); err != nil {
+		log.Println(err)
+	}
+	fmt.Println(">>>", rb.String())
+	r.Body = rb
 }
 
 func ErrorHandler(err binding.Errors, request *http.Request, resp http.ResponseWriter) {

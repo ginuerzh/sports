@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	//"sync"
+	"fmt"
 	"time"
 )
 
@@ -50,7 +51,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		log.Println("check token failed:", auth.Token)
 		return
 	}
-	log.Println("check token:", auth.Token)
+	//log.Println("check token:", auth.Token)
 	uid := redisLogger.OnlineUser(auth.Token)
 
 	user := &models.Account{}
@@ -92,7 +93,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 
 	go func(conn *websocket.Conn) {
 		//wg.Add(1)
-		defer log.Println("ws thread closed")
+		//defer log.Println("ws thread closed")
 		//defer wg.Done()
 		defer psc.Close()
 
@@ -103,7 +104,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 				//log.Println(err)
 				return
 			}
-			log.Println("recv msg:", event.Type)
+			//log.Println("recv msg:", event.Type)
 			switch event.Type {
 			case models.EventMsg:
 				m := &models.Message{
@@ -121,7 +122,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 					redisLogger.PubMsg(m.Type, m.To, event.Bytes())
 				}
 			case "status":
-				log.Println(event.Data.Body)
+				fmt.Println(user.Id, event.Data.Body)
 				switch event.Data.Type {
 				case "loc":
 					var lat, lng float64
@@ -129,7 +130,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 					for _, body := range event.Data.Body {
 						switch body.Type {
 						case "latlng":
-							log.Println("latlng:", body.Content)
+							//log.Println("latlng:", body.Content)
 							loc := strings.Split(body.Content, ",")
 							if len(loc) != 2 {
 								break
@@ -137,7 +138,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 							lat, _ = strconv.ParseFloat(loc[0], 64)
 							lng, _ = strconv.ParseFloat(loc[1], 64)
 						case "locaddr":
-							log.Println("locaddr:", body.Content)
+							//log.Println("locaddr:", body.Content)
 							locaddr = body.Content
 						}
 					}
@@ -147,7 +148,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 						switch body.Type {
 						case "token":
 							token := body.Content
-							log.Println("device token:", token)
+							//log.Println("device token:", token)
 							user.AddDevice(token)
 						}
 					}

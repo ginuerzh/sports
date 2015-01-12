@@ -216,6 +216,9 @@ func (this *Account) Save() error {
 
 	this.Id = fmt.Sprintf("%d%03d", now.Unix(), now.Nanosecond()%1000)
 	this.Push = true
+	if len(this.Gender) == 0 {
+		this.Gender = "male"
+	}
 	return save(accountColl, this, true)
 	/*
 			f := func(c *mgo.Collection) error {
@@ -428,12 +431,12 @@ func (this *Account) DelPhoto(id string) error {
 	return nil
 }
 
-func (this *Account) Recommend(friends []string) (users []Account, err error) {
+func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 	var list []Account
 
 	query := bson.M{
 		"_id": bson.M{
-			"$nin": friends,
+			"$nin": excludes,
 		},
 		"privilege": 10,
 	}
@@ -441,7 +444,7 @@ func (this *Account) Recommend(friends []string) (users []Account, err error) {
 	users = append(users, list...)
 
 	for _, user := range list {
-		friends = append(friends, user.Id)
+		excludes = append(excludes, user.Id)
 	}
 
 	if this.Loc.Lat != 0 && this.Loc.Lng != 0 {
@@ -451,21 +454,25 @@ func (this *Account) Recommend(friends []string) (users []Account, err error) {
 				{"$maxDistance", float64(50000) / float64(111319)},
 			},
 			"_id": bson.M{
-				"$nin": friends,
+				"$nin": excludes,
+			},
+			"birth": bson.M{
+				"$gte": time.Unix(this.Birth, 0).AddDate(-5, 0, 0).Unix(),
+				"$lte": time.Unix(this.Birth, 0).AddDate(5, 0, 0).Unix(),
 			},
 		}
 		list = nil
-		err = search(accountColl, query, nil, 0, 50, nil, nil, &list)
+		err = search(accountColl, query, nil, 0, 20, nil, nil, &list)
 		users = append(users, list...)
 		for _, user := range list {
-			friends = append(friends, user.Id)
+			excludes = append(excludes, user.Id)
 		}
 	}
 
 	if len(users) < 10 {
 		query := bson.M{
 			"_id": bson.M{
-				"$nin": friends,
+				"$nin": excludes,
 			},
 		}
 		list = nil
@@ -922,9 +929,6 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			"time": bson.M{
 				"$gte": record.PubTime,
 			},
-			"_id": bson.M{
-				"$ne": record.Id,
-			},
 		}
 	} else if bson.IsObjectIdHex(last) {
 		if err := c.FindId(bson.ObjectIdHex(last)).One(record); err != nil {
@@ -933,9 +937,6 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 		query = bson.M{
 			"time": bson.M{
 				"$lte": record.PubTime,
-			},
-			"_id": bson.M{
-				"$ne": record.Id,
 			},
 		}
 	}
@@ -947,12 +948,7 @@ func (this *Account) Records(paging *Paging) (int, []Record, error) {
 	var records []Record
 	total := 0
 
-	pageUp := false
-	sortFields := []string{"-time"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"time"}
-	}
+	sortFields := []string{"-time", "-_id"}
 
 	if err := psearch(recordColl, bson.M{"uid": this.Id}, nil,
 		sortFields, nil, &records, recordPagingFunc, paging); err != nil {
@@ -963,17 +959,20 @@ func (this *Account) Records(paging *Paging) (int, []Record, error) {
 		return total, nil, e
 	}
 
+	for i := 0; i < len(records); i++ {
+		if records[i].Id.Hex() == paging.First {
+			records = records[:i]
+			break
+		} else if records[i].Id.Hex() == paging.Last {
+			records = records[i+1:]
+			break
+		}
+	}
+
 	paging.First = ""
 	paging.Last = ""
 	paging.Count = 0
 	if len(records) > 0 {
-		if pageUp {
-			for i := 0; i < len(records)/2; i++ {
-				t := records[i]
-				records[i] = records[len(records)-i-1]
-				records[len(records)-i-1] = t
-			}
-		}
 		paging.First = records[0].Id.Hex()
 		paging.Last = records[len(records)-1].Id.Hex()
 		paging.Count = total
@@ -1019,12 +1018,11 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			return nil, err
 		}
 		query = bson.M{
-			"reg_time": bson.M{
-				"$gte": user.RegTime,
+			"props.score": bson.M{
+				"$gte": user.Props.Score,
 			},
 			"_id": bson.M{
 				"$in": ids,
-				"$ne": user.Id,
 			},
 		}
 	} else if len(last) > 0 {
@@ -1032,16 +1030,15 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 			return nil, err
 		}
 		query = bson.M{
-			"reg_time": bson.M{
-				"$lte": user.RegTime,
+			"props.score": bson.M{
+				"$lte": user.Props.Score,
 			},
 			"_id": bson.M{
 				"$in": ids,
-				"$ne": user.Id,
 			},
 		}
 	}
-	log.Printf("%#v\n", query)
+
 	return
 }
 
@@ -1054,12 +1051,7 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 	var users []Account
 	total := 0
 
-	pageUp := false
-	sortFields := []string{"-reg_time"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"reg_time"}
-	}
+	sortFields := []string{"-props.score", "-_id"}
 
 	if err := psearch(accountColl, nil, nil, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
@@ -1069,17 +1061,20 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 		return nil, e
 	}
 
+	for i := 0; i < len(users); i++ {
+		if users[i].Id == paging.First {
+			users = users[:i]
+			break
+		} else if users[i].Id == paging.Last {
+			users = users[i+1:]
+			break
+		}
+	}
+
 	paging.First = ""
 	paging.Last = ""
 	paging.Count = 0
 	if len(users) > 0 {
-		if pageUp {
-			for i := 0; i < len(users)/2; i++ {
-				t := users[i]
-				users[i] = users[len(users)-i-1]
-				users[len(users)-i-1] = t
-			}
-		}
 		paging.First = users[0].Id
 		paging.Last = users[len(users)-1].Id
 		paging.Count = total
@@ -1118,9 +1113,6 @@ func searchPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			"lastlogin": bson.M{
 				"$gte": user.LastLogin,
 			},
-			"_id": bson.M{
-				"$ne": user.Id,
-			},
 		}
 	} else if len(last) > 0 {
 		if err := c.FindId(last).One(user); err != nil {
@@ -1129,9 +1121,6 @@ func searchPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 		query = bson.M{
 			"lastlogin": bson.M{
 				"$lte": user.LastLogin,
-			},
-			"_id": bson.M{
-				"$ne": user.Id,
 			},
 		}
 	}
@@ -1143,11 +1132,7 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 	var users []Account
 	total := 0
 
-	query := bson.M{
-		"reg_time": bson.M{
-			"$gt": time.Unix(0, 0),
-		},
-	}
+	query := bson.M{}
 
 	if len(nickname) > 0 {
 		query["nickname"] = bson.M{
@@ -1156,12 +1141,7 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 		}
 	}
 
-	pageUp := false
-	sortFields := []string{"-lastlogin"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"lastlogin"}
-	}
+	sortFields := []string{"-lastlogin", "-_id"}
 
 	if err := psearch(accountColl, query, nil, sortFields, nil, &users, searchPagingFunc, paging); err != nil {
 		if err != mgo.ErrNotFound {
@@ -1169,18 +1149,20 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 		}
 	}
 
+	for i := 0; i < len(users); i++ {
+		if users[i].Id == paging.First {
+			users = users[:i]
+			break
+		} else if users[i].Id == paging.Last {
+			users = users[i+1:]
+			break
+		}
+	}
+
 	paging.First = ""
 	paging.Last = ""
 	paging.Count = 0
 	if len(users) > 0 {
-		if pageUp {
-			for i := 0; i < len(users)/2; i++ {
-				t := users[i]
-				users[i] = users[len(users)-i-1]
-				users[len(users)-i-1] = t
-			}
-		}
-
 		paging.First = users[0].Id
 		paging.Last = users[len(users)-1].Id
 		paging.Count = total
@@ -1191,7 +1173,7 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error) {
 	var users []Account
 	total := 0
-	fmt.Println("search nearby:", this.Loc.Lat, this.Loc.Lng, distance)
+	//fmt.Println("search nearby:", this.Loc.Lat, this.Loc.Lng, distance)
 	if this.Loc.Lat == 0 && this.Loc.Lng == 0 {
 		return nil, nil
 	}
@@ -1209,7 +1191,6 @@ func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error)
 		}
 	}
 
-	log.Println(query)
 	if err := psearch(accountColl, query, nil, nil, nil, &users, nil, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
@@ -1366,12 +1347,7 @@ func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error
 		query = bson.M{"author": this.Id}
 	}
 
-	pageUp := false
-	sortFields := []string{"-pub_time"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"pub_time"}
-	}
+	sortFields := []string{"-pub_time", "-_id"}
 
 	if err := psearch(articleColl, query, nil, sortFields, &total, &articles,
 		articlePagingFunc, paging); err != nil {
@@ -1382,17 +1358,20 @@ func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error
 		return total, nil, e
 	}
 
+	for i := 0; i < len(articles); i++ {
+		if articles[i].Id.Hex() == paging.First {
+			articles = articles[:i]
+			break
+		} else if articles[i].Id.Hex() == paging.Last {
+			articles = articles[i+1:]
+			break
+		}
+	}
+
 	paging.First = ""
 	paging.Last = ""
 	paging.Count = 0
 	if len(articles) > 0 {
-		if pageUp {
-			for i := 0; i < len(articles)/2; i++ {
-				t := articles[i]
-				articles[i] = articles[len(articles)-i-1]
-				articles[len(articles)-i-1] = t
-			}
-		}
 		paging.First = articles[0].Id.Hex()
 		paging.Last = articles[len(articles)-1].Id.Hex()
 		paging.Count = total
@@ -1411,12 +1390,7 @@ func (this *Account) Messages(userid string, paging *Paging) (int, []Message, er
 		},
 	}
 
-	pageUp := false
-	sortFields := []string{"-time"}
-	if len(paging.First) > 0 {
-		pageUp = true
-		sortFields = []string{"time"}
-	}
+	sortFields := []string{"-time", "-_id"}
 
 	if err := psearch(msgColl, query, nil, sortFields, &total, &msgs,
 		msgPagingFunc, paging); err != nil {
@@ -1427,17 +1401,20 @@ func (this *Account) Messages(userid string, paging *Paging) (int, []Message, er
 		return total, nil, e
 	}
 
+	for i := 0; i < len(msgs); i++ {
+		if msgs[i].Id.Hex() == paging.First {
+			msgs = msgs[:i]
+			break
+		} else if msgs[i].Id.Hex() == paging.Last {
+			msgs = msgs[i+1:]
+			break
+		}
+	}
+
 	paging.First = ""
 	paging.Last = ""
 	paging.Count = 0
 	if len(msgs) > 0 {
-		if pageUp {
-			for i := 0; i < len(msgs)/2; i++ {
-				t := msgs[i]
-				msgs[i] = msgs[len(msgs)-i-1]
-				msgs[len(msgs)-i-1] = t
-			}
-		}
 		paging.First = msgs[0].Id.Hex()
 		paging.Last = msgs[len(msgs)-1].Id.Hex()
 		paging.Count = total

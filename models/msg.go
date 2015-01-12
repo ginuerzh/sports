@@ -107,9 +107,6 @@ func msgPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (
 			"time": bson.M{
 				"$gte": msg.Time,
 			},
-			"_id": bson.M{
-				"$ne": msg.Id,
-			},
 		}
 	} else if bson.IsObjectIdHex(last) {
 		if err := c.FindId(bson.ObjectIdHex(last)).One(msg); err != nil {
@@ -118,9 +115,6 @@ func msgPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (
 		query = bson.M{
 			"time": bson.M{
 				"$lte": msg.Time,
-			},
-			"_id": bson.M{
-				"$ne": msg.Id,
 			},
 		}
 	}
