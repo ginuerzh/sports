@@ -7,10 +7,11 @@ import (
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
 	//"labix.org/v2/mgo/bson"
-	"github.com/jinzhu/now"
+	//"github.com/jinzhu/now"
 	"net/http"
-	//"time"
+	"time"
 	//"log"
+	"strconv"
 )
 
 func BindTaskApi(m *martini.ClassicMartini) {
@@ -20,7 +21,7 @@ func BindTaskApi(m *martini.ClassicMartini) {
 }
 
 type taskinfo struct {
-	Id     int      `json:"task_id"`
+	Id     int64    `json:"task_id"`
 	Type   string   `json:"type"`
 	Desc   string   `json:"desc"`
 	Images []string `json:"images"`
@@ -28,6 +29,7 @@ type taskinfo struct {
 	Reason string   `json:"reason"`
 }
 
+/*
 func convertTask(task *models.Task, tl *models.TaskList) *taskinfo {
 	t := &taskinfo{
 		Id:     task.Id,
@@ -41,7 +43,7 @@ func convertTask(task *models.Task, tl *models.TaskList) *taskinfo {
 
 	return t
 }
-
+*/
 type tasklistForm struct {
 	AdminPaging
 	Token string `form:"access_token"`
@@ -58,35 +60,76 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
-	total, users, _ := models.UserList("-task", form.PageIndex, form.PageCount)
-	//log.Println(total, len(users))
-	usertasks := make([]*userTask, len(users))
-	for i, user := range users {
-		usertasks[i] = &userTask{}
-		usertasks[i].Id = user.Id
-		usertasks[i].Nickname = user.Nickname
-		usertasks[i].Profile = user.Profile
 
-		tasklist := user.Tasks
-		week := len(tasklist.Completed) / 7
-		if week > 0 && len(tasklist.Completed)%7 == 0 &&
-			tasklist.Last.After(now.BeginningOfWeek()) {
-			week -= 1
+	users := make(map[string]*models.Account)
+	var tasks []*userTask
+	total, records, _ := models.TaskRecords(form.PageIndex, form.PageCount)
+	for _, record := range records {
+
+		info := &taskinfo{
+			Id:     record.Task,
+			Status: record.Status,
+		}
+		if record.Type == "run" {
+			info.Type = models.TaskRunning
+		} else if record.Type == "game" {
+			info.Type = models.TaskGame
+		}
+		if len(info.Status) == 0 {
+			info.Status = models.StatusFinish
+		}
+		if info.Id > 0 && info.Id <= int64(len(models.Tasks)) {
+			info.Desc = models.Tasks[info.Id-1].Desc
+		}
+		if record.Sport != nil {
+			info.Images = record.Sport.Pics
+			info.Reason = record.Sport.Review
 		}
 
-		for _, t := range models.Tasks[week*7 : week*7+7] {
-			if t.Type == models.TaskRunning {
-				usertasks[i].Tasks = append(usertasks[i].Tasks, convertTask(&t, &tasklist))
+		user := users[record.Uid]
+		if user == nil {
+			user = &models.Account{}
+			user.FindByUserid(record.Uid)
+			users[record.Uid] = user
+		}
+		task := &userTask{
+			Id:       record.Uid,
+			Nickname: user.Nickname,
+			Profile:  user.Profile,
+			Tasks:    []*taskinfo{info},
+		}
+		tasks = append(tasks, task)
+	}
+	/*
+		total, users, _ := models.UserList("-task", form.PageIndex, form.PageCount)
+		usertasks := make([]*userTask, len(users))
+		for i, user := range users {
+			usertasks[i] = &userTask{}
+			usertasks[i].Id = user.Id
+			usertasks[i].Nickname = user.Nickname
+			usertasks[i].Profile = user.Profile
+
+			tasklist := user.Tasks
+			week := len(tasklist.Completed) / 7
+			if week > 0 && len(tasklist.Completed)%7 == 0 &&
+				tasklist.Last.After(now.BeginningOfWeek()) {
+				week -= 1
+			}
+
+			for _, t := range models.Tasks[week*7 : week*7+7] {
+				if t.Type == models.TaskRunning {
+					usertasks[i].Tasks = append(usertasks[i].Tasks, convertTask(&t, &tasklist))
+				}
 			}
 		}
-	}
+	*/
 
 	pages := total / form.PageCount
 	if total%form.PageCount > 0 {
 		pages++
 	}
 	resp := map[string]interface{}{
-		"users":        usertasks,
+		"users":        tasks,
 		"page_index":   form.PageIndex,
 		"page_total":   pages,
 		"total_number": total,
@@ -113,33 +156,34 @@ func taskTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form 
 		u := &models.User{Id: form.Userid}
 		tl, err := u.GetTasks()
 	*/
-	u := &models.Account{}
-	u.FindByUserid(form.Userid)
+	/*
+		u := &models.Account{}
+		u.FindByUserid(form.Userid)
 
-	tl := u.Tasks
+		tl := u.Tasks
 
-	var tasks []*taskinfo
-	if form.Week > 0 {
-		week := form.Week - 1
-		if (week*7 + 7) <= len(models.Tasks) {
-			tasks = make([]*taskinfo, 7)
-			for i, t := range models.Tasks[week*7 : week*7+7] {
+		var tasks []*taskinfo
+		if form.Week > 0 {
+			week := form.Week - 1
+			if (week*7 + 7) <= len(models.Tasks) {
+				tasks = make([]*taskinfo, 7)
+				for i, t := range models.Tasks[week*7 : week*7+7] {
+					tasks[i] = convertTask(&t, &tl)
+				}
+			}
+		} else {
+			tasks = make([]*taskinfo, len(models.Tasks))
+			for i, t := range models.Tasks {
 				tasks[i] = convertTask(&t, &tl)
 			}
 		}
-	} else {
-		tasks = make([]*taskinfo, len(models.Tasks))
-		for i, t := range models.Tasks {
-			tasks[i] = convertTask(&t, &tl)
-		}
-	}
-
-	writeResponse(w, map[string]interface{}{"tasks": tasks})
+	*/
+	writeResponse(w, map[string]interface{}{"tasks": nil})
 }
 
 type taskAuthForm struct {
 	Userid string `json:"userid" binding:"required"`
-	Id     int    `json:"task_id" binding:"required"`
+	Id     int64  `json:"task_id" binding:"required"`
 	Pass   bool   `json:"pass"`
 	Reason string `json:"reason"`
 	Token  string `json:"access_token"`
@@ -157,23 +201,47 @@ func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 	//u := &models.User{Id: form.Userid}
 	user := &models.Account{}
 	user.FindByUserid(form.Userid)
-	if err := user.SetTaskComplete(form.Id, form.Pass, form.Reason); err != nil {
-		writeResponse(w, err)
-		return
+	/*
+		if err := user.SetTaskComplete(form.Id, form.Pass, form.Reason); err != nil {
+			writeResponse(w, err)
+			return
+		}
+	*/
+	record := &models.Record{Uid: user.Id, Task: form.Id}
+	if !form.Pass {
+		record.SetStatus(models.StatusUnFinish, form.Reason)
 	}
 
 	if form.Pass {
+		record.SetStatus(models.StatusFinish, form.Reason)
+
+		level := user.Level()
 		awards := controllers.Awards{
-			Physical: 30 + user.Props.Level + 1,
+			Physical: 30 + level,
 			Wealth:   30 * models.Satoshi,
-			Score:    30 + user.Props.Level + 1,
+			Score:    30 + level,
 		}
-		awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
+		awards.Level = models.Score2Level(user.Props.Score+awards.Score) - level
 
 		if err := controllers.GiveAwards(user, awards, redis); err != nil {
 			writeResponse(w, err)
 			return
 		}
+
+		// ws push
+		event := &models.Event{
+			Type: models.EventStatus,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventTask,
+				To:   user.Id,
+				Body: []models.MsgBody{
+					{Type: "physique_value", Content: strconv.FormatInt(awards.Physical, 10)},
+					{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
+				},
+			},
+		}
+		redis.PubMsg(models.EventStatus, user.Id, event.Bytes())
 	}
 
 	writeResponse(w, map[string]bool{"pass": form.Pass})

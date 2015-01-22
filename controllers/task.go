@@ -46,6 +46,8 @@ func BindTaskApi(m *martini.ClassicMartini) {
 		binding.Json(completeTaskForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
 		completeTaskHandler)
 }
 
@@ -55,33 +57,62 @@ type getTasksForm struct {
 
 func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Account) {
 
-	tasklist := user.Tasks
+	/*
+		tasklist := user.Tasks
 
-	week := len(tasklist.Completed) / 7
-	if week > 0 && len(tasklist.Completed)%7 == 0 &&
-		tasklist.Last.After(now.BeginningOfWeek()) {
-		week -= 1
-	}
-	list := make([]models.Task, 7)
-	if week*7+7 <= len(models.Tasks)+1 {
-		copy(list, models.Tasks[week*7:week*7+7])
-	}
-	for i, _ := range list {
-		list[i].Status = tasklist.TaskStatus(list[i].Id)
-		if list[i].Type == models.TaskGame && list[i].Status == "FINISH" {
-			rec := &models.Record{Uid: user.Id}
-			rec.FindByTask(list[i].Id)
-			if rec.Game != nil {
-				list[i].Desc = fmt.Sprintf("你在%s游戏中得了%d分",
-					rec.Game.Name, rec.Game.Score)
+		week := len(tasklist.Completed) / 7
+		if week > 0 && len(tasklist.Completed)%7 == 0 &&
+			tasklist.Last.After(now.BeginningOfWeek()) {
+			week -= 1
+		}
+		list := make([]models.Task, 7)
+		if week*7+7 <= len(models.Tasks)+1 {
+			copy(list, models.Tasks[week*7:week*7+7])
+		}
+		for i, _ := range list {
+			list[i].Status = tasklist.TaskStatus(list[i].Id)
+			if list[i].Type == models.TaskGame && list[i].Status == "FINISH" {
+				rec := &models.Record{Uid: user.Id}
+				rec.FindByTask(list[i].Id)
+				if rec.Game != nil {
+					list[i].Desc = fmt.Sprintf("你在%s游戏中得了%d分",
+						rec.Game.Name, rec.Game.Score)
+				}
 			}
 		}
+	*/
+	count, _ := user.TaskRecordCount(models.StatusFinish)
+	week := count / 7
+
+	last, _ := user.LastTaskRecord()
+	// all weekly tasks are completed
+	if week > 0 && count%7 == 0 && last.Time.After(now.BeginningOfWeek()) {
+		week -= 1
+	}
+	//log.Println("week", week)
+	tasks := make([]models.Task, 7)
+	if week*7+7 <= len(models.Tasks) {
+		copy(tasks, models.Tasks[week*7:week*7+7])
 	}
 
+	for i, task := range tasks {
+		tasks[i].Status = models.StatusNormal
+		record := &models.Record{Uid: user.Id}
+
+		if find, _ := record.FindByTask(task.Id); find {
+			tasks[i].Status = record.Status
+		}
+		if task.Type == models.TaskGame && task.Status == models.StatusFinish &&
+			record.Game != nil {
+			tasks[i].Desc = fmt.Sprintf("你在%s游戏中得了%d分",
+				record.Game.Name, record.Game.Score)
+		}
+	}
+	//log.Println(tasks)
 	random := rand.New(rand.NewSource(time.Now().Unix()))
 	respData := map[string]interface{}{
 		"week_id":   week + 1,
-		"task_list": list,
+		"task_list": tasks,
 		"week_desc": tips[random.Int()%len(tips)],
 	}
 
@@ -97,24 +128,39 @@ func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
 	user *models.Account, p Parameter) {
 
 	form := p.(getTaskInfoForm)
-	tasklist := user.Tasks
+	//tasklist := user.Tasks
 	var task models.Task
 	if form.Tid > 0 && form.Tid <= len(models.Tasks) {
 		task = models.Tasks[form.Tid-1]
 	}
+	task.Status = models.StatusNormal
 
-	task.Status = tasklist.TaskStatus(task.Id)
-	proof := tasklist.GetProof(task.Id)
-	task.Pics = proof.Pics
-	task.Result = proof.Result
-	if task.Type == models.TaskGame && task.Status == "FINISH" {
-		rec := &models.Record{Uid: user.Id}
-		rec.FindByTask(task.Id)
-		if rec.Game != nil {
+	record := &models.Record{Uid: user.Id}
+	if find, _ := record.FindByTask(task.Id); find {
+		task.Status = record.Status
+		if record.Sport != nil {
+			task.Pics = record.Sport.Pics
+			task.Result = record.Sport.Review
+		}
+		if record.Game != nil && task.Status == models.StatusFinish {
 			task.Desc = fmt.Sprintf("你在%s游戏中得了%d分, 得到了%d魔法值和%d贝币",
-				rec.Game.Name, rec.Game.Score, rec.Game.Magic, rec.Game.Coin/models.Satoshi)
+				record.Game.Name, record.Game.Score, record.Game.Magic, record.Game.Coin/models.Satoshi)
 		}
 	}
+	/*
+		task.Status = tasklist.TaskStatus(task.Id)
+		proof := tasklist.GetProof(task.Id)
+		task.Pics = proof.Pics
+		task.Result = proof.Result
+		if task.Type == models.TaskGame && task.Status == "FINISH" {
+			rec := &models.Record{Uid: user.Id}
+			rec.FindByTask(task.Id)
+			if rec.Game != nil {
+				task.Desc = fmt.Sprintf("你在%s游戏中得了%d分, 得到了%d魔法值和%d贝币",
+					rec.Game.Name, rec.Game.Score, rec.Game.Magic, rec.Game.Coin/models.Satoshi)
+			}
+		}
+	*/
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"task_info": task}, nil)
 }
@@ -135,8 +181,30 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	//u := &models.User{Id: user.Id}
-	err := user.AddTask(models.Tasks[form.Tid-1].Type, form.Tid, form.Proofs)
+	record := &models.Record{
+		Uid:  user.Id,
+		Task: int64(form.Tid),
+		Time: time.Now(),
+	}
+	record.PubTime = record.Time
 
+	task := models.Tasks[form.Tid-1]
+	switch task.Type {
+	case models.TaskRunning:
+		record.Delete()
+		record.Type = "run"
+		record.Status = models.StatusAuth
+		record.Sport = &models.SportRecord{Pics: form.Proofs}
+	case models.TaskGame:
+		record.Type = "game"
+		record.Status = models.StatusFinish
+	case models.TaskPost:
+		record.Type = "post"
+		record.Status = models.StatusFinish
+	}
+	//u := &models.User{Id: user.Id}
+	//err := user.AddTask(models.Tasks[form.Tid-1].Type, form.Tid, form.Proofs)
+
+	err := record.Save()
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
-	"labix.org/v2/mgo/bson"
+	//"labix.org/v2/mgo/bson"
 	//"io"
 	"log"
 	"net/http"
@@ -170,15 +170,12 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 		writeResponse(r.RequestURI, w, map[string]string{"txid": ""}, nil)
 		return
 	}
-	if form.Value > redis.GetCoins(user.Id) {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "余额不足"))
-		return
-	}
+
 	receiver := &models.Account{}
 	if find, err := receiver.FindByWalletAddr(form.ToAddr); !find {
-		e := errors.NewError(errors.NotFoundError, "address not found")
+		e := errors.NewError(errors.NotFoundError, "无效的收款地址")
 		if err != nil {
-			e = errors.NewError(errors.DbError)
+			e = errors.NewError(errors.DbError, "无效的钱包地址")
 		}
 		writeResponse(r.RequestURI, w, nil, e)
 		return
@@ -186,20 +183,32 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 
 	wal, err := getWallet(user.Wallet.Id, user.Wallet.Key)
 	if err != nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError, err.Error()))
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError, "获取钱包失败"))
 		return
 	}
 
 	outputs, amount, err := getUnspent(form.FromAddr, wal.Keys, form.Value)
 	if err != nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError, err.Error()))
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError, "获取账户信息失败"))
 		return
 	}
-	//log.Println("amount:", amount, "value:", form.Value)
+	log.Println("amount:", amount, "value:", form.Value)
 
 	if form.Value > amount {
 		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "余额不足"))
 		return
+	}
+
+	article := &models.Article{}
+	if strings.ToLower(form.Type) == "reward" && len(form.Id) > 0 {
+		if b, e := article.FindById(form.Id); !b {
+			err := errors.NewError(errors.NotExistsError, "文章不存在!")
+			if e != nil {
+				err = errors.NewError(errors.DbError)
+			}
+			writeResponse(r.RequestURI, w, nil, err)
+			return
+		}
 	}
 
 	changeAddr := form.FromAddr
@@ -208,13 +217,13 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 	}
 	rawtx, err := CreateRawTx2(outputs, amount, form.Value, form.ToAddr, changeAddr)
 	if err != nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError, err.Error()))
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError))
 		return
 	}
 
 	txid, err := sendRawTx(rawtx)
 	if err != nil {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError, err.Error()))
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError))
 		return
 	}
 
@@ -225,11 +234,11 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 		Time: time.Now().Unix(),
 	}
 
-	log.Println("tx type:", strings.ToLower(form.Type))
+	//log.Println("tx type:", strings.ToLower(form.Type))
 
 	switch strings.ToLower(form.Type) {
 	case "reward":
-		article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
+
 		article.Reward(user.Id, form.Value)
 
 		event.Data = models.EventData{
@@ -239,8 +248,9 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 			To:   receiver.Id,
 			Body: []models.MsgBody{
 				{Type: "nikename", Content: user.Nickname},
-				{Type: "image", Content: user.Profile},
+				{Type: "image", Content: article.Image},
 				{Type: "total_count", Content: strconv.FormatInt(article.TotalReward, 10)},
+				{Type: "new_count", Content: strconv.Itoa(models.EventCount(models.EventReward, article.Id.Hex()) + 1)},
 			},
 		}
 	default:
@@ -256,11 +266,15 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 			},
 		}
 	}
+
 	if user.Id != receiver.Id {
-		redis.PubMsg("wallet", receiver.Id, event.Bytes())
 		if err := event.Save(); err == nil {
 			redis.IncrEventCount(receiver.Id, event.Data.Type, 1)
 		}
+
+		event.Data.Body = append(event.Data.Body,
+			models.MsgBody{Type: "new_count", Content: strconv.Itoa(models.EventCount(models.EventTx, user.Id))})
+		redis.PubMsg("wallet", receiver.Id, event.Bytes())
 	}
 
 	if receiver.Push {
@@ -270,11 +284,7 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 			msg = user.Nickname + "给你的文章打赏了" +
 				strconv.FormatFloat(float64(form.Value)/float64(models.Satoshi), 'f', 8, 64) + "个贝币"
 		}
-		for _, dev := range receiver.Devs {
-			if err := client.Send(dev, msg, 1, ""); err != nil {
-				log.Println(err)
-			}
-		}
+		go sendApn(client, msg, receiver.Devs...)
 	}
 
 	writeResponse(r.RequestURI, w, map[string]string{"txid": txid}, nil)
@@ -362,16 +372,23 @@ type unspent struct {
 
 func getUnspent(addr string, keys []*key, value int64) (outputs []output, amount int64, err error) {
 	var addrs []string
+	var wallet string
 	var keyMap = make(map[string]string)
 	for _, k := range keys {
 		addrs = append(addrs, k.PubKey)
 		keyMap[k.PubKey] = k.PrivKey
 	}
+	/*
+		if len(addrs) > 0 {
+			/wallet = strings.Join(addrs, "|")
+		}
+	*/
 
 	if _, ok := keyMap[addr]; ok {
 		addrs = []string{addr}
 	}
-	resp, err := http.Get(CoinAddr + "/unspent?addr=" + strings.Join(addrs, "|"))
+	resp, err := http.Get(CoinAddr + "/unspent?addr=" + addr + "&keys=" + wallet)
+
 	if err != nil {
 		return
 	}

@@ -40,6 +40,14 @@ type Article struct {
 	Tags        []string `bson:",omitempty"`
 }
 
+func (this *Article) Exists() (bool, error) {
+	b, err := exists(articleColl, bson.M{"_id": this.Id})
+	if err != nil {
+		return false, errors.NewError(errors.DbError)
+	}
+	return b, nil
+}
+
 func FindArticles(ids ...string) (articles []Article, err error) {
 	var oid []interface{}
 	for _, id := range ids {
@@ -214,7 +222,7 @@ func (this *Article) SetThumb(userid string, thumb bool) error {
 	}
 
 	if err := updateId(articleColl, this.Id, m, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 
 	return nil
@@ -375,8 +383,6 @@ func (this *Article) Reward(userid string, amount int64) error {
 		ReturnNew: true,
 	}
 	_, err := apply(articleColl, bson.M{"_id": this.Id}, change, this)
-
-	this.TotalReward += amount
 
 	return err
 }

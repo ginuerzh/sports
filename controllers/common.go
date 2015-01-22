@@ -89,7 +89,7 @@ func (rb *requestBody) Close() error {
 func DumpReqBodyHandler(r *http.Request) {
 	fmt.Println("###", r.URL)
 
-	if r.MultipartForm != nil ||
+	if r.URL.Path == "/1/file/upload" ||
 		(r.URL.Path == "/ueditor/controller" && r.URL.Query().Get("action") == "uploadimage") {
 		return
 	}
@@ -133,6 +133,7 @@ func checkTokenHandler(c martini.Context, p Parameter, redis *models.RedisLogger
 	if len(uid) == 0 {
 		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
 	}
+	fmt.Println("===", p.TokenId(), uid)
 	c.Map(&models.Account{Id: uid})
 }
 
@@ -225,6 +226,9 @@ type Awards struct {
 }
 
 func GiveAwards(user *models.Account, awards Awards, redis *models.RedisLogger) error {
+	if awards.Level < 0 || awards.Score < 0 {
+		panic("invalid level or score")
+	}
 	if _, err := sendCoin(user.Wallet.Addr, awards.Wealth); err != nil {
 		return err
 	}
@@ -236,7 +240,7 @@ func GiveAwards(user *models.Account, awards Awards, redis *models.RedisLogger) 
 		Mental:   awards.Mental,
 		//Wealth:   awards.Wealth,
 		Score: awards.Score,
-		Level: awards.Level,
+		//Level: awards.Level,
 	})
 }
 

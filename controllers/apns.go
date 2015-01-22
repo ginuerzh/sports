@@ -32,3 +32,13 @@ func (c *ApnClient) Send(token, alert string, badge int, sound string) error {
 	}
 	return resp.Error
 }
+
+func sendApn(client *ApnClient, msg string, devs ...string) error {
+	for _, dev := range devs {
+		if err := client.Send(dev, msg, 1, ""); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

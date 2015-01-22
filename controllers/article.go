@@ -29,6 +29,8 @@ func BindArticleApi(m *martini.ClassicMartini) {
 		binding.Json(deleteArticleForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
 		deleteArticleHandler)
 	m.Post("/1/article/thumb",
 		binding.Json(articleThumbForm{}, (*Parameter)(nil)),
@@ -137,7 +139,12 @@ func content2Html(contents []models.Segment) string {
 	for _, content := range contents {
 		switch strings.ToUpper(content.ContentType) {
 		case "TEXT":
-			buf.WriteString("<p>" + content.ContentText + "</p>")
+			s := strings.Split(content.ContentText, "\n")
+			for _, a := range s {
+				if a = strings.Trim(a, "\n"); len(a) > 0 {
+					buf.WriteString("<p>" + a + "</p>")
+				}
+			}
 		case "IMAGE":
 			buf.WriteString("<div class=\"divimg\"><img src=\"" + content.ContentText + "\" /></div>")
 		}
@@ -184,6 +191,18 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		article.Tags = []string{"SPORT_LOG"}
 	}
 
+	parent := &models.Article{}
+	if len(form.Parent) > 0 {
+		if find, err := parent.FindById(form.Parent); !find {
+			e := errors.NewError(errors.NotExistsError, "文章不存在!")
+			if err != nil {
+				e = errors.NewError(errors.DbError)
+			}
+			writeResponse(request.RequestURI, resp, nil, e)
+			return
+		}
+	}
+
 	if err := article.Save(); err != nil {
 		log.Println(err)
 		writeResponse(request.RequestURI, resp, nil, err)
@@ -193,26 +212,16 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	awards := Awards{}
 	// only new article
 	if len(form.Parent) == 0 {
-		awards = Awards{Literal: 10 + user.Props.Level, Wealth: 10 * models.Satoshi, Score: 10 + user.Props.Level}
+		awards = Awards{Literal: 10 + user.Level(), Wealth: 10 * models.Satoshi, Score: 10 + user.Level()}
 		if err := GiveAwards(user, awards, redis); err != nil {
 			log.Println(err)
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError))
 			return
 		}
 	}
 
 	// comment
 	if len(form.Parent) > 0 {
-		parent := &models.Article{}
-		if find, err := parent.FindById(form.Parent); !find {
-			e := errors.NewError(errors.NotExistsError)
-			if err != nil {
-				e = errors.NewError(errors.DbError, err.Error())
-			}
-			writeResponse(request.RequestURI, resp, nil, e)
-			return
-		}
-
 		//u := &models.User{Id: parent.Author}
 		author := &models.Account{}
 		author.FindByUserid(parent.Author)
@@ -236,19 +245,16 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		if err := event.Save(); err == nil {
 			redis.IncrEventCount(parent.Author, event.Data.Type, 1)
 		}
+
 		// apple push
 		if author.Push {
-			for _, dev := range author.Devs {
-				if err := client.Send(dev, user.Nickname+"评论了你的主题!", 1, ""); err != nil {
-					log.Println(err)
-				}
-			}
+			go sendApn(client, user.Nickname+"评论了你的主题!", author.Devs...)
 		}
 	}
 
 	respData := map[string]interface{}{
-		"articles_without_content": convertArticle(article),
-		"ExpEffect":                awards,
+		//"articles_without_content": convertArticle(article),
+		"ExpEffect": awards,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
@@ -283,9 +289,9 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 	form := p.(articleThumbForm)
 	article := &models.Article{}
 	if find, err := article.FindById(form.Id); !find {
-		e := errors.NewError(errors.NotExistsError)
+		e := errors.NewError(errors.NotExistsError, "文章不存在!")
 		if err != nil {
-			e = errors.NewError(errors.DbError, err.Error())
+			e = errors.NewError(errors.DbError)
 		}
 		writeResponse(request.RequestURI, resp, nil, e)
 		return
@@ -307,8 +313,8 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 
+	author := &models.Account{Id: article.Author}
 	if form.Status {
-		author := &models.Account{}
 		author.FindByUserid(article.Author)
 
 		// ws push
@@ -319,27 +325,28 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 				Type: models.EventThumb,
 				Id:   article.Id.Hex(),
 				From: user.Id,
-				To:   article.Author,
+				To:   author.Id,
 				Body: []models.MsgBody{
 					{Type: "total_count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
 					{Type: "image", Content: article.Image},
 				},
 			},
 		}
-
-		redis.PubMsg(models.EventArticle, article.Author, event.Bytes())
 		if err := event.Save(); err == nil {
 			redis.IncrEventCount(article.Author, event.Data.Type, 1)
 		}
 
+		event.Data.Body = append(event.Data.Body,
+			models.MsgBody{Type: "new_count", Content: strconv.Itoa(models.EventCount(models.EventThumb, article.Id.Hex()))})
+		redis.PubMsg(models.EventArticle, article.Author, event.Bytes())
+
 		// apple push
 		if author.Push {
-			for _, dev := range author.Devs {
-				if err := client.Send(dev, user.Nickname+"赞了你的主题!", 1, ""); err != nil {
-					log.Println(err)
-				}
-			}
+			go sendApn(client, user.Nickname+"赞了你的主题!", author.Devs...)
 		}
+	} else {
+		count := author.DelEvent(models.EventThumb, article.Id.Hex(), user.Id, author.Id)
+		redis.IncrEventCount(author.Id, models.EventThumb, -count)
 	}
 	//user.UpdateAction(ActThumb, nowDate())
 }

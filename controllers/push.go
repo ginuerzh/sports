@@ -36,6 +36,24 @@ func BindWSPushApi(m *martini.ClassicMartini) {
 	m.Get("/1/ws", wsPushHandler)
 }
 
+func checkTokenValid(token string) bool {
+	if len(token) == 0 {
+		return false
+	}
+
+	a := strings.Split(token, "-")
+	if len(a) != 6 {
+		return false
+	}
+
+	secs, err := strconv.ParseInt(a[5], 10, 64)
+	if err != nil {
+		return false
+	}
+
+	return time.Unix(secs, 0).After(time.Now())
+}
+
 func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger *models.RedisLogger) {
 	conn, err := upgrader.Upgrade(resp, request, nil)
 	if err != nil {
@@ -46,16 +64,18 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 
 	r := wsAuthResp{}
 	var auth wsAuth
-	if err := conn.ReadJSON(&auth); err != nil {
+	conn.ReadJSON(&auth)
+
+	if !checkTokenValid(auth.Token) {
+		redisLogger.DelOnlineUser(auth.Token)
 		conn.WriteJSON(r)
-		log.Println("check token failed:", auth.Token)
 		return
 	}
 	//log.Println("check token:", auth.Token)
 	uid := redisLogger.OnlineUser(auth.Token)
 
 	user := &models.Account{}
-	if find, _ := user.FindByUserid(uid); !find {
+	if find, _ := user.FindByUserid(uid); !find || user.TimeLimit < 0 {
 		conn.WriteJSON(r)
 		return
 	}
@@ -72,6 +92,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		}
 		loginCount = 1
 	}
+	fmt.Println(uid, "loginCount", loginCount)
 	user.SetLastLogin(days, loginCount, time.Now())
 
 	r.Userid = uid
@@ -89,7 +110,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	redisLogger.SetOnline(user.Id)
 	redisLogger.LogVisitor(user.Id)
 
-	psc := redisLogger.PubSub(user.Id, redisLogger.Groups(user.Id)...)
+	psc := redisLogger.PubSub(user.Id)
 
 	go func(conn *websocket.Conn) {
 		//wg.Add(1)

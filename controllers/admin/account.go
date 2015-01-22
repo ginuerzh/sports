@@ -37,7 +37,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/admin/user/search", binding.Form(getSearchListForm{}), adminErrorHandler, getSearchListHandler)
 	m.Get("/admin/user/friendship", binding.Form(getUserFriendsForm{}), adminErrorHandler, getUserFriendsHandler)
 	m.Post("/admin/user/ban", binding.Json(banUserForm{}), adminErrorHandler, banUserHandler)
-	m.Post("/admin/user/update", updateUserInfoHandler)
+	//m.Post("/admin/user/update", updateUserInfoHandler)
 	m.Get("/admin/user/balance", binding.Form(userBalanceForm{}), userBalanceHandler)
 	//m.Post("/admin/user/update", binding.Json(userInfoForm{}), adminErrorHandler, updateUserInfoHandler)
 }
@@ -193,7 +193,7 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		Mental:   user.Props.Mental,
 		Wealth:   redis.GetCoins(user.Id),
 		Score:    user.Props.Score,
-		Level:    user.Props.Level + 1,
+		Level:    user.Level(),
 
 		Gender: user.Gender,
 		Posts:  user.ArticleCount(),
@@ -274,7 +274,7 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		Mental:   user.Props.Mental,
 		Wealth:   redis.GetCoins(user.Id),
 		Score:    user.Props.Score,
-		Level:    user.Props.Level + 1,
+		Level:    user.Level(),
 
 		Gender: user.Gender,
 		Posts:  user.ArticleCount(),
@@ -399,7 +399,7 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 		list[i].Mental = user.Props.Mental
 		list[i].Wealth = redis.GetCoins(user.Id)
 		list[i].Score = user.Props.Score
-		list[i].Level = user.Props.Level + 1
+		list[i].Level = user.Level()
 
 		if len(user.Gender) == 0 {
 			list[i].Gender = "male"
@@ -570,7 +570,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		list[i].Mental = user.Props.Mental
 		list[i].Wealth = redis.GetCoins(user.Id)
 		list[i].Score = user.Props.Score
-		list[i].Level = user.Props.Level + 1
+		list[i].Level = user.Level()
 
 		if len(user.Gender) == 0 {
 			list[i].Gender = "male"
@@ -763,7 +763,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		list[i].Mental = user.Props.Mental
 		list[i].Wealth = redis.GetCoins(user.Id)
 		list[i].Score = user.Props.Score
-		list[i].Level = user.Props.Level + 1
+		list[i].Level = user.Level()
 
 		if len(user.Gender) == 0 {
 			list[i].Gender = "male"
@@ -878,15 +878,23 @@ func banUserHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		return
 	}
 
+	// ws push
+	event := &models.Event{
+		Type: models.EventStatus,
+		Data: models.EventData{
+			Type: models.EventBan,
+		},
+	}
+
 	if form.Duration == 0 {
 		user.TimeLimit = 0
-	} else if form.Duration == -1 {
+		event.Data.Type = models.EventUnban
+	} else if form.Duration < 0 {
 		user.TimeLimit = -1
-	} else if form.Duration > 0 {
-		user.TimeLimit = time.Now().Unix() + form.Duration
+		event.Data.Type = models.EventLock
 	} else {
-		writeResponse(resp, errors.NewError(errors.NotFoundError))
-		return
+		user.TimeLimit = time.Now().Unix() + form.Duration
+		event.Data.Type = models.EventBan
 	}
 
 	err := user.UpdateBanTime(user.TimeLimit)
@@ -894,6 +902,9 @@ func banUserHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		writeResponse(resp, err)
 		return
 	}
+
+	redis.PubMsg(event.Type, user.Id, event.Bytes())
+
 	respData := map[string]interface{}{
 		"ban": form.Duration,
 	}

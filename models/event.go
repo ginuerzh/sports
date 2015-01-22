@@ -14,6 +14,7 @@ const (
 	EventMsg     = "message"
 	EventArticle = "article"
 	EventWallet  = "wallet"
+	EventStatus  = "status"
 
 	EventChat    = "chat"
 	EventGChat   = "groupchat"
@@ -23,6 +24,10 @@ const (
 	EventComment = "comment"
 	EventTx      = "tx"
 	EventReward  = "reward"
+	EventBan     = "ban"
+	EventUnban   = "unban"
+	EventLock    = "lock"
+	EventTask    = "task"
 )
 
 func init() {
@@ -59,7 +64,22 @@ func (e *Event) Save() error {
 	return nil
 }
 
+func (this *Event) Upsert() error {
+	query := bson.M{
+		"data.type": this.Data.Type,
+		"data.id":   this.Data.Id,
+		"data.from": this.Data.From,
+		"data.to":   this.Data.To,
+	}
+	return upsert(eventColl, query, Struct2Map(this), true)
+}
+
 func Events(userid string) (events []Event, err error) {
 	err = search(eventColl, bson.M{"data.to": userid}, nil, 0, 0, []string{"-time"}, nil, &events)
+	return
+}
+
+func EventCount(typ string, id string) (count int) {
+	search(eventColl, bson.M{"data.type": typ, "data.id": id}, nil, 0, 0, nil, &count, nil)
 	return
 }

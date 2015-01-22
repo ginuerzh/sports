@@ -39,6 +39,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Post("/1/user/logout",
 		binding.Json(logoutForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
 		logoutHandler)
 	m.Get("/1/user/recommend",
 		binding.Form(recommendForm{}, (*Parameter)(nil)),
@@ -112,6 +113,14 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		ErrorHandler,
 		checkTokenHandler,
 		importContactsHandler)
+	m.Post("/1/user/resetPassword",
+		binding.Json(resetPasswdForm{}),
+		resetPasswdHandler)
+	m.Post("/1/user/shareToFriends",
+		binding.Json(pkShareForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		pkShareHandler)
 }
 
 // user register parameter
@@ -246,10 +255,6 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 		if err := user.Save(); err != nil {
 			return true, nil, err
 		}
-	} else {
-		if err := user.Update(); err != nil {
-			return true, nil, err
-		}
 	}
 	redis.LogRegister(user.Id)
 
@@ -350,7 +355,7 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 		lb := &leaderboardResp{
 			Userid:   users[i].Id,
 			Score:    users[i].Props.Score,
-			Level:    users[i].Props.Level + 1,
+			Level:    users[i].Level(),
 			Profile:  users[i].Profile,
 			Nickname: users[i].Nickname,
 			Gender:   users[i].Gender,
@@ -358,6 +363,7 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 			Birth:    users[i].Birth,
 			Location: users[i].Loc,
 			Addr:     users[i].LocAddr,
+			Phone:    users[i].Phone,
 		}
 		lb.Distance, _ = redis.RecStats(users[i].Id)
 		lb.Status = users[i].LatestArticle().Title
@@ -407,6 +413,8 @@ type userJsonStruct struct {
 	Wallet   string `json:"wallet"`
 	Relation string `json:"relation"`
 	LastLog  int64  `json:"last_login_time"`
+	Setinfo  bool   `json:"setinfo"`
+	Ban      int64  `json:"ban_time"`
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruct {
@@ -438,16 +446,25 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 			Physical: user.Props.Physical,
 			Literal:  user.Props.Literal,
 			Mental:   user.Props.Mental,
-			Wealth:   redis.GetCoins(user.Id),
-			Score:    user.Props.Score,
-			Level:    int64(models.Score2Level(user.Props.Score)),
+			//Wealth:   redis.GetCoins(user.Id),
+			Score: user.Props.Score,
+			Level: user.Level(),
 		},
 
 		Photos: user.Photos,
 
 		Wallet:  user.Wallet.Addr,
 		LastLog: user.LastLogin.Unix(),
+		Setinfo: user.Setinfo,
+		Ban:     user.TimeLimit,
 	}
+
+	balance, _ := getBalance(user.Wallet.Addrs)
+	var wealth int64
+	for _, b := range balance.Addrs {
+		wealth += (b.Confirmed + b.Unconfirmed)
+	}
+	info.Props.Wealth = wealth
 
 	info.Follows, info.Followers, _, _ = redis.FriendCount(user.Id)
 
@@ -479,54 +496,7 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	info := &userJsonStruct{
-		Userid:   user.Id,
-		Nickname: user.Nickname,
-		Email:    user.Email,
-		Phone:    user.Phone,
-		Type:     user.Role,
-		About:    user.About,
-		Profile:  user.Profile,
-		RegTime:  user.RegTime.Unix(),
-		Hobby:    user.Hobby,
-		Height:   user.Height,
-		Weight:   user.Weight,
-		Birth:    user.Birth,
-		Actor:    userActor(user.Actor),
-		Location: user.Loc,
-
-		//Rank:   userRank(user.Level),
-		Online: redis.IsOnline(user.Id),
-		Gender: user.Gender,
-		//Follows:   len(redis.Follows(user.Id)),
-		//Followers: len(redis.Followers(user.Id)),
-		Posts: user.ArticleCount(),
-
-		//Props: redis.UserProps(user.Id),
-		Props: models.Props{
-			Physical: user.Props.Physical,
-			Literal:  user.Props.Literal,
-			Mental:   user.Props.Mental,
-			Wealth:   redis.GetCoins(user.Id),
-			Score:    user.Props.Score,
-			Level:    int64(models.Score2Level(user.Props.Score)),
-		},
-
-		Photos: user.Photos,
-
-		Wallet:  user.Wallet.Addr,
-		LastLog: user.LastLogin.Unix(),
-	}
-
-	info.Follows, info.Followers, _, _ = redis.FriendCount(user.Id)
-
-	if user.Addr != nil {
-		info.Addr = user.Addr.String()
-	}
-
-	if user.Equips != nil {
-		info.Equips = *user.Equips
-	}
+	info := convertUser(user, redis)
 
 	if uid := redis.OnlineUser(p.TokenId()); len(uid) > 0 {
 		relation := redis.Relationship(uid, user.Id)
@@ -570,15 +540,15 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 	user *models.Account, p Parameter) {
 
 	form := p.(setInfoForm)
-	user.Nickname = form.UserInfo.Nickname
-	user.Hobby = form.UserInfo.Hobby
-	user.Height = form.UserInfo.Height
-	user.Weight = form.UserInfo.Weight
-	user.Birth = form.UserInfo.Birth
-	user.Actor = form.UserInfo.Actor
-	user.Gender = form.UserInfo.Gender
-	user.Phone = form.UserInfo.Phone
-	user.About = form.UserInfo.About
+	setinfo := &models.SetInfo{
+		Phone:    form.UserInfo.Phone,
+		Nickname: form.UserInfo.Nickname,
+		Height:   form.UserInfo.Height,
+		Weight:   form.UserInfo.Weight,
+		Birth:    form.UserInfo.Birth,
+		Gender:   form.UserInfo.Gender,
+		Setinfo:  true,
+	}
 
 	addr := &models.Address{
 		Country:  form.UserInfo.Country,
@@ -588,11 +558,19 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 		Desc:     form.UserInfo.LocDesc,
 	}
 	if addr.String() != "" {
-		user.Addr = addr
+		setinfo.Address = addr
 	}
-	//setinfo := user.Setinfo
-	user.Setinfo = true
-	err := user.Update()
+	if len(setinfo.Phone) > 0 {
+		user.Phone = setinfo.Phone
+		setinfo.Setinfo = false
+		if b, _ := user.Exists("phone"); b {
+			writeResponse(request.RequestURI, resp, nil,
+				errors.NewError(errors.UserExistError, "绑定失败，当前手机号已绑定"))
+			return
+		}
+	}
+
+	err := user.SetInfo(setinfo)
 
 	score := 0
 	/*
@@ -676,67 +654,40 @@ func loginAwards(days, level int) Awards {
 
 func loginAwardsHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account) {
-	level := user.Props.Level + 1
-	awards := loginAwards(user.LoginDays, int(level))
-	awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (level + 1)
+
+	a := user.LoginAwards
+	if (user.LoginDays-1)%7 == 0 || len(a) == 0 {
+		a = []int64{}
+		startDay := ((user.LoginDays - 1) / 7) * 7
+		level := user.Level()
+		score := user.Props.Score
+
+		for i := 0; i < 7; i++ {
+			awards := loginAwards(startDay+i+1, int(level))
+			a = append(a, awards.Wealth, awards.Score)
+			score = score + awards.Score
+			level = models.Score2Level(score)
+		}
+
+		user.SetLoginAwards(a)
+	}
+
+	index := (user.LoginDays - 1) % 7
+	awards := Awards{Wealth: a[index*2], Score: a[index*2+1]}
+	awards.Level = models.Score2Level(user.Props.Score+awards.Score) - user.Level()
 	GiveAwards(user, awards, redis)
 
-	startDay := ((user.LoginDays - 1) / 7) * 7
+	loginAwards := []int64{}
+	for i := 0; i < 7; i++ {
+		loginAwards = append(loginAwards, a[i*2])
+	}
 	respData := map[string]interface{}{
 		"continuous_logined_days": user.LoginDays,
-		"login_reward_list": []int64{
-			loginAwards(startDay+1, int(level)).Wealth,
-			loginAwards(startDay+2, int(level)).Wealth,
-			loginAwards(startDay+3, int(level)).Wealth,
-			loginAwards(startDay+4, int(level)).Wealth,
-			loginAwards(startDay+5, int(level)).Wealth,
-			loginAwards(startDay+6, int(level)).Wealth,
-			loginAwards(startDay+7, int(level)).Wealth,
-		},
+		"login_reward_list":       loginAwards,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
 
-/*
-type userListForm struct {
-	PageNumber int `form:"page_number" json:"page_number"`
-	//AccessToken string `form:"access_token" json:"access_token"`
-}
-
-func userListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form userListForm) {
-	pageSize := models.DefaultPageSize + 2
-	total, users, err := models.UserList(pageSize*form.PageNumber, pageSize)
-	if err != nil {
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
-	}
-
-	jsonStructs := make([]userJsonStruct, len(users))
-	for i, _ := range users {
-		//view, thumb, review, _ := users[i].ArticleCount()
-
-		jsonStructs[i].Userid = users[i].Id
-		jsonStructs[i].Nickname = users[i].Nickname
-		jsonStructs[i].Type = users[i].Role
-		jsonStructs[i].Profile = users[i].Profile
-		jsonStructs[i].Phone = users[i].Phone
-		//jsonStructs[i].Location = users[i].Location
-		jsonStructs[i].About = users[i].About
-		jsonStructs[i].RegTime = users[i].RegTime.Unix()
-		//jsonStructs[i].Views = view
-		//jsonStructs[i].Thumbs = thumb
-		//jsonStructs[i].Reviews = review
-		//jsonStructs[i].Online = redis.IsOnline(users[i].Id)
-	}
-
-	respData := make(map[string]interface{})
-	respData["page_number"] = form.PageNumber
-	respData["page_more"] = pageSize*(form.PageNumber+1) < total
-	//respData["total"] = total
-	respData["users"] = jsonStructs
-	writeResponse(request.RequestURI, resp, respData, nil)
-}
-*/
 type scoreDiffForm struct {
 	Uid string `form:"userid" binding:"required"`
 	parameter
@@ -760,9 +711,19 @@ type getPropsForm struct {
 	Uid string `form:"userid" binding:"required"`
 }
 
-func getPropsHandler(r *http.Request, w http.ResponseWriter, form getPropsForm) {
+func getPropsHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, form getPropsForm) {
 	user := &models.Account{}
 	user.FindByUserid(form.Uid)
+	//user.Props.Wealth = redis.GetCoins(form.Uid)
+	balance, _ := getBalance(user.Wallet.Addrs)
+	var wealth int64
+	for _, b := range balance.Addrs {
+		wealth += (b.Confirmed + b.Unconfirmed)
+	}
+	user.Props.Wealth = wealth
+	user.Props.Level = user.Level()
+
 	writeResponse(r.RequestURI, w, user.Props, nil)
 }
 
@@ -806,13 +767,14 @@ func searchHandler(r *http.Request, w http.ResponseWriter,
 		lb := &leaderboardResp{
 			Userid:   users[i].Id,
 			Score:    users[i].Props.Score,
-			Level:    users[i].Props.Level + 1,
+			Level:    users[i].Level(),
 			Profile:  users[i].Profile,
 			Nickname: users[i].Nickname,
 			Gender:   users[i].Gender,
 			LastLog:  users[i].LastLogin.Unix(),
 			Birth:    users[i].Birth,
 			Location: users[i].Loc,
+			Phone:    users[i].Phone,
 		}
 		list = append(list, lb)
 	}
@@ -930,4 +892,45 @@ func importContactsHandler(r *http.Request, w http.ResponseWriter,
 	}
 
 	writeResponse(r.RequestURI, w, map[string]interface{}{"users": result}, nil)
+}
+
+type resetPasswdForm struct {
+	Phone    string `json:"phone_number"`
+	Password string `json:"password"`
+	parameter
+}
+
+func resetPasswdHandler(r *http.Request, w http.ResponseWriter,
+	form resetPasswdForm) {
+	user := &models.Account{Phone: form.Phone}
+	if b, err := user.Exists("phone"); !b {
+		e := errors.NewError(errors.NotExistsError, "未绑定手机,无法重置密码")
+		if err != nil {
+			e = errors.NewError(errors.DbError)
+		}
+		writeResponse(r.RequestURI, w, nil, e)
+		return
+	}
+
+	err := user.SetPassword(Md5(form.Password))
+	writeResponse(r.RequestURI, w, nil, err)
+}
+
+type pkShareForm struct {
+	parameter
+}
+
+func pkShareHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
+	awards := Awards{
+		Wealth: 30 * models.Satoshi,
+		Score:  30,
+	}
+	if err := GiveAwards(user, awards, redis); err != nil {
+		log.Println(err)
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError))
+		return
+	}
+	writeResponse(r.RequestURI, w,
+		map[string]interface{}{"ExpEffect": awards}, nil)
 }

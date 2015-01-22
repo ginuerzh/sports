@@ -116,7 +116,8 @@ func (logger *RedisLogger) PubMsg(typ string, to string, msg []byte) {
 	case "groupchat":
 		conn.Do("PUBLISH", redisPubSubGroup+to, msg)
 	default:
-		conn.Do("PUBLISH", redisPubSubUser+to, msg)
+		reply, err := conn.Do("PUBLISH", redisPubSubUser+to, msg)
+		log.Println("publish to", to, string(msg), reply, err)
 	}
 }
 
@@ -199,47 +200,6 @@ func (logger *RedisLogger) OnlineUser(token string) (id string) {
 
 	id, _ = redis.String(conn.Do("HGET", redisUserTokens, token))
 	return
-	/*
-		if strings.HasPrefix(accessToken, GuestUserPrefix) {
-			//user.Userid, _ = redis.String(conn.Do("HGET", redisUserGuest, accessToken))
-		} else {
-			v, err := redis.Values(conn.Do("HGETALL", redisUserOnlineUserPrefix+accessToken))
-			if err != nil {
-				log.Println(err)
-				return nil
-			}
-			if err := redis.ScanStruct(v, user); err != nil {
-				log.Println(err)
-				return nil
-			}
-		}
-
-		if len(user.Userid) == 0 {
-			return nil
-		}
-
-		addrs := strings.Split(user.Addrs, ",")
-
-		return &Account{
-			Id:       user.Userid,
-			Nickname: user.Nickname,
-			Profile:  user.Profile,
-			RegTime:  time.Unix(user.RegTime, 0),
-			Role:     user.Role,
-			Loc:      &Location{Lng: user.Lng, Lat: user.Lat},
-			Setinfo:  user.SetInfo,
-			Wallet:   DbWallet{Id: user.WalletId, Addrs: addrs, Addr: addrs[0], Key: user.Sharedkey},
-			Props: Props{
-				Physical: user.Physical,
-				Literal:  user.Literal,
-				Mental:   user.Mental,
-				Wealth:   user.Wealth,
-				Score:    user.Score,
-				Level:    user.Level,
-			},
-			TimeLimit: user.TimeLimit,
-		}
-	*/
 }
 
 func (logger *RedisLogger) SetOnlineUser(token string, userid string) {

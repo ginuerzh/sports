@@ -108,6 +108,8 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		log.Println(err)
 	}
 
+	writeResponse(request.RequestURI, resp, map[string]string{"message_id": msg.Id.Hex()}, nil)
+
 	// ws push
 	event := &models.Event{
 		Type: models.EventMsg,
@@ -121,6 +123,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 				{Type: "msg_type", Content: form.Type},
 				{Type: "msg_content", Content: form.Content},
 				{Type: "nikename", Content: user.Nickname},
+				{Type: "image", Content: user.Profile},
 			},
 		},
 	}
@@ -131,14 +134,8 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	if touser.Push {
-		for _, dev := range touser.Devs {
-			if err := client.Send(dev, user.Nickname+": "+msg.Body[0].Content, 1, ""); err != nil {
-				log.Println(err)
-			}
-		}
+		go sendApn(client, user.Nickname+": "+msg.Body[0].Content, touser.Devs...)
 	}
-
-	writeResponse(request.RequestURI, resp, map[string]string{"message_id": msg.Id.Hex()}, nil)
 }
 
 type msgJsonStruct struct {

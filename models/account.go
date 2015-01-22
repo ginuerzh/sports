@@ -46,9 +46,6 @@ type UserInfo struct {
 	City     string `json:"city"`
 	Area     string `json:"area"`
 	LocDesc  string `json:"location_desc"`
-
-	Lng float64
-	Lat float64
 }
 
 type DbWallet struct {
@@ -81,45 +78,59 @@ type Contact struct {
 	Last     *Message `bson:",omitempty"`
 }
 
+type SetInfo struct {
+	Phone    string   `json:"phone,omitempty"`
+	Nickname string   `json:"nickname,omitempty"`
+	Height   int      `json:"height,omitempty"`
+	Weight   int      `json:"weight,omitempty"`
+	Birth    int64    `json:"birth,omitempty"`
+	Gender   string   `json:"gender,omitempty"`
+	Address  *Address `json:"addr,omitempty"`
+	Setinfo  bool     `json:"setinfo,omitempty"`
+}
+
 type Account struct {
-	Id         string    `bson:"_id,omitempty" json:"-"`
-	Email      string    `json:"-"`
-	Phone      string    `bson:",omitempty" json:"-"`
-	Weibo      string    `json:"-"`
-	Nickname   string    `bson:",omitempty" json:"nickname,omitempty"`
-	Password   string    `bson:",omitempty" json:"password,omitempty"`
-	Profile    string    `bson:",omitempty" json:"profile,omitempty"`
-	RegTime    time.Time `bson:"reg_time,omitempty" json:"-"`
-	Role       string    `bson:",omitempty" json:"-"`
-	Hobby      string    `bson:",omitempty" json:"hobby,omitempty"`
-	Height     int       `bson:",omitempty" json:"height,omitempty"`
-	Weight     int       `bson:",omitempty" json:"weight,omitempty"`
-	Birth      int64     `bson:",omitempty" json:"birth,omitempty"`
-	Actor      string    `bson:",omitempty" json:"actor,omitempty"`
-	Gender     string    `bson:",omitempty" json:"gender,omitempty"`
-	Url        string    `bson:",omitempty" json:"url,omitempty"`
-	About      string    `bson:",omitempty" json:"about,omitempty"`
-	Addr       *Address  `bson:",omitempty" json:"addr,omitempty"`
-	Loc        Location  `bson:",omitempty" json:"-"`
-	LocAddr    string    `bson:"locaddr" json:"-"`
-	Photos     []string  `json:"-"`
-	Setinfo    bool      `json:"setinfo,omitempty"`
-	Wallet     DbWallet  `json:"-"`
-	LastLogin  time.Time `bson:"lastlogin" json:"-"`
-	LoginCount int       `bson:"login_count" json:"-"`
-	LoginDays  int       `bson:"login_days" json:"-"`
-	//LoginAwards []int     `bson:"login_awards" json:"-"`
+	Id          string `bson:"_id,omitempty"`
+	Email       string
+	Phone       string `bson:",omitempty"`
+	Weibo       string
+	Nickname    string    `bson:",omitempty"`
+	Password    string    `bson:",omitempty"`
+	Profile     string    `bson:",omitempty"`
+	RegTime     time.Time `bson:"reg_time,omitempty"`
+	Role        string    `bson:",omitempty"`
+	Hobby       string    `bson:",omitempty"`
+	Height      int       `bson:",omitempty"`
+	Weight      int       `bson:",omitempty"`
+	Birth       int64     `bson:",omitempty"`
+	Actor       string    `bson:",omitempty"`
+	Gender      string    `bson:",omitempty"`
+	Url         string    `bson:",omitempty"`
+	About       string    `bson:",omitempty"`
+	Addr        *Address  `bson:",omitempty"`
+	Loc         Location  `bson:",omitempty"`
+	LocAddr     string    `bson:"locaddr"`
+	Photos      []string
+	Setinfo     bool
+	Wallet      DbWallet
+	LastLogin   time.Time `bson:"lastlogin"`
+	LoginCount  int       `bson:"login_count"`
+	LoginDays   int       `bson:"login_days"`
+	LoginAwards []int64   `bson:"login_awards"`
 
-	Props  Props    `json:"-"`
-	Equips *Equip   `bson:",omitempty" json:"-"`
-	Tasks  TaskList `json:"-"`
+	Props  Props
+	Equips *Equip `bson:",omitempty"`
 
-	Contacts []Contact `bson:",omitempty" json:"-"`
-	Devs     []string  `bson:",omitempty" json:"-"`
-	Push     bool      `json:"-"`
+	Contacts []Contact `bson:",omitempty"`
+	Devs     []string  `bson:",omitempty"`
+	Push     bool
 
-	TimeLimit int64 `bson:"timelimit" json:"timelimit"`
-	Privilege int   `json:"-"`
+	TimeLimit int64 `bson:"timelimit"`
+	Privilege int
+}
+
+func (this *Account) Level() int64 {
+	return Score2Level(this.Props.Score)
 }
 
 func (this *Account) Exists(t string) (bool, error) {
@@ -138,7 +149,7 @@ func (this *Account) Exists(t string) (bool, error) {
 func FindUsersByIds(ids []string) ([]Account, error) {
 	var users []Account
 	if err := search(accountColl, bson.M{"_id": bson.M{"$in": ids}}, nil, 0, 0, nil, nil, &users); err != nil {
-		return nil, errors.NewError(errors.DbError, err.Error())
+		return nil, errors.NewError(errors.DbError)
 	}
 
 	return users, nil
@@ -148,7 +159,7 @@ func FindUsersByPhones(phones []string) ([]Account, error) {
 	var users []Account
 
 	if err := search(accountColl, bson.M{"phone": bson.M{"$in": phones}}, nil, 0, 0, nil, nil, &users); err != nil {
-		return nil, errors.NewError(errors.DbError, err.Error())
+		return nil, errors.NewError(errors.DbError)
 	}
 
 	return users, nil
@@ -159,7 +170,7 @@ func (this *Account) findOne(query interface{}) (bool, error) {
 
 	err := search(accountColl, query, nil, 0, 1, nil, nil, &users)
 	if err != nil {
-		return false, errors.NewError(errors.DbError, err.Error())
+		return false, errors.NewError(errors.DbError)
 	}
 	if len(users) > 0 {
 		*this = users[0]
@@ -220,51 +231,30 @@ func (this *Account) Save() error {
 		this.Gender = "male"
 	}
 	return save(accountColl, this, true)
-	/*
-			f := func(c *mgo.Collection) error {
-				runner := txn.NewRunner(c)
-				ops := []txn.Op{
-					{
-						C:      accountColl,
-						Id:     this.Id,
-						Assert: txn.DocMissing,
-						Insert: this,
-					},
-					{
-						C:      userColl,
-						Id:     this.Id,
-						Assert: txn.DocMissing,
-						Insert: &User{Id: this.Id, Push: true},
-					},
-				}
-
-				return runner.Run(ops, bson.NewObjectId(), nil)
-			}
-
-			if err := withCollection("reg_tx", &mgo.Safe{}, f); err != nil {
-				log.Println(err)
-				e := errors.NewError(errors.DbError, err.Error())
-				if err == txn.ErrAborted {
-					e = errors.NewError(errors.UserExistError)
-				}
-				return e
-			}
-
-		return nil
-	*/
 }
 
+func (this *Account) SetInfo(setinfo *SetInfo) error {
+	change := bson.M{
+		"$set": Struct2Map(setinfo),
+	}
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+	return nil
+}
+
+/*
 func (this *Account) Update() error {
 	change := bson.M{
 		"$set": Struct2Map(this),
 	}
 
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
-
+*/
 func (this *Account) UpdateBanTime(banTime int64) error {
 	change := bson.M{
 		"$set": bson.M{
@@ -273,7 +263,7 @@ func (this *Account) UpdateBanTime(banTime int64) error {
 	}
 
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -300,7 +290,20 @@ func (this *Account) UpdateLocation(loc Location, locaddr string) error {
 		},
 	}
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
+	}
+	return nil
+}
+
+func (this *Account) SetLoginAwards(awards []int64) error {
+	change := bson.M{
+		"$set": bson.M{
+			"login_wards": awards,
+		},
+	}
+	this.LoginAwards = awards
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -340,7 +343,7 @@ func (this *Account) SetLastLogin(days int, loginCount int, lastlog time.Time) e
 	}
 
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 
 	return nil
@@ -359,7 +362,7 @@ func (this *Account) UpdateProps(awards Props) error {
 	}
 
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 
 	return nil
@@ -372,7 +375,7 @@ func (this *Account) SetWallet(wallet DbWallet) error {
 		},
 	}
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -385,7 +388,20 @@ func (this *Account) ChangePassword(newPass string) error {
 	}
 
 	if err := update(accountColl, bson.M{"_id": this.Id}, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
+	}
+	return nil
+}
+
+func (this *Account) SetPassword(newPass string) error {
+	change := bson.M{
+		"$set": bson.M{
+			"password": newPass,
+		},
+	}
+
+	if err := update(accountColl, bson.M{"phone": this.Phone}, change, true); err != nil {
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -400,7 +416,7 @@ func (this *Account) ChangeProfile(profile string) error {
 	}
 
 	if err := update(accountColl, bson.M{"_id": this.Id}, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -414,7 +430,7 @@ func (this *Account) AddPhotos(photos []string) error {
 		},
 	}
 	if err := update(accountColl, bson.M{"_id": this.Id}, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -426,7 +442,7 @@ func (this *Account) DelPhoto(id string) error {
 		},
 	}
 	if err := update(accountColl, bson.M{"_id": this.Id}, change, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -453,30 +469,48 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 				{"$near", []float64{this.Loc.Lat, this.Loc.Lng}},
 				{"$maxDistance", float64(50000) / float64(111319)},
 			},
-			"_id": bson.M{
-				"$nin": excludes,
-			},
+			"_id":       bson.M{"$nin": excludes},
+			"timelimit": 0,
+			"nickname":  bson.M{"$ne": nil},
 			"birth": bson.M{
 				"$gte": time.Unix(this.Birth, 0).AddDate(-5, 0, 0).Unix(),
 				"$lte": time.Unix(this.Birth, 0).AddDate(5, 0, 0).Unix(),
 			},
 		}
 		list = nil
-		err = search(accountColl, query, nil, 0, 20, nil, nil, &list)
+		err = search(accountColl, query, nil, 0, 20, []string{"-phone"}, nil, &list)
 		users = append(users, list...)
 		for _, user := range list {
 			excludes = append(excludes, user.Id)
 		}
 	}
 
-	if len(users) < 10 {
+	if len(users) < 12 {
 		query := bson.M{
-			"_id": bson.M{
-				"$nin": excludes,
+			"_id": bson.M{"$nin": excludes},
+			"birth": bson.M{
+				"$gte": time.Unix(this.Birth, 0).AddDate(-5, 0, 0).Unix(),
+				"$lte": time.Unix(this.Birth, 0).AddDate(5, 0, 0).Unix(),
 			},
+			"nickname":  bson.M{"$ne": nil},
+			"timelimit": 0,
 		}
 		list = nil
-		err = search(accountColl, query, nil, 0, 50, []string{"-score"}, nil, &list)
+		err = search(accountColl, query, nil, 0, 50, []string{"-phone", "-score"}, nil, &list)
+		users = append(users, list...)
+		for _, user := range list {
+			excludes = append(excludes, user.Id)
+		}
+	}
+
+	if len(users) < 12 {
+		query := bson.M{
+			"_id":       bson.M{"$nin": excludes},
+			"nickname":  bson.M{"$ne": nil},
+			"timelimit": 0,
+		}
+		list = nil
+		err = search(accountColl, query, nil, 0, 50, []string{"-phone", "-score"}, nil, &list)
 		users = append(users, list...)
 	}
 
@@ -565,7 +599,7 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
 
 	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
+		return 0, nil, errors.NewError(errors.DbError)
 	}
 
 	return
@@ -692,7 +726,7 @@ func GetSearchListBySort(id, nickname, keywords string,
 	b, _ := json.Marshal(query)
 	log.Println("query:", string(b))
 	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
+		return 0, nil, errors.NewError(errors.DbError)
 	}
 
 	return
@@ -950,13 +984,10 @@ func (this *Account) Records(paging *Paging) (int, []Record, error) {
 
 	sortFields := []string{"-time", "-_id"}
 
-	if err := psearch(recordColl, bson.M{"uid": this.Id}, nil,
-		sortFields, nil, &records, recordPagingFunc, paging); err != nil {
-		e := errors.NewError(errors.DbError, err.Error())
-		if err == mgo.ErrNotFound {
-			e = errors.NewError(errors.NotFoundError, err.Error())
-		}
-		return total, nil, e
+	if err := psearch(recordColl, bson.M{"uid": this.Id, "type": bson.M{"$ne": "post"}}, nil,
+		sortFields, nil, &records, recordPagingFunc, paging); err != nil && err != mgo.ErrNotFound {
+
+		return total, nil, errors.NewError(errors.DbError)
 	}
 
 	for i := 0; i < len(records); i++ {
@@ -979,6 +1010,34 @@ func (this *Account) Records(paging *Paging) (int, []Record, error) {
 	}
 
 	return total, records, nil
+}
+
+func (this *Account) TaskRecordCount(status string) (int, error) {
+	total := 0
+	query := bson.M{
+		"uid": this.Id,
+		"task": bson.M{
+			"$lte": 1000,
+		},
+		"status": status,
+	}
+	err := search(recordColl, query, nil, 0, 0, nil, &total, nil)
+
+	return total, err
+}
+
+func (this *Account) LastTaskRecord() (*Record, error) {
+	query := bson.M{
+		"uid": this.Id,
+		"task": bson.M{
+			"$gt": 0,
+			"$lt": 1000,
+		},
+	}
+	record := &Record{}
+	err := findOne(recordColl, query, []string{"-time"}, record)
+
+	return record, err
 }
 
 func (this *Account) UpdateAction(action string, date time.Time) (bool, error) {
@@ -1181,6 +1240,7 @@ func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error)
 		"loc": bson.M{
 			"$near": []float64{this.Loc.Lat, this.Loc.Lng},
 		},
+		"nickname": bson.M{"$ne": nil},
 	}
 	if distance > 0 {
 		query = bson.M{
@@ -1188,6 +1248,7 @@ func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error)
 				{"$near", []float64{this.Loc.Lat, this.Loc.Lng}},
 				{"$maxDistance", float64(distance) / float64(111319)},
 			},
+			"nickname": bson.M{"$ne": nil},
 		}
 	}
 
@@ -1221,7 +1282,30 @@ func (this *Account) AddWalletAddr(addr string) error {
 }
 
 func (this *Account) ClearEvent(eventType string, eventId string) int {
-	info, err := removeAll(eventColl, bson.M{"data.to": this.Id, "data.type": eventType, "data.id": eventId}, true)
+	info, err := removeAll(eventColl,
+		bson.M{
+			"data.id":   eventId,
+			"data.type": eventType,
+			"data.to":   this.Id,
+		},
+		true)
+
+	if err != nil {
+		return 0
+	}
+	return info.Removed
+}
+
+func (this *Account) DelEvent(eventType string, eventId string, from, to string) int {
+	info, err := removeAll(eventColl,
+		bson.M{
+			"data.id":   eventId,
+			"data.type": eventType,
+			"data.from": from,
+			"data.to":   to,
+		},
+		true)
+
 	if err != nil {
 		return 0
 	}
@@ -1246,7 +1330,7 @@ func (this *Account) GetTasks() (TaskList, error) {
 	_, err := this.FindByUserid(this.Id)
 	return this.Tasks, err
 }
-*/
+
 func (this *Account) AddTask(typ string, tid int, proofs []string) error {
 	selector := bson.M{
 		"_id": this.Id,
@@ -1333,7 +1417,7 @@ func (this *Account) SetTaskComplete(tid int, completed bool, reason string) err
 	}
 	return nil
 }
-
+*/
 func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error) {
 	var articles []Article
 	total := 0

@@ -8,7 +8,7 @@ import (
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
 	//"io/ioutil"
-	"log"
+	//"log"
 	//"math/rand"
 	"net/http"
 	//"net/url"
@@ -38,11 +38,14 @@ func BindUserApi(m *martini.ClassicMartini) {
 		ErrorHandler,
 		checkTokenHandler,
 		loadUserHandler,
+		checkLimitHandler,
 		followHandler)
 	m.Post("/1/user/enableDefriend",
 		binding.Json(relationshipForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
 		blacklistHandler)
 	m.Get("/1/user/getAttentionFriendsList",
 		binding.Form(getFollowsForm{}, (*Parameter)(nil)),
@@ -122,6 +125,7 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 		u.FindByUserid(userid)
 
 		if form.Follow {
+
 			event := &models.Event{
 				Type: models.EventMsg,
 				Time: time.Now().Unix(),
@@ -136,22 +140,20 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 					},
 				},
 			}
-			redis.PubMsg(models.EventMsg, u.Id, event.Bytes())
 			if err := event.Save(); err == nil {
 				redis.IncrEventCount(u.Id, event.Data.Type, 1)
 			}
 
+			event.Data.Body = append(event.Data.Body,
+				models.MsgBody{Type: "new_count", Content: "1"})
+			redis.PubMsg(models.EventMsg, u.Id, event.Bytes())
+
 			// apple push
 			if u.Push {
-				for _, dev := range u.Devs {
-					if err := client.Send(dev, user.Nickname+"关注了你!", 1, ""); err != nil {
-						log.Println(err)
-					}
-				}
+				go sendApn(client, user.Nickname+"关注了你!", u.Devs...)
 			}
-
 		} else {
-			count := u.ClearEvent(models.EventSub, u.Id)
+			count := u.DelEvent(models.EventSub, user.Id, user.Id, u.Id)
 			redis.IncrEventCount(u.Id, models.EventSub, -count)
 		}
 	}
@@ -223,13 +225,14 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter,
 	for i, _ := range users {
 		lb[i].Userid = users[i].Id
 		lb[i].Score = users[i].Props.Score
-		lb[i].Level = users[i].Props.Level + 1
+		lb[i].Level = users[i].Level()
 		lb[i].Profile = users[i].Profile
 		lb[i].Nickname = users[i].Nickname
 		lb[i].Gender = users[i].Gender
 		lb[i].LastLog = users[i].LastLogin.Unix()
 		lb[i].Birth = users[i].Birth
 		lb[i].Location = users[i].Loc
+		lb[i].Phone = users[i].Phone
 	}
 
 	respData := map[string]interface{}{

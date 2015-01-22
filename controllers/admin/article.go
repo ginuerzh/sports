@@ -220,13 +220,13 @@ func articleCommentsHandler(w http.ResponseWriter, redis *models.RedisLogger, fo
 }
 
 type postForm struct {
-	Id       string   `json:"article_id"`
-	Author   string   `json:"author"`
-	Contents string   `json:"contents"`
-	Title    string   `json:"title"`
-	Image    []string `json:"image"`
-	Tags     string   `json:"tags"`
-	Token    string   `json:"access_token" binding:"required"`
+	Id       string      `json:"article_id"`
+	Author   string      `json:"author"`
+	Contents string      `json:"contents"`
+	Title    string      `json:"title"`
+	Image    []string    `json:"image"`
+	Tags     interface{} `json:"tags"`
+	Token    string      `json:"access_token" binding:"required"`
 }
 
 func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form postForm) {
@@ -241,9 +241,17 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 		Parent:  form.Id,
 		Author:  form.Author,
 		PubTime: time.Now(),
-		Tags:    []string{form.Tags},
+		//Tags:    []string{form.Tags},
 	}
-	if len(form.Tags) == 0 {
+
+	switch v := form.Tags.(type) {
+	case string:
+		article.Tags = []string{v}
+	case []string:
+		article.Tags = v
+	}
+
+	if len(article.Tags) == 0 {
 		article.Tags = []string{"SPORT_LOG"}
 	}
 

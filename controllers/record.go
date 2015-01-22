@@ -6,6 +6,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -44,11 +45,12 @@ type record struct {
 	GameScore int      `json:"game_score"`
 	GameName  string   `json:"game_name"`
 	Magic     int      `json:"magic"`
+	Status    string   `json:"status"`
 }
 
 type newRecordForm struct {
 	Record *record `json:"record_item" binding:"required"`
-	Task   int     `json:"task_id"`
+	Task   int64   `json:"task_id"`
 	parameter
 }
 
@@ -90,13 +92,15 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 
 	switch form.Record.Type {
 	case "game":
+		level := user.Level()
 		if form.Task > 0 {
-			awards = gameAwards(user.Props.Level, form.Record.GameScore, true)
-			user.AddTask(models.Tasks[form.Task-1].Type, form.Task, nil)
+			awards = gameAwards(level, form.Record.GameScore, true)
+			//user.AddTask(models.Tasks[form.Task-1].Type, form.Task, nil)
+			rec.Status = models.StatusFinish
 		} else {
-			awards = gameAwards(user.Props.Level, form.Record.GameScore, false)
+			awards = gameAwards(level, form.Record.GameScore, false)
 		}
-		awards.Level = int64(models.Score2Level(user.Props.Score+awards.Score)) - (user.Props.Level + 1)
+		awards.Level = models.Score2Level(user.Props.Score+awards.Score) - level
 		GiveAwards(user, awards, redis)
 
 		rec.Game = &models.GameRecord{
@@ -106,7 +110,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			Coin:  awards.Wealth,
 		}
 
-	default:
+	case "run":
 		rec.Sport = &models.SportRecord{
 			Duration: form.Record.Duration,
 			Distance: form.Record.Distance,
@@ -115,6 +119,12 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		if form.Record.Duration > 0 {
 			rec.Sport.Speed = float64(form.Record.Distance) / float64(form.Record.Duration)
 		}
+		rec.Status = models.StatusAuth
+	default:
+		log.Println("Unknown record type:", form.Record.Type)
+	}
+	if rec.Task == 0 {
+		rec.Task = rec.PubTime.Unix()
 	}
 	if err := rec.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
@@ -156,6 +166,7 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter, redis *
 	for i, _ := range records {
 		recs[i].Type = records[i].Type
 		recs[i].Time = records[i].Time.Unix()
+		recs[i].Status = records[i].Status
 		if records[i].Sport != nil {
 			recs[i].Duration = records[i].Sport.Duration
 			recs[i].Distance = records[i].Sport.Distance
@@ -189,6 +200,7 @@ type leaderboardResp struct {
 	Addr     string `json:"locaddr"`
 	Distance int    `json:"total_distance"`
 	Status   string `json:"status"`
+	Phone    string `json:"phone_number"`
 }
 
 type leaderboardForm struct {
@@ -245,14 +257,14 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter,
 		for i, _ := range friends {
 			lb[i].Userid = friends[i].Id
 			lb[i].Score = friends[i].Props.Score
-			lb[i].Level = friends[i].Props.Level + 1
+			lb[i].Level = friends[i].Level()
 			lb[i].Profile = friends[i].Profile
 			lb[i].Nickname = friends[i].Nickname
 			lb[i].Gender = friends[i].Gender
 			lb[i].LastLog = friends[i].LastLogin.Unix()
 			lb[i].Birth = friends[i].Birth
 			lb[i].Location = friends[i].Loc
-
+			lb[i].Phone = friends[i].Phone
 		}
 
 		respData := map[string]interface{}{
@@ -381,7 +393,7 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 	stats.Score = user.Props.Score
 	stats.Actor = userActor(user.Actor)
-	stats.Level = user.Props.Level + 1
+	stats.Level = user.Level()
 	//stats.Rank = userRank(stats.Level)
 
 	stats.Index = redis.LBDisRank(form.Userid) + 1

@@ -15,11 +15,19 @@ func init() {
 	ensureIndex(recordColl, "-pub_time")
 }
 
+const (
+	StatusNormal   = "NORMAL"
+	StatusFinish   = "FINISH"
+	StatusUnFinish = "UNFINISH"
+	StatusAuth     = "AUTHENTICATION"
+)
+
 type SportRecord struct {
 	Duration int64
 	Distance int
 	Speed    float64
 	Pics     []string
+	Review   string
 }
 
 type GameRecord struct {
@@ -32,7 +40,8 @@ type GameRecord struct {
 type Record struct {
 	Id      bson.ObjectId `bson:"_id,omitempty"`
 	Uid     string
-	Task    int
+	Task    int64
+	Status  string
 	Type    string
 	Sport   *SportRecord `bson:",omitempty"`
 	Game    *GameRecord  `bson:",omitempty"`
@@ -45,7 +54,7 @@ func (this *Record) findOne(query interface{}) (bool, error) {
 
 	err := search(recordColl, query, nil, 0, 1, nil, nil, &records)
 	if err != nil {
-		return false, errors.NewError(errors.DbError, err.Error())
+		return false, errors.NewError(errors.DbError)
 	}
 	if len(records) > 0 {
 		*this = records[0]
@@ -57,10 +66,36 @@ func (this *Record) FindByTask(tid int) (bool, error) {
 	return this.findOne(bson.M{"uid": this.Uid, "task": tid})
 }
 
+func (this *Record) SetStatus(status string, review string) error {
+	query := bson.M{"uid": this.Uid, "task": this.Task}
+	change := bson.M{
+		"$set": bson.M{
+			"status":       status,
+			"sport.review": review,
+		},
+	}
+	if err := update(recordColl, query, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+	return nil
+}
+
 func TotalRecords(userid string) (int, error) {
 	total := 0
 	err := search(recordColl, bson.M{"uid": userid}, nil, 0, 0, nil, &total, nil)
 	return total, err
+}
+
+func TaskRecords(pageIndex, pageCount int) (int, []Record, error) {
+	var records []Record
+	total := 0
+
+	if err := search(recordColl, bson.M{"type": "run"}, nil,
+		pageIndex*pageCount, pageCount, []string{"-time"}, &total, &records); err != nil && err != mgo.ErrNotFound {
+		return total, nil, errors.NewError(errors.DbError)
+	}
+
+	return total, records, nil
 }
 
 func MaxDistanceRecord(userid string) (*Record, error) {
@@ -80,7 +115,14 @@ func MaxSpeedRecord(userid string) (*Record, error) {
 func (this *Record) Save() error {
 	this.Id = bson.NewObjectId()
 	if err := save(recordColl, this, true); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
+	}
+	return nil
+}
+
+func (this *Record) Delete() error {
+	if err := remove(recordColl, bson.M{"uid": this.Uid, "task": this.Task}, true); err != nil {
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -207,11 +249,11 @@ func GetRecords(id, recType string, nextCursor, preCursor string, count int, fro
 	}
 
 	if err = withCollection(recordColl, nil, q); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
+		return 0, nil, errors.NewError(errors.DbError)
 	}
 
 	if err = search(recordColl, query, nil, skip, limit, []string{sortby}, nil, &records); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
+		return 0, nil, errors.NewError(errors.DbError)
 	}
 
 	if pcValid {

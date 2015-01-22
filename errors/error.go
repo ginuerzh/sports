@@ -35,7 +35,7 @@ var errMap map[int]string = map[int]string{
 	AuthError:           "用户名或密码错误",
 	UserExistError:      "用户已注册",
 	AccessError:         "无效的访问请求",
-	DbError:             "database error",
+	DbError:             "服务器出错啦！",
 	JsonError:           "json data error",
 	NotFoundError:       "not found",
 	PasswordError:       "password invalid",

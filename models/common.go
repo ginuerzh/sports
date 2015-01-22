@@ -3,6 +3,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/nf/geocode"
 	"labix.org/v2/mgo"
@@ -105,44 +106,20 @@ func initLevelScores() {
 	for i := 1; i < len(levelScores); i++ {
 		total += scoreOfUpgrade(i)
 		levelScores[i] = total
+		fmt.Println(i, total)
 	}
 }
 
-func Score2Level(score int64) int {
+func Score2Level(score int64) int64 {
 	for i := 1; i < len(levelScores); i++ {
 		if score < levelScores[i] {
-			return i
+			return int64(i)
 		}
 	}
 
-	return MaxLevel
+	return int64(MaxLevel)
 }
 
-/*
-func UserScore(props *Props) int {
-	return int(props.Physical*4 + props.Literal*3 + props.Mental*2 + props.Wealth/Satoshi*1)
-}
-
-var levelScores = []int{
-	0, 20, 30, 45, 67, 101, 151, 227, 341, 512,
-	768, 1153, 1729, 2594, 3892, 5838, 8757, 13136, 19705, 29557,
-	44336, 66505, 99757, 149636, 224454, 336682, 505023, 757535, 1136302, 1704453,
-	2556680, 3835021, 5752531, 8628797, 12943196,
-	19414794, 29122192, 43683288, 65524932, 98287398,
-}
-
-func UserLevel(score int) int {
-	for i, s := range levelScores {
-		if s > score {
-			return i
-		}
-		if s == score {
-			return i + 1
-		}
-	}
-	return len(levelScores)
-}
-*/
 type Paging struct {
 	First string `form:"page_frist_id" json:"page_frist_id"`
 	Last  string `form:"page_last_id" json:"page_last_id"`
@@ -303,7 +280,7 @@ func search(collection string, query interface{}, selector interface{},
 	}
 
 	if err := withCollection(collection, nil, q); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -465,6 +442,7 @@ func Struct2Map(i interface{}) bson.M {
 	if err != nil {
 		return nil
 	}
+	fmt.Println("(struct2map):", string(v))
 	var m bson.M
 	json.Unmarshal(v, &m)
 

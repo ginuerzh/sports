@@ -2,7 +2,7 @@
 package models
 
 import (
-	"time"
+//"time"
 )
 
 const (
@@ -11,6 +11,7 @@ const (
 	TaskGame    = "MAGIC"
 )
 
+/*
 const (
 	TaskCompleted = iota
 	TaskUncompleted
@@ -58,7 +59,7 @@ func (tl *TaskList) GetProof(tid int) Proof {
 	}
 	return Proof{}
 }
-
+*/
 type Task struct {
 	Id     int      `json:"task_id"`
 	Type   string   `json:"task_type"`
