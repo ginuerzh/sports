@@ -16,7 +16,7 @@ func BindChatApi(m *martini.ClassicMartini) {
 		binding.Form(contactsForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
-		loadUserHandler,
+		//loadUserHandler,
 		contactsHandler)
 	m.Post("/1/chat/send_message",
 		binding.Json(sendMsgForm{}, (*Parameter)(nil)),
@@ -32,6 +32,24 @@ func BindChatApi(m *martini.ClassicMartini) {
 		msgListHandler)
 }
 
+type contactStruct struct {
+	Id       string         `json:"userid"`
+	Profile  string         `json:"user_profile_image"`
+	Nickname string         `json:"nikename"`
+	Count    int            `json:"new_message_count"`
+	Last     *msgJsonStruct `json:"last_message"`
+}
+
+func convertContact(contact *models.Contact) *contactStruct {
+	return &contactStruct{
+		Id:       contact.Id,
+		Profile:  contact.Profile,
+		Nickname: contact.Nickname,
+		//Count:    contact.Count,
+		Last: convertMsg(contact.Last),
+	}
+}
+
 type contactsForm struct {
 	parameter
 }
@@ -39,9 +57,11 @@ type contactsForm struct {
 func contactsHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
+	user.ContactList()
 	contacts := make([]*contactStruct, len(user.Contacts))
 	for i, _ := range user.Contacts {
 		contacts[i] = convertContact(&user.Contacts[i])
+		contacts[i].Count = models.EventCount(models.EventChat, contacts[i].Id, user.Id)
 	}
 
 	respData := map[string]interface{}{
@@ -63,7 +83,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	form := p.(sendMsgForm)
 	if redis.Relationship(user.Id, form.To) == models.RelBlacklist ||
 		redis.Relationship(form.To, user.Id) == models.RelBlacklist {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError))
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError, "对方已屏蔽了你的消息!"))
 		return
 	}
 
@@ -110,6 +130,10 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 
 	writeResponse(request.RequestURI, resp, map[string]string{"message_id": msg.Id.Hex()}, nil)
 
+	content := form.Content
+	if r := []rune(content); len(r) > 10 {
+		content = string(r[:10]) + "..."
+	}
 	// ws push
 	event := &models.Event{
 		Type: models.EventMsg,
@@ -121,7 +145,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 			To:   form.To,
 			Body: []models.MsgBody{
 				{Type: "msg_type", Content: form.Type},
-				{Type: "msg_content", Content: form.Content},
+				{Type: "msg_content", Content: content},
 				{Type: "nikename", Content: user.Nickname},
 				{Type: "image", Content: user.Profile},
 			},
@@ -129,12 +153,15 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	redis.PubMsg(models.EventMsg, form.To, event.Bytes())
-	if err := event.Save(); err == nil {
-		redis.IncrEventCount(form.To, event.Data.Type, 1)
-	}
+	/*
+		if err := event.Save(); err == nil {
+			redis.IncrEventCount(form.To, event.Data.Type, 1)
+		}
+	*/
+	event.Save()
 
 	if touser.Push {
-		go sendApn(client, user.Nickname+": "+msg.Body[0].Content, touser.Devs...)
+		go sendApn(client, user.Nickname+": "+content, touser.Devs...)
 	}
 }
 

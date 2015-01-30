@@ -9,6 +9,7 @@ import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -106,7 +107,7 @@ func initLevelScores() {
 	for i := 1; i < len(levelScores); i++ {
 		total += scoreOfUpgrade(i)
 		levelScores[i] = total
-		fmt.Println(i, total)
+		//fmt.Println(i, total)
 	}
 }
 
@@ -292,7 +293,7 @@ func count(collection string, query interface{}) (count int, err error) {
 	}
 
 	if e := withCollection(collection, nil, q); e != nil {
-		err = errors.NewError(errors.DbError, e.Error())
+		err = errors.NewError(errors.DbError)
 	}
 	return
 }
@@ -314,7 +315,7 @@ func findOne(collection string, query interface{}, sortFields []string, result i
 	}
 
 	if err := withCollection(collection, nil, q); err != nil {
-		return errors.NewError(errors.DbError, err.Error())
+		return errors.NewError(errors.DbError)
 	}
 	return nil
 }
@@ -400,7 +401,7 @@ func removeAll(collection string, selector interface{}, safe bool) (info *mgo.Ch
 		withCollection(collection, nil, r)
 	}
 	if err != nil {
-		return info, errors.NewError(errors.DbError, err.Error())
+		return info, errors.NewError(errors.DbError)
 	}
 
 	return
@@ -455,4 +456,18 @@ func AgeToTimeRange(age int) (start time.Time, end time.Time) {
 	end = time.Date(now.Year()-age, time.December, 31, 23, 59, 59, 999999, now.Location())
 
 	return
+}
+
+func charFilter(s string) string {
+	chars := ".*$^?"
+	if !strings.ContainsAny(s, chars) {
+		return s
+	}
+
+	r := strings.NewReplacer(".", "\\.",
+		"*", "\\*",
+		"$", "\\$",
+		"^", "\\^")
+
+	return r.Replace(s)
 }

@@ -92,6 +92,7 @@ var (
 				text-align:left;
 				padding-left: 5px;
 				padding-right: 5px;
+				word-wrap:break-word;
 			}
 			img{
 				max-width:97%;
@@ -191,6 +192,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		article.Tags = []string{"SPORT_LOG"}
 	}
 
+	awards := Awards{}
 	parent := &models.Article{}
 	if len(form.Parent) > 0 {
 		if find, err := parent.FindById(form.Parent); !find {
@@ -201,6 +203,16 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			writeResponse(request.RequestURI, resp, nil, e)
 			return
 		}
+
+		if redis.Relationship(parent.Author, user.Id) == models.RelBlacklist {
+			writeResponse(request.RequestURI, resp, nil,
+				errors.NewError(errors.AccessError, "对方屏蔽了你!"))
+			return
+		}
+
+		awards = Awards{Literal: 2 + user.Level(), Score: 2 + user.Level()}
+	} else {
+		awards = Awards{Literal: 10 + user.Level(), Wealth: 10 * models.Satoshi, Score: 10 + user.Level()}
 	}
 
 	if err := article.Save(); err != nil {
@@ -209,15 +221,10 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	awards := Awards{}
-	// only new article
-	if len(form.Parent) == 0 {
-		awards = Awards{Literal: 10 + user.Level(), Wealth: 10 * models.Satoshi, Score: 10 + user.Level()}
-		if err := GiveAwards(user, awards, redis); err != nil {
-			log.Println(err)
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError))
-			return
-		}
+	if err := GiveAwards(user, awards, redis); err != nil {
+		log.Println(err)
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError))
+		return
 	}
 
 	// comment
@@ -241,11 +248,17 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 				},
 			},
 		}
-		redis.PubMsg(models.EventArticle, parent.Author, event.Bytes())
-		if err := event.Save(); err == nil {
-			redis.IncrEventCount(parent.Author, event.Data.Type, 1)
-		}
+		/*
+			if err := event.Save(); err == nil {
+				redis.IncrEventCount(parent.Author, event.Data.Type, 1)
+			}
+		*/
+		event.Save()
 
+		event.Data.Body = append(event.Data.Body,
+			models.MsgBody{Type: "new_count",
+				Content: strconv.Itoa(models.EventCount(event.Data.Type, event.Data.Id, event.Data.To))})
+		redis.PubMsg(models.EventArticle, parent.Author, event.Bytes())
 		// apple push
 		if author.Push {
 			go sendApn(client, user.Nickname+"评论了你的主题!", author.Devs...)
@@ -297,6 +310,12 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
+	if redis.Relationship(article.Author, user.Id) == models.RelBlacklist {
+		writeResponse(request.RequestURI, resp, nil,
+			errors.NewError(errors.AccessError, "对方屏蔽了你!"))
+		return
+	}
+
 	if err := article.SetThumb(user.Id, form.Status); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
@@ -314,30 +333,35 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 
 	author := &models.Account{Id: article.Author}
+
+	// ws push
+	event := &models.Event{
+		Type: models.EventArticle,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventThumb,
+			Id:   article.Id.Hex(),
+			From: user.Id,
+			To:   author.Id,
+			Body: []models.MsgBody{
+				{Type: "total_count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
+				{Type: "image", Content: article.Image},
+			},
+		},
+	}
+
 	if form.Status {
 		author.FindByUserid(article.Author)
-
-		// ws push
-		event := &models.Event{
-			Type: models.EventArticle,
-			Time: time.Now().Unix(),
-			Data: models.EventData{
-				Type: models.EventThumb,
-				Id:   article.Id.Hex(),
-				From: user.Id,
-				To:   author.Id,
-				Body: []models.MsgBody{
-					{Type: "total_count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
-					{Type: "image", Content: article.Image},
-				},
-			},
-		}
-		if err := event.Save(); err == nil {
-			redis.IncrEventCount(article.Author, event.Data.Type, 1)
-		}
+		/*
+			if err := event.Save(); err == nil {
+				redis.IncrEventCount(article.Author, event.Data.Type, 1)
+			}
+		*/
+		event.Upsert()
 
 		event.Data.Body = append(event.Data.Body,
-			models.MsgBody{Type: "new_count", Content: strconv.Itoa(models.EventCount(models.EventThumb, article.Id.Hex()))})
+			models.MsgBody{Type: "new_count",
+				Content: strconv.Itoa(models.EventCount(event.Data.Type, event.Data.Id, event.Data.To))})
 		redis.PubMsg(models.EventArticle, article.Author, event.Bytes())
 
 		// apple push
@@ -345,8 +369,9 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 			go sendApn(client, user.Nickname+"赞了你的主题!", author.Devs...)
 		}
 	} else {
-		count := author.DelEvent(models.EventThumb, article.Id.Hex(), user.Id, author.Id)
-		redis.IncrEventCount(author.Id, models.EventThumb, -count)
+		//count := author.DelEvent(models.EventThumb, article.Id.Hex(), user.Id, author.Id)
+		//redis.IncrEventCount(author.Id, models.EventThumb, -count)
+		event.Delete()
 	}
 	//user.UpdateAction(ActThumb, nowDate())
 }
@@ -410,16 +435,27 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 		return
 	}
 
-	if uid := redis.OnlineUser(form.Token); uid == article.Author {
-		user := &models.Account{Id: uid}
-		count := user.ClearEvent(models.EventThumb, article.Id.Hex())
-		redis.IncrEventCount(user.Id, models.EventThumb, -count)
+	if redis.OnlineUser(form.Token) == article.Author {
+		event := &models.Event{}
+		event.Data.Type = models.EventThumb
+		event.Data.Id = article.Id.Hex()
+		event.Data.To = article.Author
+		event.Clear()
 
-		count = user.ClearEvent(models.EventComment, article.Id.Hex())
-		redis.IncrEventCount(user.Id, models.EventComment, -count)
+		event.Data.Type = models.EventComment
+		event.Clear()
 
-		count = user.ClearEvent(models.EventReward, article.Id.Hex())
-		redis.IncrEventCount(user.Id, models.EventReward, -count)
+		event.Data.Type = models.EventReward
+		event.Clear()
+
+		//user.ClearEvent(models.EventThumb, article.Id.Hex())
+		//redis.IncrEventCount(user.Id, models.EventThumb, -count)
+
+		//user.ClearEvent(models.EventComment, article.Id.Hex())
+		//redis.IncrEventCount(user.Id, models.EventComment, -count)
+
+		//count = user.ClearEvent(models.EventReward, article.Id.Hex())
+		//redis.IncrEventCount(user.Id, models.EventReward, -count)
 	}
 
 	jsonStruct := convertArticle(article)

@@ -52,6 +52,12 @@ const (
 	redisScoreMentalLB     = redisPrefix + ":lb:score:mental"   // sorted set
 	redisScoreWealthLB     = redisPrefix + ":lb:score:wealth"   // sorted set
 
+	redisGameLB01 = redisPrefix + ":lb:game:01" // 77 jump
+	redisGameLB02 = redisPrefix + ":lb:game:02" // escape
+	redisGameLB03 = redisPrefix + ":lb:game:03" // bear
+	redisGameLB04 = redisPrefix + ":lb:game:04" // line
+	redisGameLB05 = redisPrefix + ":lb:game:05" // turn
+
 	redisPubSubGroup = redisPrefix + ":pubsub:group:"
 	redisPubSubUser  = redisPrefix + ":pubsub:user:"
 
@@ -278,6 +284,7 @@ func (logger *RedisLogger) SetRelationship(userid string, peers []string, relati
 	conn.Do("EXEC")
 }
 
+/*
 func (logger *RedisLogger) SetWBImport(userid, wb string) {
 	logger.conn.Do("SADD", redisUserWBImportPrefix+userid, wb)
 }
@@ -287,7 +294,7 @@ func (logger *RedisLogger) ImportFriend(userid, friend string) {
 	logger.SetRelationship(userid, []string{friend}, RelFollowing, true)
 	conn.Do("SREM", redisUserWBImportPrefix+friend, userid)
 }
-
+*/
 func (logger *RedisLogger) Friends(typ string, userid string) (users []string) {
 	var key string
 	switch typ {
@@ -406,6 +413,7 @@ func (logger *RedisLogger) setsCount(key string, days int) []int64 {
 	return counts
 }
 
+/*
 func (logger *RedisLogger) EventCount(userid string) (counts []int) {
 	counts = make([]int, 6)
 	conn := logger.conn
@@ -421,6 +429,7 @@ func (logger *RedisLogger) EventCount(userid string) (counts []int) {
 	return
 }
 
+
 func (logger *RedisLogger) IncrEventCount(userid string, eventType string, count int) {
 	if len(userid) == 0 || count == 0 {
 		return
@@ -428,7 +437,7 @@ func (logger *RedisLogger) IncrEventCount(userid string, eventType string, count
 	logger.conn.Do("HINCRBY", RedisUserInfoPrefix+userid, "event_"+eventType, count)
 }
 
-/*
+
 func (logger *RedisLogger) LogUserMessages(userid string, msgs ...string) {
 	args := redis.Args{}.Add(redisUserMessagePrefix + userid).AddFlat(msgs)
 	conn := logger.conn
@@ -508,6 +517,7 @@ func (logger *RedisLogger) PV(date string) []KV {
 	return pvs
 }
 
+/*
 func (logger *RedisLogger) ArticleCount(articleId string) (view, thumb, review int64) {
 	conn := logger.conn
 	conn.Send("MULTI")
@@ -715,7 +725,7 @@ func (logger *RedisLogger) ArticleTopThumb(max int) []string {
 
 	return articles
 }
-
+*/
 func (logger *RedisLogger) UpdateRecLB(userid string, distance, duration int) {
 	if len(userid) == 0 {
 		return
@@ -771,91 +781,6 @@ func (logger *RedisLogger) LBDurRank(userid string) int {
 	return rank
 }
 
-/*
-func (logger *RedisLogger) UserProps(userid string) *Props {
-	conn := logger.conn
-	conn.Send("MULTI")
-	conn.Send("ZSCORE", redisScorePhysicalLB, userid)
-	conn.Send("ZSCORE", redisScoreLiteralLB, userid)
-	conn.Send("ZSCORE", redisScoreMentalLB, userid)
-	conn.Send("ZSCORE", redisScoreWealthLB, userid)
-	values, _ := redis.Values(conn.Do("EXEC"))
-
-	var scores []float64
-	if err := redis.ScanSlice(values, &scores); err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	props := &Props{
-		Physical: int64(scores[0]),
-		Literal:  int64(scores[1]),
-		Mental:   int64(scores[2]),
-		Wealth:   int64(scores[3]),
-	}
-
-	props.Score = int64(UserScore(props))
-	props.Level = int64(UserLevel(int(props.Score)))
-
-	return props
-}
-
-func (logger *RedisLogger) Props(typ string, ids ...string) []int {
-	conn := logger.conn
-	var key string
-
-	switch typ {
-	case ScorePhysical:
-		key = redisScorePhysicalLB
-	case ScoreLiteral:
-		key = redisScoreLiteralLB
-	case ScoreMental:
-		key = redisScoreMentalLB
-	case ScoreWealth:
-		key = redisScoreWealthLB
-	default:
-		key = redisScorePhysicalLB
-	}
-	conn.Send("MULTI")
-	for _, id := range ids {
-		conn.Send("ZSCORE", key, id)
-	}
-	values, _ := redis.Values(conn.Do("EXEC"))
-	var scores []int
-
-	if err := redis.ScanSlice(values, &scores); err != nil {
-		log.Println(err)
-		return nil
-	}
-	return scores
-}
-
-func (logger *RedisLogger) AddProps(userid string, props *Props) (*Props, error) {
-	conn := logger.conn
-	conn.Send("MULTI")
-	conn.Send("ZINCRBY", redisScorePhysicalLB, props.Physical, userid)
-	conn.Send("ZINCRBY", redisScoreLiteralLB, props.Literal, userid)
-	conn.Send("ZINCRBY", redisScoreMentalLB, props.Mental, userid)
-	conn.Send("ZINCRBY", redisScoreWealthLB, props.Wealth, userid)
-	values, err := redis.Values(conn.Do("EXEC"))
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	var newScores []int64
-	if err := redis.ScanSlice(values, &newScores); err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	//log.Println("new scores:", newScores)
-	props.Physical = newScores[0]
-	props.Literal = newScores[1]
-	props.Mental = newScores[2]
-	props.Wealth = newScores[3]
-
-	return props, nil
-}
-*/
 func (logger *RedisLogger) GetDisLB(start, stop int) []KV {
 	values, _ := redis.Values(logger.conn.Do("ZREVRANGE", redisDisLeaderboard, start, stop, "WITHSCORES"))
 	var s []KV
@@ -873,6 +798,9 @@ func (logger *RedisLogger) GetCoins(userid string) int64 {
 }
 
 func (logger *RedisLogger) AddCoins(userid string, value int64) {
+	if value == 0 {
+		return
+	}
 	logger.conn.Do("ZINCRBY", RedisUserCoins, value, userid)
 }
 
@@ -885,4 +813,89 @@ func (logger *RedisLogger) Transaction(from, to string, amount int64) {
 	conn.Send("ZINCRBY", RedisUserCoins, -amount, from)
 	conn.Send("ZINCRBY", RedisUserCoins, amount, to)
 	conn.Do("EXEC")
+}
+
+func lbGameKey(typ int) string {
+	var key string
+
+	switch typ {
+	case 0x01:
+		key = redisGameLB01
+	case 0x02:
+		key = redisGameLB02
+	case 0x03:
+		key = redisGameLB03
+	case 0x04:
+		key = redisGameLB04
+	case 0x05:
+		key = redisGameLB05
+	default:
+		key = redisGameLB01
+	}
+
+	return key
+}
+
+func (logger *RedisLogger) SetGameScore(typ int, userid string, score int) {
+	if len(userid) == 0 || score == 0 {
+		return
+	}
+
+	conn := logger.conn
+
+	key := lbGameKey(typ)
+	max, _ := redis.Int(conn.Do("ZSCORE", key, userid))
+
+	if score > max {
+		conn.Do("ZINCRBY", key, score-max, userid)
+	}
+}
+
+func (logger *RedisLogger) GameScoreTopN(typ int, n int) []KV {
+	if n <= 0 {
+		return nil
+	}
+
+	return logger.zrange(lbGameKey(typ), 0, n-1, true)
+}
+
+func (logger *RedisLogger) GameScores(typ int, userids []string) []int64 {
+	return logger.zscores(lbGameKey(typ), userids)
+
+}
+
+func (logger *RedisLogger) zscores(key string, members []string) (scores []int64) {
+	conn := logger.conn
+
+	conn.Send("MULTI")
+	for _, member := range members {
+		conn.Send("ZSCORE", key, member)
+	}
+	values, err := redis.Values(conn.Do("EXEC"))
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	if err := redis.ScanSlice(values, &scores); err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	return
+}
+
+func (logger *RedisLogger) zrange(key string, start, stop int, reverse bool) (kv []KV) {
+	cmd := "ZRANGE"
+	if reverse {
+		cmd = "ZREVRANGE"
+	}
+	values, _ := redis.Values(logger.conn.Do(cmd, key, start, stop, "WITHSCORES"))
+
+	if err := redis.ScanSlice(values, &kv); err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	return
 }

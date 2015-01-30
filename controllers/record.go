@@ -21,8 +21,9 @@ func BindRecordApi(m *martini.ClassicMartini) {
 		checkLimitHandler,
 		newRecordHandler)
 	m.Get("/1/record/timeline",
-		binding.Form(recTimelineForm{}),
+		binding.Form(recTimelineForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
 		recTimelineHandler)
 	m.Get("/1/record/statistics",
 		binding.Form(userRecStatForm{}),
@@ -98,7 +99,9 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			//user.AddTask(models.Tasks[form.Task-1].Type, form.Task, nil)
 			rec.Status = models.StatusFinish
 		} else {
-			awards = gameAwards(level, form.Record.GameScore, false)
+			if form.Record.GameScore >= 100 {
+				awards = gameAwards(level, form.Record.GameScore, false)
+			}
 		}
 		awards.Level = models.Score2Level(user.Props.Score+awards.Score) - level
 		GiveAwards(user, awards, redis)
@@ -109,6 +112,8 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			Magic: int(awards.Mental),
 			Coin:  awards.Wealth,
 		}
+
+		redis.SetGameScore(gameType(rec.Game.Name), user.Id, rec.Game.Score)
 
 	case "run":
 		rec.Sport = &models.SportRecord{
@@ -123,6 +128,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 	default:
 		log.Println("Unknown record type:", form.Record.Type)
 	}
+	// assign task id
 	if rec.Task == 0 {
 		rec.Task = rec.PubTime.Unix()
 	}
@@ -130,37 +136,45 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
 	}
+	/*
+		rank := redis.LBDisRank(user.Id)
+		maxDis := redis.MaxDisRecord(user.Id)
+		redis.UpdateRecLB(user.Id, form.Record.Distance, int(form.Record.Duration))
+		rankDiff := 0
+		if rank >= 0 {
+			rankDiff = redis.LBDisRank(user.Id) - rank
+		}
 
-	rank := redis.LBDisRank(user.Id)
-	maxDis := redis.MaxDisRecord(user.Id)
-	redis.UpdateRecLB(user.Id, form.Record.Distance, int(form.Record.Duration))
-	rankDiff := 0
-	if rank >= 0 {
-		rankDiff = redis.LBDisRank(user.Id) - rank
-	}
-
-	recDiff := 0
-	if maxDis > 0 {
-		recDiff = redis.MaxDisRecord(user.Id) - maxDis
-	}
+		recDiff := 0
+		if maxDis > 0 {
+			recDiff = redis.MaxDisRecord(user.Id) - maxDis
+		}
+	*/
 
 	respData := map[string]interface{}{
-		"leaderboard_effect": rankDiff,
-		"self_record_effect": recDiff,
-		"ExpEffect":          awards,
+		//"leaderboard_effect": rankDiff,
+		//"self_record_effect": recDiff,
+		"ExpEffect": awards,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
 
 type recTimelineForm struct {
 	Userid string `form:"userid" binding:"required"`
-	Token  string `form:"access_token"`
 	models.Paging
+	parameter
 }
 
-func recTimelineHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form recTimelineForm) {
-	user := &models.Account{Id: form.Userid}
-	_, records, err := user.Records(&form.Paging)
+func recTimelineHandler(request *http.Request, resp http.ResponseWriter,
+	user *models.Account, p Parameter) {
+	form := p.(recTimelineForm)
+	all := false
+	if user.Id == form.Userid {
+		all = true
+	}
+
+	u := &models.Account{Id: form.Userid}
+	_, records, err := u.Records(all, &form.Paging)
 
 	recs := make([]record, len(records))
 	for i, _ := range records {
@@ -306,7 +320,7 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter,
 		ids[i] = kv[i].K
 	}
 
-	users, _ := models.FindUsersByIds(ids)
+	users, _ := models.FindUsersByIds(ids, false)
 
 	lb := make([]leaderboardResp, len(kv))
 	for i, _ := range kv {

@@ -21,12 +21,14 @@ func BindTaskApi(m *martini.ClassicMartini) {
 }
 
 type taskinfo struct {
-	Id     int64    `json:"task_id"`
-	Type   string   `json:"type"`
-	Desc   string   `json:"desc"`
-	Images []string `json:"images"`
-	Status string   `json:"status"`
-	Reason string   `json:"reason"`
+	Id       int64    `json:"task_id"`
+	Type     string   `json:"type"`
+	Desc     string   `json:"desc"`
+	Duration int64    `json:"duration"`
+	Distance int      `json:"distance"`
+	Images   []string `json:"images"`
+	Status   string   `json:"status"`
+	Reason   string   `json:"reason"`
 }
 
 /*
@@ -71,7 +73,11 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			Status: record.Status,
 		}
 		if record.Type == "run" {
-			info.Type = models.TaskRunning
+			if record.Task < 1000 {
+				info.Type = models.TaskRunning
+			} else {
+				info.Type = models.TaskNormal
+			}
 		} else if record.Type == "game" {
 			info.Type = models.TaskGame
 		}
@@ -82,6 +88,8 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			info.Desc = models.Tasks[info.Id-1].Desc
 		}
 		if record.Sport != nil {
+			info.Distance = record.Sport.Distance
+			info.Duration = record.Sport.Duration
 			info.Images = record.Sport.Pics
 			info.Reason = record.Sport.Review
 		}
@@ -208,15 +216,13 @@ func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 		}
 	*/
 	record := &models.Record{Uid: user.Id, Task: form.Id}
-	if !form.Pass {
-		record.SetStatus(models.StatusUnFinish, form.Reason)
-	}
+	record.FindByTask(form.Id)
+	awards := controllers.Awards{}
 
 	if form.Pass {
-		record.SetStatus(models.StatusFinish, form.Reason)
 
 		level := user.Level()
-		awards := controllers.Awards{
+		awards = controllers.Awards{
 			Physical: 30 + level,
 			Wealth:   30 * models.Satoshi,
 			Score:    30 + level,
@@ -227,22 +233,29 @@ func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			writeResponse(w, err)
 			return
 		}
-
-		// ws push
-		event := &models.Event{
-			Type: models.EventStatus,
-			Time: time.Now().Unix(),
-			Data: models.EventData{
-				Type: models.EventTask,
-				To:   user.Id,
-				Body: []models.MsgBody{
-					{Type: "physique_value", Content: strconv.FormatInt(awards.Physical, 10)},
-					{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
-				},
-			},
+		if record.Sport != nil {
+			redis.UpdateRecLB(user.Id, record.Sport.Distance, int(record.Sport.Duration))
 		}
-		redis.PubMsg(models.EventStatus, user.Id, event.Bytes())
+
+		record.SetStatus(models.StatusFinish, form.Reason)
+	} else {
+		record.SetStatus(models.StatusUnFinish, form.Reason)
 	}
+
+	// ws push
+	event := &models.Event{
+		Type: models.EventStatus,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventTask,
+			To:   user.Id,
+			Body: []models.MsgBody{
+				{Type: "physique_value", Content: strconv.FormatInt(awards.Physical, 10)},
+				{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
+			},
+		},
+	}
+	redis.PubMsg(event.Type, event.Data.To, event.Bytes())
 
 	writeResponse(w, map[string]bool{"pass": form.Pass})
 }

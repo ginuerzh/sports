@@ -2,17 +2,18 @@
 package controllers
 
 import (
-	//"github.com/ginuerzh/sports/errors"
-	"github.com/ginuerzh/sports/models"
-	"gopkg.in/go-martini/martini.v1"
-	"net/http"
-	"time"
+//"github.com/ginuerzh/sports/errors"
+//"github.com/ginuerzh/sports/models"
+//"gopkg.in/go-martini/martini.v1"
+//"net/http"
+//"time"
 )
 
 const (
-	ServerStatV1Uri = "/1/stat"
+//ServerStatV1Uri = "/1/stat"
 )
 
+/*
 func BindStatApi(m *martini.ClassicMartini) {
 	m.Get(ServerStatV1Uri, serverStatHandler)
 }
@@ -31,3 +32,4 @@ func serverStatHandler(request *http.Request, resp http.ResponseWriter, redis *m
 
 	writeResponse(request.RequestURI, resp, respData, nil)
 }
+*/

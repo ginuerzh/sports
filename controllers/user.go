@@ -3,7 +3,7 @@ package controllers
 
 import (
 	//"encoding/json"
-	//"github.com/ginuerzh/sports/errors"
+	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -117,6 +117,13 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 
 	form := p.(relationshipForm)
 
+	for _, peer := range form.Userids {
+		if redis.Relationship(peer, user.Id) == models.RelBlacklist {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, "对方已屏蔽了你!"))
+			return
+		}
+	}
+
 	redis.SetRelationship(user.Id, form.Userids, models.RelFollowing, form.Follow)
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 
@@ -124,25 +131,28 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 		u := &models.Account{}
 		u.FindByUserid(userid)
 
-		if form.Follow {
-
-			event := &models.Event{
-				Type: models.EventMsg,
-				Time: time.Now().Unix(),
-				Data: models.EventData{
-					Type: models.EventSub,
-					Id:   user.Id,
-					From: user.Id,
-					To:   u.Id,
-					Body: []models.MsgBody{
-						{Type: "nikename", Content: user.Nickname},
-						{Type: "image", Content: user.Profile},
-					},
+		event := &models.Event{
+			Type: models.EventMsg,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventSub,
+				Id:   user.Id + "-" + u.Id,
+				From: user.Id,
+				To:   u.Id,
+				Body: []models.MsgBody{
+					{Type: "nikename", Content: user.Nickname},
+					{Type: "image", Content: user.Profile},
 				},
-			}
-			if err := event.Save(); err == nil {
-				redis.IncrEventCount(u.Id, event.Data.Type, 1)
-			}
+			},
+		}
+
+		if form.Follow {
+			/*
+				if err := event.Save(); err == nil {
+					redis.IncrEventCount(u.Id, event.Data.Type, 1)
+				}
+			*/
+			event.Upsert()
 
 			event.Data.Body = append(event.Data.Body,
 				models.MsgBody{Type: "new_count", Content: "1"})
@@ -153,11 +163,11 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 				go sendApn(client, user.Nickname+"关注了你!", u.Devs...)
 			}
 		} else {
-			count := u.DelEvent(models.EventSub, user.Id, user.Id, u.Id)
-			redis.IncrEventCount(u.Id, models.EventSub, -count)
+			//count := u.DelEvent(models.EventSub, user.Id, user.Id, u.Id)
+			//redis.IncrEventCount(u.Id, models.EventSub, -count)
+			event.Delete()
 		}
 	}
-
 }
 
 func blacklistHandler(request *http.Request, resp http.ResponseWriter,

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -43,36 +44,18 @@ type eventNewsForm struct {
 func eventNewsHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account) {
 
-	counts := redis.EventCount(user.Id)
+	//counts := redis.EventCount(user.Id)
 	respData := map[string]int{
-		"new_chat_count":      counts[0],
-		"new_comment_count":   counts[1],
-		"new_thumb_count":     counts[2],
-		"new_reward_count":    counts[3] + counts[5],
-		"new_attention_count": counts[4],
+		"new_chat_count":      user.EventCount(models.EventChat),
+		"new_comment_count":   user.EventCount(models.EventComment),
+		"new_thumb_count":     user.EventCount(models.EventThumb),
+		"new_reward_count":    user.EventCount(models.EventReward) + user.EventCount(models.EventTx),
+		"new_attention_count": user.EventCount(models.EventSub),
 	}
 
 	writeResponse(request.RequestURI, resp, respData, nil)
 
 	//redis.LogOnlineUser(form.Token, user)
-}
-
-type contactStruct struct {
-	Id       string         `json:"userid"`
-	Profile  string         `json:"user_profile_image"`
-	Nickname string         `json:"nikename"`
-	Count    int            `json:"new_message_count"`
-	Last     *msgJsonStruct `json:"last_message"`
-}
-
-func convertContact(contact *models.Contact) *contactStruct {
-	return &contactStruct{
-		Id:       contact.Id,
-		Profile:  contact.Profile,
-		Nickname: contact.Nickname,
-		Count:    contact.Count,
-		Last:     convertMsg(contact.Last),
-	}
 }
 
 func eventDetailHandler(request *http.Request, resp http.ResponseWriter,
@@ -87,6 +70,9 @@ func eventDetailHandler(request *http.Request, resp http.ResponseWriter,
 	m := make(map[string]*models.Event) // TODO: don't use map
 
 	for i, event := range events {
+		if event.Data.Type == models.EventChat {
+			continue
+		}
 		key := event.Data.Type + "_" + event.Data.Id
 		if e, ok := m[key]; ok {
 			count, err := strconv.Atoi(e.Data.Body[len(e.Data.Body)-1].Content)
@@ -127,11 +113,18 @@ func changeEventStatusHandler(request *http.Request, resp http.ResponseWriter,
 
 	form := p.(changeEventStatusForm)
 
-	count := user.ClearEvent(form.Type, form.Id)
-	if form.Type == models.EventChat {
-		//u := &models.User{Id: user.Id}
-		user.MarkRead(form.Type, form.Id)
-	}
-	redis.IncrEventCount(user.Id, form.Type, -count)
+	event := &models.Event{}
+	event.Data.Type = strings.ToLower(form.Type)
+	event.Data.Id = form.Id
+	event.Data.To = user.Id
+	event.Clear()
+	//count := user.ClearEvent(form.Type, form.Id)
+	/*
+		if form.Type == models.EventChat { //TODO
+			//u := &models.User{Id: user.Id}
+			user.MarkRead(form.Type, form.Id)
+		}
+	*/
+	//redis.IncrEventCount(user.Id, form.Type, -count)
 	writeResponse(request.RequestURI, resp, nil, nil)
 }

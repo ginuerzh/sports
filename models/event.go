@@ -36,7 +36,7 @@ func init() {
 
 type EventData struct {
 	Type string    `json:"type"`
-	Id   string    `json:"pid"`
+	Id   string    `bson:"pid" json:"pid"`
 	From string    `json:"from"`
 	To   string    `json:"to"`
 	Body []MsgBody `json:"body"`
@@ -45,7 +45,7 @@ type EventData struct {
 type Event struct {
 	Id   bson.ObjectId `bson:"_id,omitempty" json:"-"`
 	Type string        `json:"type"`
-	Data EventData     `json:"push"`
+	Data EventData     `bson:"push" json:"push"`
 	Time int64         `json:"time"`
 }
 
@@ -66,20 +66,53 @@ func (e *Event) Save() error {
 
 func (this *Event) Upsert() error {
 	query := bson.M{
-		"data.type": this.Data.Type,
-		"data.id":   this.Data.Id,
-		"data.from": this.Data.From,
-		"data.to":   this.Data.To,
+		"push.type": this.Data.Type,
+		"push.pid":  this.Data.Id,
+		"push.from": this.Data.From,
+		"push.to":   this.Data.To,
 	}
-	return upsert(eventColl, query, Struct2Map(this), true)
+	//log.Println("event upsert", query, Struct2Map(this))
+	_, err := upsert(eventColl, query, Struct2Map(this), true)
+	return err
+}
+
+func (this *Event) Delete() int {
+	info, err := removeAll(eventColl,
+		bson.M{
+			"push.type": this.Data.Type,
+			"push.pid":  this.Data.Id,
+			"push.from": this.Data.From,
+			"push.to":   this.Data.To,
+		},
+		true)
+
+	if err != nil {
+		return 0
+	}
+	return info.Removed
+}
+
+func (this *Event) Clear() int {
+	info, err := removeAll(eventColl,
+		bson.M{
+			"push.type": this.Data.Type,
+			"push.pid":  this.Data.Id,
+			"push.to":   this.Data.To,
+		},
+		true)
+
+	if err != nil {
+		return 0
+	}
+	return info.Removed
 }
 
 func Events(userid string) (events []Event, err error) {
-	err = search(eventColl, bson.M{"data.to": userid}, nil, 0, 0, []string{"-time"}, nil, &events)
+	err = search(eventColl, bson.M{"push.to": userid}, nil, 0, 0, []string{"-time"}, nil, &events)
 	return
 }
 
-func EventCount(typ string, id string) (count int) {
-	search(eventColl, bson.M{"data.type": typ, "data.id": id}, nil, 0, 0, nil, &count, nil)
-	return
+func EventCount(typ string, id string, to string) int {
+	n, _ := count(eventColl, bson.M{"push.type": typ, "push.pid": id, "push.to": to})
+	return n
 }

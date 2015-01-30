@@ -60,17 +60,20 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(setInfoForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
 		setInfoHandler)
 	m.Post("/1/user/setProfileImage",
 		binding.Json(setProfileForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
 		setProfileHandler)
-	m.Post("/1/account/importFriends",
-		binding.Json(importFriendsForm{}, (*Parameter)(nil)),
-		ErrorHandler,
-		checkTokenHandler,
-		importFriendsHandler)
+	/*
+		m.Post("/1/account/importFriends",
+			binding.Json(importFriendsForm{}, (*Parameter)(nil)),
+			ErrorHandler,
+			checkTokenHandler,
+			importFriendsHandler)
+	*/
 	m.Post("/1/user/setLifePhotos",
 		binding.Json(setPhotosForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -120,7 +123,11 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(pkShareForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
 		pkShareHandler)
+	m.Get("/1/user/isNikeNameUsed",
+		binding.Form(nicknameForm{}),
+		checkNicknameHandler)
 }
 
 // user register parameter
@@ -162,7 +169,7 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.UserExistError))
 		return
 	}
-	user.Nickname = form.Nickname
+	//user.Nickname = form.Nickname
 	user.Password = Md5(form.Password)
 	user.Role = "usrpass"
 	user.RegTime = time.Now()
@@ -211,8 +218,8 @@ func (this loginForm) getUserId() string {
 }
 */
 func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.Account, error) {
-	user := &models.Account{Weibo: strings.ToLower(uid)}
-	exists, err := user.Exists("weibo")
+	user := &models.Account{}
+	exists, err := user.FindByWeibo(strings.ToLower(uid))
 	if err != nil {
 		return false, nil, err
 	}
@@ -232,6 +239,9 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 	}
 
 	user.Nickname = weiboUser.ScreenName
+	if find, _ := user.Exists("nickname"); find {
+		user.Nickname = "wb_" + user.Nickname
+	}
 	user.Password = p
 	if !strings.HasPrefix(weiboUser.Gender, "f") {
 		user.Gender = "male"
@@ -560,7 +570,7 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 	if addr.String() != "" {
 		setinfo.Address = addr
 	}
-	if len(setinfo.Phone) > 0 {
+	if len(setinfo.Phone) > 0 && setinfo.Phone != user.Phone {
 		user.Phone = setinfo.Phone
 		setinfo.Setinfo = false
 		if b, _ := user.Exists("phone"); b {
@@ -570,6 +580,13 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 		}
 	}
 
+	if len(setinfo.Nickname) > 0 && setinfo.Nickname != user.Nickname {
+		u := &models.Account{}
+		if find, _ := u.FindByNickname(setinfo.Nickname); find {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.UserExistError, "昵称已被占用"))
+			return
+		}
+	}
 	err := user.SetInfo(setinfo)
 
 	score := 0
@@ -795,6 +812,7 @@ type importFriendsForm struct {
 	parameter
 }
 
+/*
 func (this importFriendsForm) getTokenId() string {
 	return this.Token
 }
@@ -836,7 +854,7 @@ func importFriendsHandler(r *http.Request, w http.ResponseWriter,
 	}
 	writeResponse(r.RequestURI, w, map[string]interface{}{"ExpEffect": Awards{}}, nil)
 }
-
+*/
 type userArticlesForm struct {
 	Id    string `form:"userid" binding:"required"`
 	Type  string `form:"article_type"`
@@ -933,4 +951,15 @@ func pkShareHandler(r *http.Request, w http.ResponseWriter,
 	}
 	writeResponse(r.RequestURI, w,
 		map[string]interface{}{"ExpEffect": awards}, nil)
+}
+
+type nicknameForm struct {
+	Nickname string `form:"nikename"`
+}
+
+func checkNicknameHandler(r *http.Request, w http.ResponseWriter, form nicknameForm) {
+	user := &models.Account{}
+	find, err := user.FindByNickname(form.Nickname)
+
+	writeResponse(r.RequestURI, w, map[string]bool{"is_used": find}, err)
 }

@@ -23,11 +23,13 @@ const (
 )
 
 type SportRecord struct {
-	Duration int64
-	Distance int
-	Speed    float64
-	Pics     []string
-	Review   string
+	StartTime int64
+	EndTime   int64
+	Duration  int64
+	Distance  int
+	Speed     float64
+	Pics      []string
+	Review    string
 }
 
 type GameRecord struct {
@@ -62,7 +64,7 @@ func (this *Record) findOne(query interface{}) (bool, error) {
 
 	return len(records) > 0, nil
 }
-func (this *Record) FindByTask(tid int) (bool, error) {
+func (this *Record) FindByTask(tid int64) (bool, error) {
 	return this.findOne(bson.M{"uid": this.Uid, "task": tid})
 }
 
@@ -100,14 +102,14 @@ func TaskRecords(pageIndex, pageCount int) (int, []Record, error) {
 
 func MaxDistanceRecord(userid string) (*Record, error) {
 	record := &Record{}
-	err := findOne(recordColl, bson.M{"uid": userid}, []string{"-sport.distance"}, record)
+	err := findOne(recordColl, bson.M{"uid": userid, "status": StatusFinish}, []string{"-sport.distance"}, record)
 
 	return record, err
 }
 
 func MaxSpeedRecord(userid string) (*Record, error) {
 	record := &Record{}
-	err := findOne(recordColl, bson.M{"uid": userid}, []string{"-sport.speed"}, record)
+	err := findOne(recordColl, bson.M{"uid": userid, "status": StatusFinish}, []string{"-sport.speed"}, record)
 
 	return record, err
 }

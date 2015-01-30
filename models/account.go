@@ -134,21 +134,33 @@ func (this *Account) Level() int64 {
 }
 
 func (this *Account) Exists(t string) (bool, error) {
+	var query bson.M
+
 	switch t {
 	case "weibo":
-		return this.findOne(bson.M{"weibo": this.Weibo})
+		query = bson.M{"weibo": this.Weibo}
 	case "email":
-		return this.findOne(bson.M{"email": this.Email})
+		query = bson.M{"email": this.Email}
 	case "phone":
-		return this.findOne(bson.M{"phone": this.Phone})
+		query = bson.M{"phone": this.Phone}
+	case "nickname":
+		query = bson.M{"nickname": this.Nickname}
 	default:
-		return this.findOne(bson.M{"_id": this.Id})
+		query = bson.M{"_id": this.Id}
 	}
+
+	c, err := count(accountColl, query)
+	return c > 0, err
 }
 
-func FindUsersByIds(ids []string) ([]Account, error) {
+func FindUsersByIds(ids []string, verbose bool) ([]Account, error) {
 	var users []Account
-	if err := search(accountColl, bson.M{"_id": bson.M{"$in": ids}}, nil, 0, 0, nil, nil, &users); err != nil {
+	selector := bson.M{"contacts": 0}
+	if !verbose {
+		selector = bson.M{"_id": 1, "nickname": 1, "profile": 1}
+	}
+
+	if err := search(accountColl, bson.M{"_id": bson.M{"$in": ids}}, selector, 0, 0, nil, nil, &users); err != nil {
 		return nil, errors.NewError(errors.DbError)
 	}
 
@@ -158,17 +170,24 @@ func FindUsersByIds(ids []string) ([]Account, error) {
 func FindUsersByPhones(phones []string) ([]Account, error) {
 	var users []Account
 
-	if err := search(accountColl, bson.M{"phone": bson.M{"$in": phones}}, nil, 0, 0, nil, nil, &users); err != nil {
+	if err := search(accountColl, bson.M{"phone": bson.M{"$in": phones}}, bson.M{"contacts": 0}, 0, 0, nil, nil, &users); err != nil {
 		return nil, errors.NewError(errors.DbError)
 	}
 
 	return users, nil
 }
 
+func (this *Account) FindByWeibo(weibo string) (bool, error) {
+	if len(weibo) == 0 {
+		return false, nil
+	}
+	return this.findOne(bson.M{"weibo": weibo})
+}
+
 func (this *Account) findOne(query interface{}) (bool, error) {
 	var users []Account
 
-	err := search(accountColl, query, nil, 0, 1, nil, nil, &users)
+	err := search(accountColl, query, bson.M{"contacts": 0}, 0, 1, nil, nil, &users)
 	if err != nil {
 		return false, errors.NewError(errors.DbError)
 	}
@@ -227,6 +246,8 @@ func (this *Account) Save() error {
 
 	this.Id = fmt.Sprintf("%d%03d", now.Unix(), now.Nanosecond()%1000)
 	this.Push = true
+	this.LastLogin = time.Now()
+	this.LoginDays = 1
 	if len(this.Gender) == 0 {
 		this.Gender = "male"
 	}
@@ -456,7 +477,7 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 		},
 		"privilege": 10,
 	}
-	err = search(accountColl, query, nil, 0, 10, nil, nil, &list)
+	err = search(accountColl, query, bson.M{"contacts": 0}, 0, 10, nil, nil, &list)
 	users = append(users, list...)
 
 	for _, user := range list {
@@ -478,7 +499,7 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 			},
 		}
 		list = nil
-		err = search(accountColl, query, nil, 0, 20, []string{"-phone"}, nil, &list)
+		err = search(accountColl, query, bson.M{"contacts": 0}, 0, 20, []string{"-phone"}, nil, &list)
 		users = append(users, list...)
 		for _, user := range list {
 			excludes = append(excludes, user.Id)
@@ -496,7 +517,7 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 			"timelimit": 0,
 		}
 		list = nil
-		err = search(accountColl, query, nil, 0, 50, []string{"-phone", "-score"}, nil, &list)
+		err = search(accountColl, query, bson.M{"contacts": 0}, 0, 50, []string{"-phone", "-score"}, nil, &list)
 		users = append(users, list...)
 		for _, user := range list {
 			excludes = append(excludes, user.Id)
@@ -510,7 +531,7 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 			"timelimit": 0,
 		}
 		list = nil
-		err = search(accountColl, query, nil, 0, 50, []string{"-phone", "-score"}, nil, &list)
+		err = search(accountColl, query, bson.M{"contacts": 0}, 0, 50, []string{"-phone", "-score"}, nil, &list)
 		users = append(users, list...)
 	}
 
@@ -550,7 +571,7 @@ func UserList(sort string, pageIndex, pageCount int) (total int, users []Account
 	default:
 		sort = "-reg_time"
 	}
-	err = search(accountColl, query, nil, pageIndex*pageCount, pageCount, []string{sort}, &total, &users)
+	err = search(accountColl, query, bson.M{"contacts": 0}, pageIndex*pageCount, pageCount, []string{sort}, &total, &users)
 	return
 }
 
@@ -598,7 +619,7 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 
 	query := bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}
 
-	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
+	if err = search(accountColl, query, bson.M{"contacts": 0}, skip, limit, []string{sortby}, &total, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError)
 	}
 
@@ -725,7 +746,7 @@ func GetSearchListBySort(id, nickname, keywords string,
 
 	b, _ := json.Marshal(query)
 	log.Println("query:", string(b))
-	if err = search(accountColl, query, nil, skip, limit, []string{sortby}, &total, &users); err != nil {
+	if err = search(accountColl, query, bson.M{"contacts": 0}, skip, limit, []string{sortby}, &total, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError)
 	}
 
@@ -938,7 +959,7 @@ func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, n
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
-	if err := search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users); err != nil {
+	if err := search(accountColl, query, bson.M{"contacts": 0}, skip, limit, []string{sortby}, nil, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError, err.Error())
 	}
 
@@ -978,13 +999,21 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 	return
 }
 
-func (this *Account) Records(paging *Paging) (int, []Record, error) {
+func (this *Account) Records(all bool, paging *Paging) (int, []Record, error) {
 	var records []Record
 	total := 0
 
 	sortFields := []string{"-time", "-_id"}
+	query := bson.M{"uid": this.Id, "type": bson.M{"$ne": "post"}}
+	if !all {
+		query = bson.M{
+			"uid":    this.Id,
+			"type":   bson.M{"$ne": "post"},
+			"status": bson.M{"$in": []string{StatusFinish, ""}},
+		}
+	}
 
-	if err := psearch(recordColl, bson.M{"uid": this.Id, "type": bson.M{"$ne": "post"}}, nil,
+	if err := psearch(recordColl, query, nil,
 		sortFields, nil, &records, recordPagingFunc, paging); err != nil && err != mgo.ErrNotFound {
 
 		return total, nil, errors.NewError(errors.DbError)
@@ -1101,8 +1130,8 @@ func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{
 	return
 }
 
-func UserCount() (count int) {
-	search(accountColl, bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}}, nil, 0, 0, nil, &count, nil)
+func UserCount() (n int) {
+	n, _ = count(accountColl, bson.M{"reg_time": bson.M{"$gt": time.Unix(0, 0)}})
 	return
 }
 
@@ -1112,7 +1141,7 @@ func Users(ids []string, paging *Paging) ([]Account, error) {
 
 	sortFields := []string{"-props.score", "-_id"}
 
-	if err := psearch(accountColl, nil, nil, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
+	if err := psearch(accountColl, nil, bson.M{"contacts": 0}, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
 			e = errors.NewError(errors.NotFoundError, err.Error())
@@ -1195,14 +1224,14 @@ func Search(nickname string, paging *Paging) ([]Account, error) {
 
 	if len(nickname) > 0 {
 		query["nickname"] = bson.M{
-			"$regex":   nickname,
+			"$regex":   charFilter(nickname),
 			"$options": "i",
 		}
 	}
 
 	sortFields := []string{"-lastlogin", "-_id"}
 
-	if err := psearch(accountColl, query, nil, sortFields, nil, &users, searchPagingFunc, paging); err != nil {
+	if err := psearch(accountColl, query, bson.M{"contacts": 0}, sortFields, nil, &users, searchPagingFunc, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
 		}
@@ -1252,7 +1281,7 @@ func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error)
 		}
 	}
 
-	if err := psearch(accountColl, query, nil, nil, nil, &users, nil, paging); err != nil {
+	if err := psearch(accountColl, query, bson.M{"contacts": 0}, nil, nil, &users, nil, paging); err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, errors.NewError(errors.DbError, err.Error())
 		}
@@ -1281,35 +1310,14 @@ func (this *Account) AddWalletAddr(addr string) error {
 	return nil
 }
 
-func (this *Account) ClearEvent(eventType string, eventId string) int {
-	info, err := removeAll(eventColl,
-		bson.M{
-			"data.id":   eventId,
-			"data.type": eventType,
-			"data.to":   this.Id,
-		},
-		true)
-
-	if err != nil {
-		return 0
+func (this *Account) EventCount(eventType string) int {
+	query := bson.M{
+		"push.type": eventType,
+		"push.to":   this.Id,
 	}
-	return info.Removed
-}
 
-func (this *Account) DelEvent(eventType string, eventId string, from, to string) int {
-	info, err := removeAll(eventColl,
-		bson.M{
-			"data.id":   eventId,
-			"data.type": eventType,
-			"data.from": from,
-			"data.to":   to,
-		},
-		true)
-
-	if err != nil {
-		return 0
-	}
-	return info.Removed
+	n, _ := count(eventColl, query)
+	return n
 }
 
 func (this *Account) UpdateInfo(change bson.M) error {
@@ -1547,6 +1555,7 @@ func (this *Account) AddContact(contact *Contact) error {
 	return nil
 }
 
+/*
 func (this *Account) MarkRead(typ, id string) error {
 	var selector, change bson.M
 
@@ -1578,13 +1587,13 @@ func (this *Account) MarkRead(typ, id string) error {
 
 	if err := update(accountColl, selector, change, true); err != nil {
 		if err != mgo.ErrNotFound {
-			return errors.NewError(errors.DbError, err.Error())
+			return errors.NewError(errors.DbError)
 		}
 	}
 
 	return nil
 }
-
+*/
 func (this *Account) SetPush(push bool) error {
 	selector := bson.M{
 		"_id": this.Id,
@@ -1604,7 +1613,7 @@ func (this *Account) PushEnabled() (bool, error) {
 	var users []Account
 	var enabled bool
 
-	err := search(accountColl, bson.M{"_id": this.Id}, bson.M{"push": true},
+	err := search(accountColl, bson.M{"_id": this.Id}, bson.M{"push": 1},
 		0, 1, nil, nil, &users)
 	if err != nil {
 		return false, errors.NewError(errors.DbError, err.Error())
@@ -1673,4 +1682,9 @@ func (this *Account) LatestArticle() *Article {
 		[]string{"-pub_time"}, article)
 
 	return article
+}
+
+func (this *Account) ContactList() ([]Contact, error) {
+	err := findOne(accountColl, bson.M{"_id": this.Id}, nil, this)
+	return this.Contacts, err
 }

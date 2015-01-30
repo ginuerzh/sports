@@ -2,28 +2,18 @@ package controllers
 
 import (
 	//"encoding/json"
-	//"github.com/ginuerzh/sports/errors"
 	"fmt"
+	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/jinzhu/now"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
 	//"log"
-	"math/rand"
+	//"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 )
-
-var tips = []string{
-	"慢跑为小碎步跑.为了给你的训练增加能量，你可以在出门前的两小时吃一点水果或者巧克力，然后在出门前一小时喝适量（约240克）的运动饮料，这样既能够保证你有充足的水分，也能补充钠和钾。",
-	"慢跑为小碎步跑.开始训练前可先慢走2-3分钟热身，训练结束后再慢走2-3分钟放松。不要在跑步前舒展关节，而应该在训练后或晚上看电视的时候进行舒展。",
-	"正常摆臂跑.跑步过程中双臂一定要保持放松。跑步时手肘弯曲约90度，在腰间前后摆臂。手指弯曲成放松的拳头，不要让手在上身中部胡乱地摇摆。",
-	"正常摆臂跑.如果天气炎热，太阳猛烈，一定要涂防晒霜，戴上太阳眼镜和鸭嘴帽，防止阳光直射脸部。如果天气特别炎热潮湿，一定要注意多行走休息。尽可能在清早或者傍晚的时候跑步。",
-	"慢跑为小碎步跑.有时你可以跳过行走和跑步的训练，做一些交替运动，如骑30-40分钟单车，上健身房或者参加一些举重训练课程。跑步训练期间的间歇能让你更快地恢复精力，同时还能够锻炼到新的肌肉群。",
-	"正常摆臂跑.跑步是锻炼骨骼的好方法，所以你有必要补充充足的钙质——每天1000毫克。如果你在50岁以上，则每天需要1500毫克。低脂牛奶，低脂酸奶和深绿色叶片蔬菜都是钙质的重要来源。",
-	"新手跑者通常会觉得胫骨、肋骨或者膝盖酸痛，如果你在训练后能够及时进行冰敷，这些痛感很快就会消失，你还可以把豆子装进袋子冷藏后敷在膝盖上15分钟。如果疼痛还持续的话，就需要停止几天的训练。",
-	"要想呼吸新鲜的空气让肺部健康的话，尽量不要到繁忙的街道或者在交通高峰时跑步。找一个车辆比较少的地方，这样废气就可以很快驱散。最好就是能够找一些绿化带或公园等。",
-}
 
 func init() {
 	now.FirstDayMonday = true
@@ -109,11 +99,11 @@ func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Accoun
 		}
 	}
 	//log.Println(tasks)
-	random := rand.New(rand.NewSource(time.Now().Unix()))
+	//random := rand.New(rand.NewSource(time.Now().Unix()))
 	respData := map[string]interface{}{
 		"week_id":   week + 1,
 		"task_list": tasks,
-		"week_desc": tips[random.Int()%len(tips)],
+		//"week_desc": tips[random.Int()%len(tips)],
 	}
 
 	writeResponse(r.RequestURI, w, respData, nil)
@@ -172,7 +162,7 @@ type completeTaskForm struct {
 }
 
 func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
-	user *models.Account, p Parameter) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(completeTaskForm)
 
@@ -194,7 +184,11 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 		record.Delete()
 		record.Type = "run"
 		record.Status = models.StatusAuth
-		record.Sport = &models.SportRecord{Pics: form.Proofs}
+		record.Sport = &models.SportRecord{
+			Distance: task.Distance,
+			Duration: task.Duration,
+			Pics:     form.Proofs,
+		}
 	case models.TaskGame:
 		record.Type = "game"
 		record.Status = models.StatusFinish
@@ -202,9 +196,35 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 		record.Type = "post"
 		record.Status = models.StatusFinish
 	}
+
+	awards := Awards{}
+	if form.Tid == 1 {
+		awards = Awards{Score: 30, Wealth: 30 * models.Satoshi}
+		if err := GiveAwards(user, awards, redis); err != nil {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError))
+			return
+		}
+		// ws push
+		event := &models.Event{
+			Type: models.EventStatus,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventTask,
+				To:   user.Id,
+				Body: []models.MsgBody{
+					{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
+				},
+			},
+		}
+		redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+	}
+
 	//u := &models.User{Id: user.Id}
 	//err := user.AddTask(models.Tasks[form.Tid-1].Type, form.Tid, form.Proofs)
 
 	err := record.Save()
-	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
+	if err == nil && record.Game != nil {
+		redis.SetGameScore(gameType(record.Game.Name), user.Id, record.Game.Score)
+	}
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
 }

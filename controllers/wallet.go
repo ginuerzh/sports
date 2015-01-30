@@ -158,7 +158,7 @@ type txForm struct {
 	Id       string `json:"article_id"`
 	FromAddr string `json:"from"`
 	ToAddr   string `json:"to" binding:"required"`
-	Value    int64  `json:"value" binding:"required"`
+	Value    int64  `json:"value"`
 	parameter
 }
 
@@ -171,6 +171,11 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 		return
 	}
 
+	if form.Value <= 0 {
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "无效的金额"))
+		return
+	}
+
 	receiver := &models.Account{}
 	if find, err := receiver.FindByWalletAddr(form.ToAddr); !find {
 		e := errors.NewError(errors.NotFoundError, "无效的收款地址")
@@ -178,6 +183,12 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 			e = errors.NewError(errors.DbError, "无效的钱包地址")
 		}
 		writeResponse(r.RequestURI, w, nil, e)
+		return
+	}
+
+	if redis.Relationship(receiver.Id, user.Id) == models.RelBlacklist {
+		writeResponse(r.RequestURI, w, nil,
+			errors.NewError(errors.AccessError, "对方屏蔽了你!"))
 		return
 	}
 
@@ -250,13 +261,14 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 				{Type: "nikename", Content: user.Nickname},
 				{Type: "image", Content: article.Image},
 				{Type: "total_count", Content: strconv.FormatInt(article.TotalReward, 10)},
-				{Type: "new_count", Content: strconv.Itoa(models.EventCount(models.EventReward, article.Id.Hex()) + 1)},
+				//{Type: "new_count", Content: strconv.Itoa(models.EventCount(models.EventReward, article.Id.Hex()) + 1)},
 			},
 		}
+
 	default:
 		event.Data = models.EventData{
 			Type: models.EventTx,
-			Id:   user.Id,
+			Id:   user.Id + "-" + receiver.Id,
 			From: user.Id,
 			To:   receiver.Id,
 			Body: []models.MsgBody{
@@ -268,12 +280,15 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 	}
 
 	if user.Id != receiver.Id {
-		if err := event.Save(); err == nil {
-			redis.IncrEventCount(receiver.Id, event.Data.Type, 1)
-		}
-
+		/*
+			if err := event.Save(); err == nil {
+				redis.IncrEventCount(receiver.Id, event.Data.Type, 1)
+			}
+		*/
+		event.Save()
 		event.Data.Body = append(event.Data.Body,
-			models.MsgBody{Type: "new_count", Content: strconv.Itoa(models.EventCount(models.EventTx, user.Id))})
+			models.MsgBody{Type: "new_count",
+				Content: strconv.Itoa(models.EventCount(event.Data.Type, event.Data.Id, event.Data.To))})
 		redis.PubMsg("wallet", receiver.Id, event.Bytes())
 	}
 

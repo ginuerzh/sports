@@ -154,68 +154,19 @@ func checkLimitHandler(user *models.Account, r *http.Request, w http.ResponseWri
 }
 
 func userActor(actor string) string {
-	/*
-		switch actor {
-		case "PRO":
-			return "专业运动员"
-		case "MID":
-			return "业余运动员"
-		case "AMATEUR":
-			fallthrough
-		default:
-			return "爱好者"
-		}
-	*/
 	return actor
 }
 
-/*
-func userRank(level int) string {
-	if level <= 10 {
-		return "初级"
-	} else if level <= 20 {
-		return "中级"
-	} else if level <= 30 {
-		return "高级"
-	} else {
-		return "至尊"
-	}
-}
-*/
 func nowDate() time.Time {
 	now := time.Now()
 	year, month, day := now.Date()
 	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
 }
 
-/*
-var actionExps = map[string]int{
-	ActLogin:   1,
-	ActPost:    10,
-	ActComment: 1,
-	ActThumb:   1,
-	ActInvite:  30,
-	ActProfile: 20,
-	ActInfo:    20,
-}
-*/
-
 func decodeJson(r io.Reader, v interface{}) error {
 	return json.NewDecoder(r).Decode(v)
 }
 
-/*
-func updateProps(userid string, props *models.Props, redis *models.RedisLogger) (int, int, error) {
-	props, err := redis.AddProps(userid, props)
-	if err != nil {
-		return 0, 0, err
-	}
-	score := models.UserScore(props)
-	level := models.UserLevel(score)
-
-	return score, level, nil
-}
-*/
 type Awards struct {
 	Physical int64 `json:"exp_physique,omitempty"`
 	Literal  int64 `json:"exp_literature,omitempty"`
@@ -266,4 +217,20 @@ func sendCoin(toAddr string, amount int64) (string, error) {
 	}
 
 	return r.Txid, nil
+}
+
+func gameType(name string) int {
+	if name == "七夕跳跳跳" {
+		return 0x01
+	}
+	if name == "密室逃脱" {
+		return 0x02
+	}
+	if name == "熊出没" {
+		return 0x03
+	}
+	if name == "命悬一线" {
+		return 0x04
+	}
+	return 0x05
 }
