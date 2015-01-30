@@ -1,0 +1,32 @@
+<div ng-controller="articleimportController">
+
+
+<div>
+    标题:   <input type="text" width=400 ng-model="title" ng-init="">
+</div>
+    <br>
+<div class="ueditor"  config="config" ng-model="content">
+
+
+</div>
+
+
+
+
+<br>
+    <select ng-model="tag" ng-options="tag.tagname for tag in tags">
+        <option value=""></option>
+    </select>
+    <br>
+
+    <br>
+    <div>
+        <button type="button" class="btn btn-primary" ng-click="importarticle()">提交</button>
+    </div>
+<div id="preview">
+    {{content}}
+</div>
+
+    <br>
+
+</div>

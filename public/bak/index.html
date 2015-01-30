@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta content="IE=edge" http-equiv="X-UA-Compatible">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <meta content="悦动力是一个游戏化的跑步社区，在此您可以发现和结交各种和您兴趣相投的运动爱好者。" name="description">
+  <meta content="悦动力，乐动力，跑步，运动，咕咚运动，智能穿戴设备" name="keywords">
+  <meta content="320" name="MobileOptimized">
+  <title>悦动力</title>
+  <link rel="stylesheet" href="css/bootstrap.css">
+  <link href="css/app.css" type="text/css" rel="stylesheet">
+  <link href="" rel="apple-touch-icon-precomposed">
+  <link href="" rel="icon">
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/angular.js"></script>
+    <script type="text/javascript" src="js/angular-route.js"></script>
+    <script type="text/javascript" src="js/angular-cookies.js"></script>
+
+    <script type="text/javascript" src="js/bootstrap.js"></script>
+    <script type="text/javascript" src="js/app.js"></script>
+</head>
+<body ng-app="app">
+    <nav role="navigation" class="navbar navbar-ghost">
+    	<div class="container-fluid">
+    	    <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header">
+    	      <button data-target="#global-navbar" data-toggle="collapse" class="navbar-toggle" type="button">
+    	        <span class="sr-only">Toggle navigation</span>
+    	        <span class="icon-bar"></span>
+    	        <span class="icon-bar"></span>
+    	        <span class="icon-bar"></span>
+    	      </button>
+    	      <a href="" class="navbar-brand"><img width="50" alt="logo" src="images/logo.png"/></a>
+    	    </div>
+    
+    	    <!-- Collect the nav links, forms, and other content for toggling -->
+    	    <div id="global-navbar" class="collapse navbar-collapse" ng-if="isLogin">
+    	    	<ul class="nav navbar-nav">
+                    <li ng-repeat="item in navBarItems"><a ng-href="{{'#/'+$index}}">{{item}}</a></li>
+    			</ul>
+                <div class="navbar-text logOFF">
+                    <div class="navbar-inner">
+                        <ul class="nav">
+                            <li class="dropdown"> <img class="img-circle admin-profile" ng-src="{{profile}}">
+                                <ul class="dropdown-menu">
+                                    <li><a ng-click="logOutApp()">退出</a></li>
+                                </ul>
+                            </li>
+
+                        </ul>
+                    </div>
+                </div>
+    	    </div>   
+    	</div>
+    </nav>
+    <div class="container">
+        <div ng-view></div>
+    </div>
+    <div class="modal fade moduledialog" id="myModalDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                    <h4 class="modal-title" id="myModalLabel">悦动力</h4>
+                </div>
+                <div class="modal-body">
+                    {{dialog.content}}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal" ng-hide="dialog.DialBtnHidden==1">Cancel</button>
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" ng-click="dialog.okBtn()">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="notification fail-red" ng-show="note.errState">
+        <img class="notifica-left" src="../images/warning.png" /><p class="notifica-p">处理成功 {{sel.nSuccess}} 条，失败 {{sel.nCount-sel.nSuccess}} 条</p>
+    </div>
+    <div class="notification success-green" ng-show="note.successState">
+        <img class="notifica-left" src="../images/check-on.png" /><p class="notifica-p">处理成功 {{sel.nSuccess}} 条，失败 0 条</p>
+    </div>
+</body>

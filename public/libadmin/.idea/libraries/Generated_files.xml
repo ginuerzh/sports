@@ -1,0 +1,27 @@
+<component name="libraryTable">
+  <library name="Generated files" type="javaScript">
+    <properties>
+      <sourceFilesUrls>
+        <item url="file://$PROJECT_DIR$/user.js" />
+        <item url="file://$PROJECT_DIR$/message.js" />
+        <item url="file://$PROJECT_DIR$/admin.js" />
+        <item url="file://$PROJECT_DIR$/article.js" />
+        <item url="file://$PROJECT_DIR$/record.js" />
+        <item url="file://$PROJECT_DIR$/task.js" />
+        <item url="file://$PROJECT_DIR$/util.js" />
+      </sourceFilesUrls>
+    </properties>
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$/employee.js" />
+      <root url="file://$PROJECT_DIR$/employee.js" />
+      <root url="file://$PROJECT_DIR$/user.js" />
+      <root url="file://$PROJECT_DIR$/message.js" />
+      <root url="file://$PROJECT_DIR$/admin.js" />
+      <root url="file://$PROJECT_DIR$/article.js" />
+      <root url="file://$PROJECT_DIR$/record.js" />
+      <root url="file://$PROJECT_DIR$/task.js" />
+      <root url="file://$PROJECT_DIR$/util.js" />
+    </CLASSES>
+    <SOURCES />
+  </library>
+</component>

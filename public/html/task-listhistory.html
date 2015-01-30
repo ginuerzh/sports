@@ -1,0 +1,62 @@
+<div  ng-controller="tasklisthistoryController">
+    <ul class="nav nav-tabs">
+    <li ><a showtab="" href="#3">待审批</a></li>
+    <li class="active"><a showtab="" href="#tasklisthistory">已审批</a></li>
+    </ul>
+
+    <zjcustomize>ssssjjjj</zjcustomize>
+
+    <table st-table="displayedCollection" st-safe-src="rowCollection" class="table table-striped">
+        <thead>
+
+        <tr>
+            <th st-sort="taskid">taskid</th>
+            <th st-sort="type">type</th>
+            <th st-sort="desc">desc</th>
+            <th st-sort="images">images</th>
+            <th st-sort="status">status</th>
+
+            <th st-sort="userid">userid</th>
+            <th st-sort="nickname">nickname</th>
+            <th st-sort="profile">profile</th>
+
+            <th st-sort="reason">reason</th>
+        </tr>
+
+        </thead>
+        <tbody>
+        <tr ng-repeat="row in displayedCollection ">
+            <td>{{row.taskid}}</td>
+            <td>{{row.type|typename}}</td>
+            <td>{{row.desc}}</td>
+
+
+
+            <td ng-repeat="image in row.images ">
+                <a href="{{image}}" target=_blank><img ng-src="{{image}}" width="100" height="100"></a>
+            </td>
+            <td>{{row.status|statusname}}</td>
+
+            <td>{{row.userid}}</td>
+            <td>{{row.nickname}}</td>
+            <td><img ng-src="{{row.profile}}" width="50" height="100"> </td>
+
+            <td>
+                <textarea rows="4" name="S1" cols="20" readonly="readonly" ng-model="row.reason"></textarea>
+
+
+            </td>
+        </tr>
+        </tbody>
+        <tfoot>
+        <tr>
+            <td colspan="5" class="text-center">
+                <div st-pagination="" st-items-by-page="itemsByPage" st-displayed-pages="7"></div>
+            </td>
+        </tr>
+        </tfoot>
+    </table>
+
+
+
+</div>

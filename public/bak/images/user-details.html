@@ -1,0 +1,144 @@
+<div class="main-bg" ng-controller="userdetailController" ng-init="getuserInfo()">
+<div class="row"><h2 class="col-md-12">用户详情</h2></div>
+<div class="row belowTitle">
+  <div class="col-md-2 ">
+    <img ng-src="{{userDetail.profile}}" class="detailProfile" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"/>
+    <div class="user-btn"><button type="button" class="btn btn-primary" ng-class='{disabled:userDetailBtnState[0]==0}' ng-click="banUser(0)">正常</button></div>
+    <div class="user-btn"><button type="button" class="btn btn-primary" ng-class='{disabled:userDetailBtnState[1]==0}' ng-click="banUser(1)">禁言</button></div>
+    <div class="user-btn"><button type="button" class="btn btn-primary" ng-class='{disabled:userDetailBtnState[2]==0}' ng-click="banUser(-1)">拉黑</button></div>
+  </div>
+  <div class="col-md-10 profile-rightSide">
+          <div class="">
+            <ul role="tablist" class="nav nav-tabs" id="myTab">
+              <li class="active" role="presentation"><a aria-expanded="true" aria-controls="home" data-toggle="tab" role="tab" id="home-tab"  href="#home" target="_self">基本信息</a></li>
+              <li role="presentation" class=""><a aria-controls="profile" data-toggle="tab" id="profile-tab"  role="tab" href="#profile" aria-expanded="false" target="_self">生活照</a></li>
+
+            </ul>
+            <div class="tab-content" id="myTabContent">
+              <div aria-labelledby="home-tab" id="home" class="tab-pane fade active in" role="tabpanel">
+                 <div class="table-responsive">
+                      <table class="table table-bordered table-hover">
+                        <tbody>
+                        <tr>
+                          <td>昵称：</td>
+                          <td>{{userDetail.nickname}}</td>
+                        </tr>
+                        <tr>
+                          <td>账户名称：</td>
+                          <td>{{userDetail.userid}}</td>
+                        </tr>
+                        <tr>
+                          <td>状态：</td>
+                          <td><div class="banstate" id="detailBan" ng-style="userDetail.banStyle">{{userDetail.ban_statusTmp}}</div></td>
+                        </tr>
+                        <tr>
+                          <td>性别：</td>
+                          <td>{{userDetail.gender}}</td>
+                        </tr>
+                        <tr>
+                          <td>年龄：</td>
+                          <td>{{userDetail.age}}</td>
+                        </tr>
+                        <tr>
+                          <td>手机号：</td>
+                          <td>{{userDetail.phone}}</td>
+                        </tr>
+                        <tr>
+                          <td>上次登录时间：</td>
+                          <td>{{userDetail.last_login_time}}</td>
+                        </tr>
+                        <tr>
+                          <td>注册时间：</td>
+                          <td>{{userDetail.reg_time}}</td>
+                        </tr>
+                        <tr>
+                          <td>最近登录地址：</td>
+                          <td>{{userDetail.address}}</td>
+                        </tr>
+                        <tr>
+                          <td>用户个人说明：</td>
+                          <td>{{userDetail.about}}</td>
+                        </tr>
+                        <tr>
+                          <td>身高：</td>
+                          <td>{{userDetail.height}} cm</td>
+                        </tr>
+                        <tr>
+                          <td>体重：</td>
+                          <td>{{userDetail.weight}} kg</td>
+                        </tr>
+                        <tr>
+                          <td>可穿戴电子设备：</td>
+                          <td>{{userDetail.equips.hardwares}}</td>
+                        </tr>
+                        <tr>
+                          <td>运动鞋：</td>
+                          <td>{{userDetail.equips.shoes}}</td>
+                        </tr>
+                        <tr>
+                          <td>运动应用软件：</td>
+                          <td>{{userDetail.equips.softwares}}</td>
+                        </tr>
+                        <tr>
+                          <td>体魄值：</td>
+                          <td>{{userDetail.physique_value}}</td>
+                        </tr>
+                        <tr>
+                          <td>文学值：</td>
+                          <td>{{userDetail.literature_value}}</td>
+                        </tr>
+                        <tr>
+                          <td>魔法值：</td>
+                          <td>{{userDetail.magic_value}}</td>
+                        </tr>
+                        <tr>
+                          <td>贝币值：</td>
+                          <td>{{userDetail.coin_value}}</td>
+                        </tr>
+                        <tr>
+                          <td>总分数：</td>
+                          <td>{{userDetail.score}}</td>
+                        </tr>
+                        <tr>
+                          <td>等级：</td>
+                          <td>{{userDetail.level}}</td>
+                        </tr>
+                        <tr>
+                          <td>默认钱包地址：</td>
+                          <td>{{userDetail.wallet}}</td>
+                        </tr>
+                        <tr>
+                          <td>发表文章数量：</td>
+                          <td>{{userDetail.articles_count}} 篇</td>
+                        </tr>
+                        <tr>
+                          <td>朋友数：</td>
+                          <td>{{userDetail.friends_count}}</td>
+                        </tr>
+                        <tr>
+                          <td>粉丝数：</td>
+                          <td>{{userDetail.followers_count}}</td>
+                        </tr>
+                        <tr>
+                          <td>关注数：</td>
+                          <td>{{userDetail.follows_count}}</td>
+                        </tr>
+                        <tr>
+                          <td>黑名单数：</td>
+                          <td>{{userDetail.blacklist_count}}</td>
+                        </tr>
+                        </tbody>
+                
+                      </table>
+                 </div>
+              </div>
+              <div aria-labelledby="profile-tab" id="profile" class="tab-pane fade" role="tabpanel">
+                 <img class="img-responsive life-photo" ng-repeat="image in userDetail.photos" ng-src="{{image}}"/>
+              </div>
+            </div>
+          </div>
+    
+  </div>
+
+</div>
+</div>
