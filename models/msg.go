@@ -11,10 +11,7 @@ import (
 )
 
 func init() {
-	ensureIndex(msgColl, "from")
-	ensureIndex(msgColl, "to")
-	ensureIndex(msgColl, "from", "to")
-	ensureIndex(msgColl, "-time")
+
 }
 
 type MsgBody struct {

@@ -189,9 +189,9 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 			Duration: task.Duration,
 			Pics:     form.Proofs,
 		}
-	case models.TaskGame:
-		record.Type = "game"
-		record.Status = models.StatusFinish
+	//case models.TaskGame:
+	//	record.Type = "game"
+	//	record.Status = models.StatusFinish
 	case models.TaskPost:
 		record.Type = "post"
 		record.Status = models.StatusFinish
@@ -224,7 +224,7 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 
 	err := record.Save()
 	if err == nil && record.Game != nil {
-		redis.SetGameScore(gameType(record.Game.Name), user.Id, record.Game.Score)
+		redis.SetGameScore(gameType(record.Game.Type), user.Id, record.Game.Score)
 	}
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
 }

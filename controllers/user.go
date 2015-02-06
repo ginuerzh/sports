@@ -202,8 +202,9 @@ func getGroupsHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type socialListForm struct {
-	Userid string `form:"userid" binding:"required"`
-	Type   string `form:"member_type" binding:"required"`
+	Userid    string `form:"userid" binding:"required"`
+	ArticleId string `form:"article_id"`
+	Type      string `form:"member_type" binding:"required"`
 	models.Paging
 }
 

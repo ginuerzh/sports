@@ -9,10 +9,7 @@ import (
 )
 
 func init() {
-	ensureIndex(recordColl, "uid")
-	ensureIndex(recordColl, "-sport.time")
-	ensureIndex(recordColl, "-sport.distance")
-	ensureIndex(recordColl, "-pub_time")
+
 }
 
 const (
@@ -33,6 +30,7 @@ type SportRecord struct {
 }
 
 type GameRecord struct {
+	Type  string
 	Name  string
 	Score int
 	Magic int
@@ -47,6 +45,7 @@ type Record struct {
 	Type    string
 	Sport   *SportRecord `bson:",omitempty"`
 	Game    *GameRecord  `bson:",omitempty"`
+	Coin    int64
 	Time    time.Time
 	PubTime time.Time `bson:"pub_time"`
 }
@@ -68,12 +67,13 @@ func (this *Record) FindByTask(tid int64) (bool, error) {
 	return this.findOne(bson.M{"uid": this.Uid, "task": tid})
 }
 
-func (this *Record) SetStatus(status string, review string) error {
+func (this *Record) SetStatus(status string, review string, coin int64) error {
 	query := bson.M{"uid": this.Uid, "task": this.Task}
 	change := bson.M{
 		"$set": bson.M{
 			"status":       status,
 			"sport.review": review,
+			"coin":         coin,
 		},
 	}
 	if err := update(recordColl, query, change, true); err != nil {

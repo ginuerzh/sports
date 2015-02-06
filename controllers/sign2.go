@@ -15,9 +15,13 @@ import (
 	"log"
 )
 
-func btcRpcClient() *btcrpcclient.Client {
+var (
+	BtcRpcHost = "localhost:8110"
+)
+
+func btcRpcClient() (*btcrpcclient.Client, error) {
 	cfg := &btcrpcclient.ConnConfig{
-		Host:         "localhost:8110",
+		Host:         BtcRpcHost,
 		User:         "btcrpc",
 		Pass:         "pbtcrpc",
 		DisableTLS:   true,
@@ -25,12 +29,12 @@ func btcRpcClient() *btcrpcclient.Client {
 	}
 	client, err := btcrpcclient.New(cfg, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
-	return client
+	return client, err
 }
 
-var client = btcRpcClient()
+//var client = btcRpcClient()
 
 func CreateRawTx2(outputs []output, amount, value int64, toAddr, changeAddr string) (rawtx string, err error) {
 	var inputs []btcjson.TransactionInput
@@ -60,7 +64,10 @@ func CreateRawTx2(outputs []output, amount, value int64, toAddr, changeAddr stri
 		}
 		amounts[addr] = btcutil.Amount(amount - value)
 	}
-
+	client, err := btcRpcClient()
+	if err != nil {
+		return
+	}
 	txMsg, err := client.CreateRawTransaction(inputs, amounts)
 	if err != nil {
 		return

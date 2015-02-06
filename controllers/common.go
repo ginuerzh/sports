@@ -44,10 +44,13 @@ func writeResponse(uri string, resp http.ResponseWriter, data interface{}, err e
 	}
 	resp.Header().Set("Content-Type", "application/json; charset=utf-8")
 	b, _ := json.Marshal(response{ReqPath: uri, RespData: data, Error: err})
-	fmt.Println("<<<", string(b))
-	resp.Write(b)
 
-	return b
+	s := strings.Replace(string(b), "172.24.222.54:8082", "172.24.222.42:8082", -1)
+
+	fmt.Println("<<<", string(s))
+	resp.Write([]byte(s))
+
+	return []byte(s)
 }
 
 func writeRawResponse(resp http.ResponseWriter, raw []byte) {
@@ -219,18 +222,18 @@ func sendCoin(toAddr string, amount int64) (string, error) {
 	return r.Txid, nil
 }
 
-func gameType(name string) int {
-	if name == "七夕跳跳跳" {
+func gameType(t string) int {
+	switch t {
+	case "七夕跳跳跳", "QIXI":
 		return 0x01
-	}
-	if name == "密室逃脱" {
+	case "密室逃脱", "MISHI":
 		return 0x02
-	}
-	if name == "熊出没" {
+	case "熊出没", "XIONGCHUMO":
 		return 0x03
-	}
-	if name == "命悬一线" {
+	case "蜘蛛侠", "SPIDERMAN":
 		return 0x04
+	case "转你妹", "ZNM":
+		return 0x05
 	}
-	return 0x05
+	return 0
 }

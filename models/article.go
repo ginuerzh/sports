@@ -12,8 +12,7 @@ import (
 )
 
 func init() {
-	ensureIndex(articleColl, "author")
-	ensureIndex(articleColl, "-pub_time")
+
 }
 
 type Segment struct {

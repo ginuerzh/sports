@@ -4,7 +4,7 @@ package admin
 import (
 	//"bytes"
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/martini-contrib/binding"
 	"io"
@@ -30,12 +30,14 @@ func writeRawResponse(w http.ResponseWriter, contentType string, data []byte) {
 func writeResponse(w http.ResponseWriter, data interface{}) []byte {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "X-Requested-With,X_Requested_With")
+	w.Header().Set("Access-Control-Allow-Headers", "Origin,X-Requested-With,X_Requested_With,Content-Type,Accept")
 	//w.Header().Set("Access-Control-Allow-Methods", "POST, GET")
 
 	b, _ := json.Marshal(data)
-	fmt.Println(string(b))
-	w.Write(b)
+
+	s := strings.Replace(string(b), "172.24.222.54:8082", "172.24.222.42:8082", -1)
+
+	w.Write([]byte(s))
 
 	return b
 }

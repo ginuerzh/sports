@@ -8,9 +8,6 @@ import (
 )
 
 func init() {
-	ensureIndex(groupColl, "gid")
-	ensureIndex(groupColl, "creator")
-	ensureIndex(groupColl, "-time")
 }
 
 type Group struct {

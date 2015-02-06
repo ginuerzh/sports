@@ -480,6 +480,21 @@ type KV struct {
 	V int64  `json:"count"`
 }
 
+// for sorting
+type KVSlice []KV
+
+func (p KVSlice) Len() int {
+	return len(p)
+}
+
+func (p KVSlice) Less(i, j int) bool {
+	return p[i].V < p[j].V
+}
+
+func (p KVSlice) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
 func (logger *RedisLogger) PVs(dates ...string) map[string][]KV {
 	if len(dates) == 0 {
 		dates = []string{DateString(time.Now())}
@@ -851,21 +866,28 @@ func (logger *RedisLogger) SetGameScore(typ int, userid string, score int) {
 	}
 }
 
-func (logger *RedisLogger) GameScoreTopN(typ int, n int) []KV {
-	if n <= 0 {
+func (logger *RedisLogger) GameScores(typ int, skip, limit int) []KV {
+	return logger.zrange(lbGameKey(typ), skip, skip+limit-1, true)
+}
+
+func (logger *RedisLogger) UserGameScores(typ int, userids ...string) []int {
+	return logger.zscores(lbGameKey(typ), userids...)
+}
+
+func (logger *RedisLogger) UserGameRanks(typ int, userids ...string) []int {
+	return logger.zrevrank(lbGameKey(typ), userids...)
+}
+
+func (logger *RedisLogger) GameUserCount(typ int) int {
+	return logger.zcard(lbGameKey(typ))
+}
+
+func (logger *RedisLogger) zscores(key string, members ...string) (scores []int) {
+	conn := logger.conn
+
+	if len(members) == 0 {
 		return nil
 	}
-
-	return logger.zrange(lbGameKey(typ), 0, n-1, true)
-}
-
-func (logger *RedisLogger) GameScores(typ int, userids []string) []int64 {
-	return logger.zscores(lbGameKey(typ), userids)
-
-}
-
-func (logger *RedisLogger) zscores(key string, members []string) (scores []int64) {
-	conn := logger.conn
 
 	conn.Send("MULTI")
 	for _, member := range members {
@@ -890,6 +912,7 @@ func (logger *RedisLogger) zrange(key string, start, stop int, reverse bool) (kv
 	if reverse {
 		cmd = "ZREVRANGE"
 	}
+
 	values, _ := redis.Values(logger.conn.Do(cmd, key, start, stop, "WITHSCORES"))
 
 	if err := redis.ScanSlice(values, &kv); err != nil {
@@ -898,4 +921,33 @@ func (logger *RedisLogger) zrange(key string, start, stop int, reverse bool) (kv
 	}
 
 	return
+}
+
+func (logger *RedisLogger) zrevrank(key string, members ...string) (ranks []int) {
+	conn := logger.conn
+
+	if len(members) == 0 {
+		return nil
+	}
+
+	conn.Send("MULTI")
+	for _, member := range members {
+		conn.Send("ZREVRANK", key, member)
+	}
+	values, err := redis.Values(conn.Do("EXEC"))
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	if err := redis.ScanSlice(values, &ranks); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return
+}
+
+func (logger *RedisLogger) zcard(key string) int {
+	n, _ := redis.Int(logger.conn.Do("ZCARD", key))
+	return n
 }

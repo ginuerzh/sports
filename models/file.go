@@ -10,8 +10,7 @@ import (
 )
 
 func init() {
-	ensureIndex(fileColl, "fid")
-	ensureIndex(fileColl, "-uploadDate")
+
 }
 
 type File struct {

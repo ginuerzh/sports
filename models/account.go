@@ -22,12 +22,6 @@ var (
 func init() {
 	//dur, _ = time.ParseDuration("-30h") // auto logout after 15 minutes since last access
 
-	ensureIndex(accountColl, "_id", "password")
-	ensureIndex(accountColl, "-props.score")
-	ensureIndex(accountColl, "nickname")
-	ensureIndex(accountColl, "-reg_time")
-	ensureIndex(accountColl, "-lastlogin")
-	ensureIndex2D(accountColl, "loc")
 }
 
 type UserInfo struct {
@@ -89,6 +83,14 @@ type SetInfo struct {
 	Setinfo  bool     `json:"setinfo,omitempty"`
 }
 
+type GameTime struct {
+	Game01 time.Time
+	Game02 time.Time
+	Game03 time.Time
+	Game04 time.Time
+	Game05 time.Time
+}
+
 type Account struct {
 	Id          string `bson:"_id,omitempty"`
 	Email       string
@@ -118,8 +120,9 @@ type Account struct {
 	LoginDays   int       `bson:"login_days"`
 	LoginAwards []int64   `bson:"login_awards"`
 
-	Props  Props
-	Equips *Equip `bson:",omitempty"`
+	GameTime GameTime `bson:"game_time"`
+	Props    Props
+	Equips   *Equip `bson:",omitempty"`
 
 	Contacts []Contact `bson:",omitempty"`
 	Devs     []string  `bson:",omitempty"`
@@ -131,6 +134,23 @@ type Account struct {
 
 func (this *Account) Level() int64 {
 	return Score2Level(this.Props.Score)
+}
+
+func (this *Account) LastGameTime(typ int) time.Time {
+	switch typ {
+	case 0x01:
+		return this.GameTime.Game01
+	case 0x02:
+		return this.GameTime.Game02
+	case 0x03:
+		return this.GameTime.Game03
+	case 0x04:
+		return this.GameTime.Game04
+	case 0x05:
+		return this.GameTime.Game05
+	}
+
+	return time.Unix(0, 0)
 }
 
 func (this *Account) Exists(t string) (bool, error) {
@@ -153,11 +173,21 @@ func (this *Account) Exists(t string) (bool, error) {
 	return c > 0, err
 }
 
-func FindUsersByIds(ids []string, verbose bool) ([]Account, error) {
+func FindUsersByIds(verbose int, ids ...string) ([]Account, error) {
 	var users []Account
-	selector := bson.M{"contacts": 0}
-	if !verbose {
+	var selector bson.M
+
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	switch verbose {
+	case 0:
 		selector = bson.M{"_id": 1, "nickname": 1, "profile": 1}
+	case 1:
+		selector = bson.M{"photos": 0, "contacts": 0, "wallet": 0, "equips": 0, "devs": 0}
+	case 2:
+		selector = bson.M{"contacts": 0, "wallet": 0}
 	}
 
 	if err := search(accountColl, bson.M{"_id": bson.M{"$in": ids}}, selector, 0, 0, nil, nil, &users); err != nil {
@@ -1070,22 +1100,25 @@ func (this *Account) LastTaskRecord() (*Record, error) {
 }
 
 func (this *Account) UpdateAction(action string, date time.Time) (bool, error) {
-	selector := bson.M{
-		"userid": this.Id,
-		"date":   date,
-	}
-	update := bson.M{
-		"$inc": bson.M{
-			action: 1,
-		},
-	}
-	chinfo, err := upsert(actionColl, selector, update, true)
-	//log.Println(chinfo, err)
-	if err != nil {
-		return false, errors.NewError(errors.DbError, err.Error())
-	}
+	/*
+		selector := bson.M{
+			"userid": this.Id,
+			"date":   date,
+		}
+		update := bson.M{
+			"$inc": bson.M{
+				action: 1,
+			},
+		}
+		chinfo, err := upsert(actionColl, selector, update, true)
+		//log.Println(chinfo, err)
+		if err != nil {
+			return false, errors.NewError(errors.DbError, err.Error())
+		}
 
-	return chinfo.UpsertedId != nil, nil
+		return chinfo.UpsertedId != nil, nil
+	*/
+	return false, nil
 }
 
 func friendsPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error) {
@@ -1441,7 +1474,7 @@ func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error
 
 	sortFields := []string{"-pub_time", "-_id"}
 
-	if err := psearch(articleColl, query, nil, sortFields, &total, &articles,
+	if err := psearch(articleColl, query, bson.M{"content": 0, "contents": 0}, sortFields, &total, &articles,
 		articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -1534,7 +1567,7 @@ func (this *Account) AddContact(contact *Contact) error {
 	if err == nil {
 		return nil
 	}
-	log.Println(err)
+	//log.Println(err)
 	if err != mgo.ErrNotFound {
 		return errors.NewError(errors.DbError, err.Error())
 	}
@@ -1687,4 +1720,41 @@ func (this *Account) LatestArticle() *Article {
 func (this *Account) ContactList() ([]Contact, error) {
 	err := findOne(accountColl, bson.M{"_id": this.Id}, nil, this)
 	return this.Contacts, err
+}
+
+func (this *Account) SetGameTime(typ int, t time.Time) error {
+	var change bson.M
+
+	switch typ {
+	case 0x01:
+		change = bson.M{
+			"$set": bson.M{"game_time.game01": t},
+		}
+	case 0x02:
+		change = bson.M{
+			"$set": bson.M{"game_time.game02": t},
+		}
+	case 0x03:
+		change = bson.M{
+			"$set": bson.M{"game_time.game03": t},
+		}
+	case 0x04:
+		change = bson.M{
+			"$set": bson.M{"game_time.game04": t},
+		}
+	case 0x05:
+		change = bson.M{
+			"$set": bson.M{"game_time.game05": t},
+		}
+	default:
+		change = bson.M{
+			"$set": bson.M{"game_time.game00": t},
+		}
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+
+	return nil
 }

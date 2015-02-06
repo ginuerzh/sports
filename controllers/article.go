@@ -56,6 +56,9 @@ func BindArticleApi(m *martini.ClassicMartini) {
 		binding.Json(articleCommentsForm{}),
 		ErrorHandler,
 		articleCommentsHandler)
+	m.Get("/1/aritcle/thumbList",
+		binding.Form(thumbersForm{}),
+		thumbersHandler)
 }
 
 type articleJsonStruct struct {
@@ -66,6 +69,7 @@ type articleJsonStruct struct {
 	Image      string           `json:"cover_image"`
 	PubTime    int64            `json:"time"`
 	Thumbs     int              `json:"thumb_count"`
+	ThumbUsers []string         `json:"thumb_users"`
 	NewThumbs  int              `json:"new_thumb_count"`
 	Reviews    int              `json:"sub_article_count"`
 	NewReviews int              `json:"new_sub_article_count"`
@@ -447,18 +451,24 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 
 		event.Data.Type = models.EventReward
 		event.Clear()
-
-		//user.ClearEvent(models.EventThumb, article.Id.Hex())
-		//redis.IncrEventCount(user.Id, models.EventThumb, -count)
-
-		//user.ClearEvent(models.EventComment, article.Id.Hex())
-		//redis.IncrEventCount(user.Id, models.EventComment, -count)
-
-		//count = user.ClearEvent(models.EventReward, article.Id.Hex())
-		//redis.IncrEventCount(user.Id, models.EventReward, -count)
 	}
 
 	jsonStruct := convertArticle(article)
+
+	thumbers := article.Thumbs
+	if len(article.Thumbs) > 6 {
+		thumbers = article.Thumbs[len(article.Thumbs)-6:]
+	}
+	users, _ := models.FindUsersByIds(0, thumbers...)
+	for i := len(thumbers); i > 0; i-- { // reverse
+		for j, _ := range users {
+			if users[j].Id == thumbers[i-1] {
+				jsonStruct.ThumbUsers = append(jsonStruct.ThumbUsers, users[j].Profile)
+				break
+			}
+		}
+	}
+
 	writeResponse(request.RequestURI, resp, jsonStruct, nil)
 }
 
@@ -484,4 +494,64 @@ func articleCommentsHandler(request *http.Request, resp http.ResponseWriter,
 	//respData["page_item_count"] = total
 	respData["articles_without_content"] = jsonStructs
 	writeResponse(request.RequestURI, resp, respData, err)
+}
+
+type thumbersForm struct {
+	Id    string `form:"article_id"`
+	Index int    `form:"page_index"`
+}
+
+func thumbersHandler(r *http.Request, w http.ResponseWriter,
+	form thumbersForm) {
+
+	article := &models.Article{}
+	article.FindById(form.Id)
+
+	var respData struct {
+		Users []*leaderboardResp `json:"members_list"`
+	}
+
+	if form.Index < 0 {
+		form.Index = 0
+	}
+	thumbers := article.Thumbs
+	end := len(thumbers) - form.Index*20
+	start := end - 20
+
+	if end <= 0 {
+		respData.Users = []*leaderboardResp{}
+		writeResponse(r.RequestURI, w, respData, nil)
+		return
+	}
+	if start < 0 {
+		start = 0
+	}
+
+	thumbers = article.Thumbs[start:end]
+	users, _ := models.FindUsersByIds(1, thumbers...)
+
+	for j := len(thumbers); j > 0; j-- { // reverse
+		for i, _ := range users {
+			if users[i].Id == thumbers[j-1] {
+				respData.Users = append(respData.Users, &leaderboardResp{
+					Userid:   users[i].Id,
+					Score:    users[i].Props.Score,
+					Level:    users[i].Level(),
+					Profile:  users[i].Profile,
+					Nickname: users[i].Nickname,
+					Gender:   users[i].Gender,
+					LastLog:  users[i].LastLogin.Unix(),
+					Birth:    users[i].Birth,
+					Location: users[i].Loc,
+					Addr:     users[i].LocAddr,
+					Phone:    users[i].Phone,
+				})
+				break
+			}
+		}
+	}
+
+	writeResponse(r.RequestURI, w, respData, nil)
+	return
+
 }

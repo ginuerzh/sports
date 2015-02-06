@@ -19,6 +19,7 @@ func BindArticleApi(m *martini.ClassicMartini) {
 	m.Get("/admin/article/list", binding.Form(articleListForm{}), adminErrorHandler, articleListHandler)
 	m.Get("/admin/article/timeline", binding.Form(articleListForm{}), adminErrorHandler, articleTimelineHandler)
 	m.Get("/admin/article/comments", binding.Form(articleListForm{}), adminErrorHandler, articleCommentsHandler)
+	m.Options("/admin/article/post", articlePostOptionsHandler)
 	m.Post("/admin/article/post", binding.Json(postForm{}), adminErrorHandler, articlePostHandler)
 	m.Post("/admin/article/delete", binding.Json(delArticleForm{}), adminErrorHandler, delArticleHandler)
 	m.Get("/admin/article/search", binding.Form(articleSearchForm{}), adminErrorHandler, articleSearchHandler)
@@ -227,6 +228,10 @@ type postForm struct {
 	Image    []string    `json:"image"`
 	Tags     interface{} `json:"tags"`
 	Token    string      `json:"access_token" binding:"required"`
+}
+
+func articlePostOptionsHandler(w http.ResponseWriter) {
+	writeResponse(w, nil)
 }
 
 func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form postForm) {

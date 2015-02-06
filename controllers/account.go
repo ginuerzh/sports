@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"net/http"
 	//"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -128,6 +129,12 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/1/user/isNikeNameUsed",
 		binding.Form(nicknameForm{}),
 		checkNicknameHandler)
+	m.Get("/1/user/gameResults",
+		binding.Form(gameResultForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		gameResultHandler)
 }
 
 // user register parameter
@@ -471,8 +478,10 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 
 	balance, _ := getBalance(user.Wallet.Addrs)
 	var wealth int64
-	for _, b := range balance.Addrs {
-		wealth += (b.Confirmed + b.Unconfirmed)
+	if balance != nil {
+		for _, b := range balance.Addrs {
+			wealth += (b.Confirmed + b.Unconfirmed)
+		}
 	}
 	info.Props.Wealth = wealth
 
@@ -804,6 +813,7 @@ func searchHandler(r *http.Request, w http.ResponseWriter,
 	writeResponse(r.RequestURI, w, respData, err)
 }
 
+/*
 type importFriendsForm struct {
 	Type     string `json:"account_type"`
 	Uid      string `json:"userid" binding:"required"`
@@ -812,7 +822,7 @@ type importFriendsForm struct {
 	parameter
 }
 
-/*
+
 func (this importFriendsForm) getTokenId() string {
 	return this.Token
 }
@@ -962,4 +972,128 @@ func checkNicknameHandler(r *http.Request, w http.ResponseWriter, form nicknameF
 	find, err := user.FindByNickname(form.Nickname)
 
 	writeResponse(r.RequestURI, w, map[string]bool{"is_used": find}, err)
+}
+
+type gameResultForm struct {
+	Type  string `form:"game_type"`
+	Count int    `form:"page_item_count"`
+	parameter
+}
+
+func gameResultHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(gameResultForm)
+	var respData struct {
+		Total     []*leaderboardResp `json:"total_list"`
+		Friends   []*leaderboardResp `json:"friends_list"`
+		Score     int                `json:"total_score"`
+		Percent   int                `json:"percent"`
+		PerFriend int                `json:"percentFri"`
+	}
+
+	if form.Count == 0 {
+		form.Count = 3
+	}
+
+	gt := gameType(form.Type)
+	kvs := redis.GameScores(gt, 0, form.Count)
+	var ids []string
+	for _, kv := range kvs {
+		ids = append(ids, kv.K)
+	}
+
+	users, _ := models.FindUsersByIds(1, ids...)
+	index := 0
+	for _, kv := range kvs {
+		for i, _ := range users {
+			if users[i].Id == kv.K {
+				respData.Total = append(respData.Total, &leaderboardResp{
+					Userid:   users[i].Id,
+					Score:    kv.V,
+					Rank:     index + 1,
+					Level:    users[i].Level(),
+					Profile:  users[i].Profile,
+					Nickname: users[i].Nickname,
+					Gender:   users[i].Gender,
+					LastLog:  users[i].LastGameTime(gt).Unix(),
+					Birth:    users[i].Birth,
+					Location: users[i].Loc,
+					Phone:    users[i].Phone,
+				})
+				index++
+
+				break
+			}
+		}
+	}
+
+	ids = redis.Friends(models.RelFriend, user.Id)
+	if len(ids) > 0 {
+		total := len(ids)
+		ids = append(ids, user.Id)
+		scores := redis.UserGameScores(gt, ids...)
+
+		if len(scores) != len(ids) {
+			scores = make([]int, len(ids))
+		}
+		kvs = make([]models.KV, len(ids)+1)
+		for i, _ := range ids {
+			kvs[i].K = ids[i]
+			kvs[i].V = int64(scores[i])
+		}
+
+		sort.Sort(sort.Reverse(models.KVSlice(kvs)))
+		if len(kvs) > 3 {
+			kvs = kvs[0:3]
+		}
+		ids = []string{}
+		for _, kv := range kvs {
+			ids = append(ids, kv.K)
+		}
+		users, _ = models.FindUsersByIds(1, ids...)
+		index := 0
+		rank := 0
+
+		for j, kv := range kvs {
+			for i, _ := range users {
+				if users[i].Id == kv.K {
+					respData.Friends = append(respData.Friends, &leaderboardResp{
+						Userid:   users[i].Id,
+						Score:    kv.V,
+						Rank:     index + 1,
+						Level:    users[i].Level(),
+						Profile:  users[i].Profile,
+						Nickname: users[i].Nickname,
+						Gender:   users[i].Gender,
+						LastLog:  users[i].LastGameTime(gt).Unix(),
+						Birth:    users[i].Birth,
+						Location: users[i].Loc,
+						Phone:    users[i].Phone,
+					})
+					index++
+
+					break
+				}
+			}
+			if kv.K == user.Id {
+				rank = j
+			}
+		}
+
+		respData.PerFriend = int(float64(total-rank) / float64(total) * 100.0)
+	}
+
+	ranks := redis.UserGameRanks(gt, user.Id)
+	if scores := redis.UserGameScores(gt, user.Id); len(scores) == 1 {
+		respData.Score = scores[0]
+	}
+	n := redis.GameUserCount(gt) - 1
+	log.Println(ranks, n)
+	if len(ranks) == 1 && respData.Score > 0 {
+		respData.Percent = int(float64(n-ranks[0]) / float64(n) * 100.0)
+		log.Println(float64(n-ranks[0]) / float64(n))
+	}
+
+	writeResponse(r.RequestURI, w, respData, nil)
 }

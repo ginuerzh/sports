@@ -7,7 +7,7 @@ import (
 	"github.com/ginuerzh/sports/controllers"
 	"github.com/ginuerzh/sports/controllers/admin"
 	//"github.com/ginuerzh/sports/controllers/jsgen"
-	//"github.com/ginuerzh/sports/models"
+	"github.com/ginuerzh/sports/models"
 	"github.com/zhengying/apns"
 	//"github.com/martini-contrib/gzip"
 	"gopkg.in/ginuerzh/weedo.v0"
@@ -33,9 +33,10 @@ func init() {
 	flag.StringVar(&staticDir, "static", "public", "static files directory")
 	flag.StringVar(&listenAddr, "l", ":8080", "addr on listen")
 	flag.StringVar(&redisAddr, "redis", "localhost:6379", "redis server")
-	//flag.StringVar(&models.MongoAddr, "mongo", "localhost:27017", "mongodb server")
+	flag.StringVar(&models.MongoAddr, "mongo", "localhost:27017", "mongodb server")
 	flag.StringVar(&controllers.CoinAddr, "cs", "localhost:8087", "coin server")
 	flag.StringVar(&weedfsAddr, "weed", "localhost:9334", "weed-fs server")
+	flag.StringVar(&controllers.BtcRpcHost, "btcrpc", "localhost:8110", "bitcoin rpc host")
 	flag.Parse()
 
 	if !strings.HasPrefix(controllers.CoinAddr, "http") {
@@ -88,6 +89,9 @@ func main() {
 	//jsgen.BindConfigApi(m)
 	//jsgen.BindAccountApi(m)
 	//jsgen.BindArticleApi(m)
+
+	models.InsureIndexes()
+
 	log.Fatal(http.ListenAndServe(listenAddr, m))
 }
 

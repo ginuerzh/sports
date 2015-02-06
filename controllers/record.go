@@ -8,6 +8,7 @@ import (
 	"gopkg.in/go-martini/martini.v1"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -35,6 +36,12 @@ func BindRecordApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		loadUserHandler,
 		leaderboardHandler)
+	m.Get("/1/leaderboard/gameList",
+		binding.Form(gamelbForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		gamelbHandler,
+	)
 }
 
 type record struct {
@@ -43,8 +50,10 @@ type record struct {
 	Duration  int64    `json:"duration"`
 	Distance  int      `json:"distance"`
 	Pics      []string `json:"sport_pics"`
+	GameType  string   `json:"game_type"`
 	GameScore int      `json:"game_score"`
 	GameName  string   `json:"game_name"`
+	Coins     int64    `json:"coin_value"`
 	Magic     int      `json:"magic"`
 	Status    string   `json:"status"`
 }
@@ -107,13 +116,15 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		GiveAwards(user, awards, redis)
 
 		rec.Game = &models.GameRecord{
+			Type:  form.Record.GameType,
 			Name:  form.Record.GameName,
 			Score: form.Record.GameScore,
 			Magic: int(awards.Mental),
-			Coin:  awards.Wealth,
 		}
+		rec.Coin = awards.Wealth
 
-		redis.SetGameScore(gameType(rec.Game.Name), user.Id, rec.Game.Score)
+		redis.SetGameScore(gameType(rec.Game.Type), user.Id, rec.Game.Score)
+		user.SetGameTime(gameType(rec.Game.Type), time.Now())
 
 	case "run":
 		rec.Sport = &models.SportRecord{
@@ -181,6 +192,8 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter,
 		recs[i].Type = records[i].Type
 		recs[i].Time = records[i].Time.Unix()
 		recs[i].Status = records[i].Status
+		recs[i].Coins = records[i].Coin
+
 		if records[i].Sport != nil {
 			recs[i].Duration = records[i].Sport.Duration
 			recs[i].Distance = records[i].Sport.Distance
@@ -190,6 +203,9 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter,
 			recs[i].GameName = records[i].Game.Name
 			recs[i].GameScore = records[i].Game.Score
 			recs[i].Magic = records[i].Game.Magic
+			if records[i].Game.Coin > 0 {
+				recs[i].Coins = records[i].Game.Coin
+			}
 		}
 	}
 	respData := map[string]interface{}{
@@ -320,7 +336,7 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter,
 		ids[i] = kv[i].K
 	}
 
-	users, _ := models.FindUsersByIds(ids, false)
+	users, _ := models.FindUsersByIds(0, ids...)
 
 	lb := make([]leaderboardResp, len(kv))
 	for i, _ := range kv {
@@ -414,4 +430,104 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 	stats.LBCount = redis.LBDisCard()
 
 	writeResponse(request.RequestURI, resp, stats, nil)
+}
+
+type gamelbForm struct {
+	Query string `form:"query_type"`
+	Game  string `form:"game_type"`
+	Index int    `form:"page_index"`
+	Count int    `form:"page_count"`
+	parameter
+}
+
+func gamelbHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(gamelbForm)
+	if form.Index <= 0 {
+		form.Index = 0
+	}
+	if form.Count <= 0 {
+		form.Count = 20
+	}
+
+	gt := gameType(form.Game)
+	var ids []string
+	var kvs []models.KV
+
+	switch form.Query {
+	case "FRIEND":
+		ids = redis.Friends(models.RelFriend, user.Id)
+		if len(ids) == 0 {
+			break
+		}
+
+		ids = append(ids, user.Id)
+
+		if form.Index*form.Count >= len(ids) {
+			break
+		}
+
+		start := form.Index * form.Count
+		end := start + form.Count
+		if end > len(ids) {
+			end = len(ids)
+		}
+
+		scores := redis.UserGameScores(gt, ids...)
+		if len(scores) != len(ids) {
+			scores = make([]int, len(ids))
+		}
+
+		kvs = make([]models.KV, len(ids))
+		for i, _ := range kvs {
+			kvs[i].K = ids[i]
+			kvs[i].V = int64(scores[i])
+		}
+		sort.Sort(sort.Reverse(models.KVSlice(kvs)))
+
+		kvs = kvs[start:end]
+		ids = []string{}
+		for _, kv := range kvs {
+			ids = append(ids, kv.K)
+		}
+	case "TOP":
+		fallthrough
+	default:
+		kvs = redis.GameScores(gt, form.Index*form.Count, form.Count)
+		for _, kv := range kvs {
+			ids = append(ids, kv.K)
+		}
+	}
+
+	var respData struct {
+		List []*leaderboardResp `json:"members_list"`
+	}
+
+	users, _ := models.FindUsersByIds(1, ids...)
+	index := 0
+	for _, kv := range kvs {
+		for i, _ := range users {
+			if users[i].Id == kv.K {
+				respData.List = append(respData.List, &leaderboardResp{
+					Userid:   users[i].Id,
+					Score:    kv.V,
+					Rank:     form.Index*form.Count + index + 1,
+					Level:    users[i].Level(),
+					Profile:  users[i].Profile,
+					Nickname: users[i].Nickname,
+					Gender:   users[i].Gender,
+					LastLog:  users[i].LastGameTime(gt).Unix(),
+					Birth:    users[i].Birth,
+					Location: users[i].Loc,
+					Phone:    users[i].Phone,
+				})
+				index++
+
+				break
+			}
+		}
+	}
+
+	writeResponse(r.RequestURI, w, respData, nil)
 }

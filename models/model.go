@@ -13,7 +13,7 @@ var (
 	pool       *redis.Pool
 )
 
-func init() {
+func Init() {
 	var err error
 	mgoSession, err = mgo.Dial("localhost")
 	if err != nil {

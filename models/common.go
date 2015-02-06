@@ -73,6 +73,37 @@ func init() {
 	initLevelScores()
 }
 
+func InsureIndexes() {
+	ensureIndex(accountColl, "_id", "password")
+	ensureIndex(accountColl, "-props.score")
+	ensureIndex(accountColl, "nickname")
+	ensureIndex(accountColl, "-reg_time")
+	ensureIndex(accountColl, "-lastlogin")
+	ensureIndex2D(accountColl, "loc")
+
+	ensureIndex(articleColl, "author")
+	ensureIndex(articleColl, "-pub_time")
+
+	ensureIndex(eventColl, "-time")
+
+	ensureIndex(fileColl, "fid")
+	ensureIndex(fileColl, "-uploadDate")
+
+	ensureIndex(msgColl, "from")
+	ensureIndex(msgColl, "to")
+	ensureIndex(msgColl, "from", "to")
+	ensureIndex(msgColl, "-time")
+
+	ensureIndex(recordColl, "uid")
+	ensureIndex(recordColl, "-sport.time")
+	ensureIndex(recordColl, "-sport.distance")
+	ensureIndex(recordColl, "-pub_time")
+
+	ensureIndex(actionColl, "userid")
+	ensureIndex(actionColl, "date")
+	ensureIndex(actionColl, "userid", "date")
+}
+
 func scoreOfUpgrade(n int) int64 {
 	difficult := func(n int) int {
 		if n < 10 {
@@ -168,20 +199,24 @@ func Addr2Loc(addr Address) Location {
 
 type PagingFunc func(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error)
 
-func getSession() *mgo.Session {
+func getSession() (*mgo.Session, error) {
 	if mgoSession == nil {
 		var err error
 		mgoSession, err = mgo.Dial(MongoAddr)
-		//log.Println(MongoAddr)
+		//log.Println("mongo addr:", MongoAddr)
 		if err != nil {
 			log.Println(err) // no, not really
+			return nil, err
 		}
 	}
-	return mgoSession.Clone()
+	return mgoSession.Clone(), nil
 }
 
 func withCollection(collection string, safe *mgo.Safe, s func(*mgo.Collection) error) error {
-	session := getSession()
+	session, err := getSession()
+	if session == nil {
+		return err
+	}
 	defer session.Close()
 
 	session.SetSafe(safe)

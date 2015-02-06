@@ -18,6 +18,7 @@ func BindTaskApi(m *martini.ClassicMartini) {
 	m.Get("/admin/task/list", binding.Form(tasklistForm{}), adminErrorHandler, tasklistHandler)
 	m.Get("/admin/task/timeline", binding.Form(taskTimelineForm{}), adminErrorHandler, taskTimelineHandler)
 	m.Post("/admin/task/auth", binding.Json(taskAuthForm{}), adminErrorHandler, taskAuthHandler)
+	m.Options("/admin/task/auth", taskAuthOptionsHandler)
 }
 
 type taskinfo struct {
@@ -197,7 +198,11 @@ type taskAuthForm struct {
 	Token  string `json:"access_token"`
 }
 
-func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form taskAuthForm) {
+func taskAuthOptionsHandler(w http.ResponseWriter) {
+	writeResponse(w, nil)
+}
+
+func taskAuthHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form taskAuthForm) {
 	/*
 		user := redis.OnlineUser(form.Token)
 		if user == nil {
@@ -237,9 +242,9 @@ func taskAuthHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			redis.UpdateRecLB(user.Id, record.Sport.Distance, int(record.Sport.Duration))
 		}
 
-		record.SetStatus(models.StatusFinish, form.Reason)
+		record.SetStatus(models.StatusFinish, form.Reason, awards.Wealth)
 	} else {
-		record.SetStatus(models.StatusUnFinish, form.Reason)
+		record.SetStatus(models.StatusUnFinish, form.Reason, 0)
 	}
 
 	// ws push

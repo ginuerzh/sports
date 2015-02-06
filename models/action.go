@@ -8,9 +8,7 @@ import (
 )
 
 func init() {
-	ensureIndex(actionColl, "userid")
-	ensureIndex(actionColl, "date")
-	ensureIndex(actionColl, "userid", "date")
+
 }
 
 type Action struct {

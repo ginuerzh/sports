@@ -31,7 +31,7 @@ const (
 )
 
 func init() {
-	ensureIndex(eventColl, "-time")
+
 }
 
 type EventData struct {
