@@ -1,0 +1,7 @@
+<ul class="pagination" ng-show="total>0">
+    <li ng-class='{disabled:pageIndex==0}'><a href="" ng-click="paginationTo(pageIndex-1)" title="上一页">《</a></li>
+    <li ng-class="{active: n==pageIndex+1, disabled: n=='…'}" ng-repeat="n in showPages track by $index">
+        <a ng-href="" title="{{n!='…'?'第'+n+'页':''}}" ng-click="paginationTo(n-1)">{{n}}</a>
+    </li>
+    <li ng-class="{disabled:pageIndex==pagetotal-1}"><a ng-href="" title="下一页" ng-click="paginationTo(pageIndex+1)">》</a></li>
+</ul>

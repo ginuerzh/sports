@@ -1894,3 +1894,17 @@ table{
 	text-align: center;
 }
 	
+.time-show {
+    font-size: 10px;
+    color: gray;
+}
+
+.divimg{
+    width: 100%;
+    text-align: center;
+}
+
+.content-p-show{
+    margin-left: 2%;
+    margin-right: 2%;
+}

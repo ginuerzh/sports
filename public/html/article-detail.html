@@ -7,10 +7,11 @@
                 <div class="article-info">
                     <i class="fa fa-clock-o" data-original-title="{{article.time}}发布" gen-tooltip> 发布: {{article.time}}</i>
                     标签: <a ng-repeat="tag in article.tags" ng-href="{{'#/tag/'+tag.id}}" class="pure-button pure-button-link">{{tag.name}}</a>
-                    <a class="success" ng-href="{{'/'+article.article_id+'/edit'}}"><i class="fa fa-pencil"></i> 编辑</a>
+                    <a class="success" ng-href="{{'/'+article.article_id+'/edit'}}" ng-if="false"><i class="fa fa-pencil"></i> 编辑</a>
                 </div>
             </div>
-            <div id="markdownstring"></div>
+            <div gen-parse-md="article.contents"></div>
+            <br>
             <div class="row">
                 <div class="col-md-12" align="right">
                     <div class="pure-button-group">
@@ -22,60 +23,43 @@
                         </button>
                     </div>
                     <div class="pure-button-group">
-                        <button ng-click="reply(article.article_id)" class="pure-button pure-button-small success-bg">发表评论<i class="fa fa-reply"></i></button>
-                    </div>
-                    <div class="pure-button-group">
                         <button ng-click="deleteArticle(article.article_id)" class="pure-button pure-button-small success-bg">删除博文<i class="fa fa-reply"></i></button>
                     </div>
                 </div>
             </div>
         </div>
         <div class="panel" id="comments">
-            <div class="inner" id="replyForm" gen-moving="replyMoving">
+            <div class="inner" id="replyForm" >
                 <h4>{{comment.title}}</h4>
-                    <div class="wmd-preview article-content" ng-show="parent.wmdPreview" gen-parse-md="comment.content">
-                </div>
-                <form class="form" ng-hide="parent.wmdPreview">
-                    <div id="wmd-button-bar"></div>
-                    <div class="row">
-                        <textarea class="col-md-10" id="wmd-input" name="评论内容" placeholder="{{isLogin?'请编辑内容':'您还没有登录，不能发表评论哦'}}" ng-model="comment.content" rows="6" ui-validate="{maxlength:checkContentMax,minlength:checkContentMin}" gen-tooltip="validateTooltip" required>
-                        </textarea>
-                    </div>
+                <form class="form">
+                    <div class="ueditor" config="config" ng-model="comment.content" ng-disabled="true"></div>
                 </form>
-                <div class="article-info">
-                    {{global.ContentMinLen}} 到 {{global.ContentMaxLen}} 字节，当前<strong class="hot">{{parent.contentBytes}}</strong>字节
-                </div>
+                <br>
                 <div class="text-right">
                     <div class="pure-button-group">
-                        <button class="pure-button pure-button-small info-bg" ng-click="wmdPreview()">编辑 / 预览</button>
-                    </div>
-                    <div class="pure-button-group">
-                        <button class="pure-button pure-button-small info-bg" ng-if="comment.replyToComment" ng-click="reply(article)">返回</button>
-                        <button class="pure-button pure-button-small success-bg" ng-click="submit()">提交</button>
+                        <button class="pure-button pure-button-small success-bg" ng-if="comment.content.length>0" ng-click="reback()">返回</button>
+                        <button class="pure-button pure-button-small success-bg" ng-disabled="comment.content.length==0"  ng-click="submit()">提交</button>
                     </div>
                 </div>
             </div>
+
             <ul class="media-list comments">
+                <p class="inner" ng-show="article.comments==0">暂无评论</p>
                 <li class="media" ng-repeat="comment in article.comments">
                   <a class="media-object left" ng-href="{{'#/detail/'+comment.author.userid}}">
-                    <img ng-src="{{comment.author.profile}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'">
+                    <img ng-src="{{comment.author.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'">
                   </a>
                   <div class="media-body" id="{{comment.article_id}}">
                     <div class="media-heading">
-                        <a>{{comment.cover_text}}</a>
+                        <a a ng-href="{{'#/articledetail/'+comment.article_id}}"><div gen-parse-md="comment.contents"></div></a>
                         <a class="right" title="删除评论"ng-click="deleteArticle(comment.article_id)">
                             <i class="fa fa-trash-o"></i>
                         </a>
                     </div>
-                    <div class="media-content list-content" gen-parse-md="comment.content"></div>
-                    <div class="media inner">
-                        <div><a ng-href="{{'#/detail/'+comment.author.userid}}">{{comment.author.userid}}</a> <span data-original-title="{{comment.time}}发布" gen-tooltip>{{comment.time}}发表</span></div>
-                        <div class="pure-u-1-2 text-right">
-
-                            <div class="pure-button-group">
-                                <button class="pure-button pure-button-link" ng-click="reply(comment.article_id)" class="pure-button pure-button-primary">回复<i class="fa fa-reply"></i></button>
-                            </div>
-                        </div>
+                    <div class="media inner" class="col-md-12" align='right'>
+                        <a ng-href="{{'#/detail/'+comment.author.userid}}">{{comment.author.nickname}}/{{comment.author.userid}}</a>
+                        <span data-original-title="{{comment.time}}发布" gen-tooltip><font color="gray">发表于 {{comment.time}}</font>  [<button class="pure-button pure-button-link" ng-click="reply(comment.article_id)" class="pure-button pure-button-primary">回复<i class="fa fa-reply"></i></button>]
+                        </span>
                     </div>
                   </div>
                 </li>
@@ -87,39 +71,46 @@
             <div class="panel-heading">作者信息</div>
             <div class="media inner">
                 <a class="media-object left" ng-href="{{'#/detail/'+article.author.userid}}">
-                    <img class="img-small" ng-src="{{article.author.profile}}">
+                    <img class="img-small" ng-src="{{article.author.profile|profilefilter}}">
                 </a>
                 <div class="media-body">
-                    <div class="media-header"><a ng-href="{{'#/detail/'+article.author.userid}}">{{article.author.userid}}</a></div>
+                    <div class="media-header"><a ng-href="{{'#/detail/'+article.author.userid}}">{{article.author.nickname}}</a></div>
                 </div>
             </div>
-            <ul class="inner list-inline article-info">
-                <li>
-                    积分：<strong>{{article.author.score}}</strong>
-                </li>
-                <li>
-                    粉丝：<strong>{{article.author.followers_count}}</strong>
-                </li>
-                <li>
-                    好友：<strong>{{article.author.friends_count}}</strong>
-                </li>
-                <li>
-                    黑名单：<strong>{{article.author.blacklist_count}}</strong>
-                </li>
-                <li>
-                    关注：<strong>{{article.author.follows_count}}</strong>
-                </li>
-                <li>
-                    文章/评论：<strong>{{article.author.articles_count}}</strong>
-                </li>
-            </ul>
+            <div>
+                <ul class="inner list-inline article-info">
+                    <li>
+                        粉丝：<strong>{{article.author.followers_count}}</strong>
+                    </li>
+                    <li>
+                        好友：<strong>{{article.author.friends_count}}</strong>
+                    </li>
+                    <li>
+                        黑名单：<strong>{{article.author.blacklist_count}}</strong>
+                    </li>
+                    <li>
+                        关注：<strong>{{article.author.follows_count}}</strong>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <ul class="inner list-inline article-info">
+                    <li>
+                        积分：<strong>{{article.author.score}}</strong>
+                    </li>
+                    <li>
+                        文章/评论：<strong>{{article.author.articles_count}}</strong>
+                    </li>
+                </ul>
+            </div>
+
         </div>
         <div class="panel" >
             <div class="panel-heading">作者文章</div>
             <p class="inner" ng-show="article.author.articles_count==0">暂无</p>
             <ul class="media-list comments" ng-show="article.author.articles_count>0">
                 <li ng-repeat="item in article.author.articlesList">
-                    <span class="label">{{item.time}}</span>&nbsp;<a ng-href="{{'#/articledetail/'+item.article_id}}" title="{{item.author+'发表'}}">{{item.cover_text}}</a>
+                    <span class="label">{{item.time}}</span>&nbsp;<a ng-href="{{'#/articledetail/'+item.article_id}}" title="{{item.author+'发表'}}">{{item.cover_text|articletitle}}</a>
                 </li>
             </ul>
         </div>

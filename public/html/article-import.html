@@ -1,8 +1,9 @@
-<div ng-controller="articleimportController">
+<div class="main-bg">
+<form name="addarticle" ng-controller="articleimportController">
 
 
 <div>
-    标题:   <input type="text" width=400 ng-model="title" ng-init="">
+    标题:   <input type="text" width=400 ng-model="title" ng-init="" required>
 </div>
     <br>
 <div class="ueditor"  config="config" ng-model="content">
@@ -18,15 +19,16 @@
         <option value=""></option>
     </select>
     <br>
-
+    用户名ID:   <input type="text" width=400 ng-model="userid" ng-init="" required>
     <br>
     <div>
-        <button type="button" class="btn btn-primary" ng-click="importarticle()">提交</button>
+        <button type="button" class="btn btn-primary" ng-click="importarticle()" ng-disable="!addarticle.$valid">提交</button>
     </div>
-<div id="preview">
-    {{content}}
-</div>
+
 
     <br>
-
+<ng-form>
+    <div id="preview">
+        {{content}}
+    </div>
 </div>
