@@ -20,13 +20,12 @@ const (
 )
 
 type SportRecord struct {
-	StartTime int64
-	EndTime   int64
-	Duration  int64
-	Distance  int
-	Speed     float64
-	Pics      []string
-	Review    string
+	Source   string
+	Duration int64
+	Distance int
+	Speed    float64
+	Pics     []string
+	Review   string
 }
 
 type GameRecord struct {
@@ -38,16 +37,17 @@ type GameRecord struct {
 }
 
 type Record struct {
-	Id      bson.ObjectId `bson:"_id,omitempty"`
-	Uid     string
-	Task    int64
-	Status  string
-	Type    string
-	Sport   *SportRecord `bson:",omitempty"`
-	Game    *GameRecord  `bson:",omitempty"`
-	Coin    int64
-	Time    time.Time
-	PubTime time.Time `bson:"pub_time"`
+	Id        bson.ObjectId `bson:"_id,omitempty"`
+	Uid       string
+	Task      int64
+	Status    string
+	Type      string
+	StartTime time.Time
+	EndTime   time.Time
+	Sport     *SportRecord `bson:",omitempty"`
+	Game      *GameRecord  `bson:",omitempty"`
+	Coin      int64
+	PubTime   time.Time `bson:"pub_time"`
 }
 
 func (this *Record) findOne(query interface{}) (bool, error) {
@@ -93,7 +93,7 @@ func TaskRecords(pageIndex, pageCount int) (int, []Record, error) {
 	total := 0
 
 	if err := search(recordColl, bson.M{"type": "run"}, nil,
-		pageIndex*pageCount, pageCount, []string{"-time"}, &total, &records); err != nil && err != mgo.ErrNotFound {
+		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &records); err != nil && err != mgo.ErrNotFound {
 		return total, nil, errors.NewError(errors.DbError)
 	}
 

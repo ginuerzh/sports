@@ -62,15 +62,18 @@ func (tl *TaskList) GetProof(tid int) Proof {
 }
 */
 type Task struct {
-	Id       int64    `json:"task_id"`
-	Type     string   `json:"task_type"`
-	Distance int      `json:"-"`
-	Duration int64    `json:"-"`
-	Desc     string   `json:"task_desc"`
-	Status   string   `json:"task_status"`
-	Pics     []string `json:"task_pics,omitempty"`
-	Result   string   `json:"task_result,omitempty"`
-	Tip      string   `json:"task_tip,omitempty"`
+	Id        int64    `json:"task_id"`
+	Type      string   `json:"task_type"`
+	BeginTime int64    `json:"begin_time,omitempty"`
+	EndTime   int64    `json:"end_time,omitempty"`
+	Distance  int      `json:"distance,omitempty"`
+	Duration  int64    `json:"duration,omitempty"`
+	Source    string   `json:"source,omitempty"`
+	Desc      string   `json:"task_desc"`
+	Status    string   `json:"task_status"`
+	Pics      []string `json:"task_pics,omitempty"`
+	Result    string   `json:"task_result,omitempty"`
+	Tip       string   `json:"task_tip,omitempty"`
 }
 
 var Tasks = []Task{
@@ -78,7 +81,8 @@ var Tasks = []Task{
 	{Id: 1, Type: TaskPost, Desc: "新手教程"},
 	{Id: 2, Type: TaskRunning,
 		Distance: 2000, Duration: 1500, Desc: "慢跑1分钟,行走2分钟,重复8次。\n距离：2公里, 时长：25分钟。",
-		Tip: `初看这个任务，很多人都觉目标太低，没有多大意义。事实上，我们现在开始需要的是重新思考，再次出发，练习正确的跑步方式，让自己最终能够轻松的完成跑完全程马拉松的目标。跑步需要倾听自己内在的声音，而不是更多地的受到外部目标的影响。你的身体是你的老师和学生，了解身体，这称作“身体感知”。`},
+		Tip: `初看这个任务，很多人都觉目标太低，没有多大意义。事实上，我们现在开始需要的是重新思考，再次出发，练习正确的跑步方式，让自己最终能够轻松的完成跑完全程马拉松的目标。
+跑步需要倾听自己内在的声音，而不是更多地的受到外部目标的影响。你的身体是你的老师和学生，了解身体，这称作“身体感知”。`},
 	{Id: 3, Type: TaskPost, Desc: "发表一篇运动日志,分享一下你的运动心情吧"},
 	{Id: 4, Type: TaskRunning,
 		Distance: 2000, Duration: 1200, Desc: "慢跑1分钟,行走2分钟,重复6次。\n距离：2公里, 时长：20分钟。",
@@ -92,7 +96,10 @@ var Tasks = []Task{
 	{Id: 5, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
 	{Id: 6, Type: TaskRunning,
 		Distance: 2000, Duration: 1320, Desc: "慢跑1分钟,行走2分钟,重复7次。\n距离：2公里, 时长：22分钟。",
-		Tip: `应对一种力量的最佳方式是顺其自然。我们跑步时，身体受到两种力量的影响：向下的重力和向前跑动时道路传来的反向力。跑步时，让身体保持轻微前倾，找到平衡，你就学会了和重力合作，当重力向前拉你走时，你跟着走，让小腿尽可能休息。让我们的脚在身体重心略微靠后一点位置落地，让重心位于落脚点之前，以柔和的全脚掌着地代替脚跟着地，可以化解道路的反向力，而且不会降低速度，也不会对身体造成冲击。这个技术非常关键，需要认真思考，如果有疑问，可以到“跑步圣经”圈子里发帖，和有经验的跑步爱好者一起讨论。`},
+		Tip: `应对一种力量的最佳方式是顺其自然。我们跑步时，身体受到两种力量的影响：向下的重力和向前跑动时道路传来的反向力。
+跑步时，让身体保持轻微前倾，找到平衡，你就学会了和重力合作，当重力向前拉你走时，你跟着走，让小腿尽可能休息。
+让我们的脚在身体重心略微靠后一点位置落地，让重心位于落脚点之前，以柔和的全脚掌着地代替脚跟着地，可以化解道路的反向力，而且不会降低速度，也不会对身体造成冲击。
+这个技术非常关键，需要认真思考，如果有疑问，可以到“跑步圣经”圈子里发帖，和有经验的跑步爱好者一起讨论。`},
 	{Id: 7, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
 
 	//week 2
@@ -113,14 +120,16 @@ var Tasks = []Task{
 	{Id: 12, Type: TaskPost, Desc: "发表一篇运动日志,分享一下你的运动心情吧"},
 	{Id: 13, Type: TaskRunning,
 		Distance: 2500, Duration: 1500, Desc: "慢跑2分钟,行走2分钟,重复6次。\n距离：2.5公里, 时长：25分钟。",
-		Tip: `呼气，挖掘你的“气”：呼吸在跑步中起着提供氧气的关键作用，我们要改变日常活动的呼吸方式，要采用腹式呼吸，尽可能吐完空气，放松腹部，保持和步频匹配，一般是三步呼出两步吸入。在进行腹式呼吸时用鼻子呼吸效果会更好，尽可能不用嘴呼吸。`},
+		Tip: `呼气，挖掘你的“气”：呼吸在跑步中起着提供氧气的关键作用，我们要改变日常活动的呼吸方式，要采用腹式呼吸，尽可能吐完空气，放松腹部，保持和步频匹配，一般是三步呼出两步吸入。
+在进行腹式呼吸时用鼻子呼吸效果会更好，尽可能不用嘴呼吸。`},
 	{Id: 14, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
 
 	// week 3
 	{Id: 15, Type: TaskPost, Desc: "发表一篇运动日志,分享一下你的运动心情吧"},
 	{Id: 16, Type: TaskRunning,
 		Distance: 3000, Duration: 2100, Desc: "慢跑3分钟,行走2分钟,重复7次。\n距离：3公里, 时长：35分钟。",
-		Tip: `跑步时，尽量使身体的各部分向同一方向运动。当身体对直时，我们就有一个驱动身体的中心线，这条线笔直和强壮时，它就成了支撑你身体的“针”，你的双臂和双腿就变成了“棉”。当你姿态对直时，身体的重量就是由你的结构而不是肌肉来支撑了，能量或“气”会毫无障碍地流过你的身体，让你不必付出太大努力的情况下跑的更快，更远。`},
+		Tip: `跑步时，尽量使身体的各部分向同一方向运动。当身体对直时，我们就有一个驱动身体的中心线，这条线笔直和强壮时，它就成了支撑你身体的“针”，你的双臂和双腿就变成了“棉”。
+当你姿态对直时，身体的重量就是由你的结构而不是肌肉来支撑了，能量或“气”会毫无障碍地流过你的身体，让你不必付出太大努力的情况下跑的更快，更远。`},
 	{Id: 17, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
 	{Id: 18, Type: TaskRunning,
 		Distance: 3000, Duration: 1500, Desc: "慢跑2分钟,行走2分钟,重复6次。\n距离：3公里, 时长：25分钟。",
@@ -156,11 +165,13 @@ var Tasks = []Task{
 	{Id: 29, Type: TaskPost, Desc: "发表一篇运动日志,分享一下你的运动心情吧"},
 	{Id: 30, Type: TaskRunning,
 		Distance: 4000, Duration: 2400, Desc: "慢跑3分钟,行走1分钟,重复9次。\n距离：4公里, 时长：40分钟。",
-		Tip: `学会如何前倾：身体前倾可以让重力成为我们的好帮手，身体一旦前倾，重心就会落到身体着地点的前面，重力会把我们向下拉使你向前。我们的脚就会像弹跳器发挥作用，让我们前进，要一直在这种状态下保持细微的平衡。`},
+		Tip: `学会如何前倾：身体前倾可以让重力成为我们的好帮手，身体一旦前倾，重心就会落到身体着地点的前面，重力会把我们向下拉使你向前。
+我们的脚就会像弹跳器发挥作用，让我们前进，要一直在这种状态下保持细微的平衡。`},
 	{Id: 31, Type: TaskGame, Desc: "玩个游戏放松一下吧"},
 	{Id: 32, Type: TaskRunning,
 		Distance: 4000, Duration: 1500, Desc: "慢跑2分钟,行走1分钟,重复8次。\n距离：4公里, 时长：25分钟。",
-		Tip: `全脚掌着地：不要一边跑一边制动，不单单是脚跟着地，而是你的整个脚底着地，从前至后，从一侧到另一侧的脚底压力是平均，这样使你的双腿得以充分放松而不用负责推动身体。你的腿只用于在步幅之间短暂地支撑一下，支撑以后，腿部会沿着道路的反向力的方向朝后方摆动。`},
+		Tip: `全脚掌着地：不要一边跑一边制动，不单单是脚跟着地，而是你的整个脚底着地，从前至后，从一侧到另一侧的脚底压力是平均，这样使你的双腿得以充分放松而不用负责推动身体。
+你的腿只用于在步幅之间短暂地支撑一下，支撑以后，腿部会沿着道路的反向力的方向朝后方摆动。`},
 	{Id: 33, Type: TaskPost, Desc: "发表一篇运动日志,分享一下你的运动心情吧"},
 	{Id: 34, Type: TaskRunning,
 		Distance: 3500, Duration: 1800, Desc: "慢跑3分钟,行走1分钟,重复8次。\n距离：4公里, 时长：30分钟。",

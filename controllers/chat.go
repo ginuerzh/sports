@@ -81,8 +81,12 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(sendMsgForm)
-	if redis.Relationship(user.Id, form.To) == models.RelBlacklist ||
-		redis.Relationship(form.To, user.Id) == models.RelBlacklist {
+	if redis.Relationship(user.Id, form.To) == models.RelBlacklist {
+		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError, "你已屏蔽了对方的消息!"))
+		return
+	}
+
+	if redis.Relationship(form.To, user.Id) == models.RelBlacklist {
 		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.AccessError, "对方已屏蔽了你的消息!"))
 		return
 	}

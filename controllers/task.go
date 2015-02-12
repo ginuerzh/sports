@@ -76,7 +76,7 @@ func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Accoun
 
 	last, _ := user.LastTaskRecord()
 	// all weekly tasks are completed
-	if week > 0 && count%7 == 0 && last.Time.After(now.BeginningOfWeek()) {
+	if week > 0 && count%7 == 0 && last.PubTime.After(now.BeginningOfWeek()) {
 		week -= 1
 	}
 	//log.Println("week", week)
@@ -128,7 +128,12 @@ func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
 	record := &models.Record{Uid: user.Id}
 	if find, _ := record.FindByTask(task.Id); find {
 		task.Status = record.Status
+		task.BeginTime = record.StartTime.Unix()
+		task.EndTime = record.EndTime.Unix()
 		if record.Sport != nil {
+			task.Source = record.Sport.Source
+			task.Distance = record.Sport.Distance
+			task.Duration = record.Sport.Duration
 			task.Pics = record.Sport.Pics
 			task.Result = record.Sport.Review
 		}
@@ -172,29 +177,17 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	record := &models.Record{
-		Uid:  user.Id,
-		Task: int64(form.Tid),
-		Time: time.Now(),
+		Uid:     user.Id,
+		Task:    int64(form.Tid),
+		PubTime: time.Now(),
 	}
-	record.PubTime = record.Time
 
 	task := models.Tasks[form.Tid-1]
 	switch task.Type {
-	case models.TaskRunning:
-		record.Delete()
-		record.Type = "run"
-		record.Status = models.StatusAuth
-		record.Sport = &models.SportRecord{
-			Distance: task.Distance,
-			Duration: task.Duration,
-			Pics:     form.Proofs,
-		}
-	//case models.TaskGame:
-	//	record.Type = "game"
-	//	record.Status = models.StatusFinish
 	case models.TaskPost:
 		record.Type = "post"
 		record.Status = models.StatusFinish
+	default:
 	}
 
 	awards := Awards{}
@@ -219,12 +212,6 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 		redis.PubMsg(event.Type, event.Data.To, event.Bytes())
 	}
 
-	//u := &models.User{Id: user.Id}
-	//err := user.AddTask(models.Tasks[form.Tid-1].Type, form.Tid, form.Proofs)
-
 	err := record.Save()
-	if err == nil && record.Game != nil {
-		redis.SetGameScore(gameType(record.Game.Type), user.Id, record.Game.Score)
-	}
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
 }

@@ -1011,7 +1011,7 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			return nil, err
 		}
 		query = bson.M{
-			"time": bson.M{
+			"pub_time": bson.M{
 				"$gte": record.PubTime,
 			},
 		}
@@ -1020,7 +1020,7 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			return nil, err
 		}
 		query = bson.M{
-			"time": bson.M{
+			"pub_time": bson.M{
 				"$lte": record.PubTime,
 			},
 		}
@@ -1033,7 +1033,7 @@ func (this *Account) Records(all bool, paging *Paging) (int, []Record, error) {
 	var records []Record
 	total := 0
 
-	sortFields := []string{"-time", "-_id"}
+	sortFields := []string{"-pub_time", "-_id"}
 	query := bson.M{"uid": this.Id, "type": bson.M{"$ne": "post"}}
 	if !all {
 		query = bson.M{
@@ -1094,7 +1094,7 @@ func (this *Account) LastTaskRecord() (*Record, error) {
 		},
 	}
 	record := &Record{}
-	err := findOne(recordColl, query, []string{"-time"}, record)
+	err := findOne(recordColl, query, []string{"-pub_time"}, record)
 
 	return record, err
 }

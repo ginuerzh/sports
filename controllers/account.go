@@ -1002,7 +1002,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 	for _, kv := range kvs {
 		ids = append(ids, kv.K)
 	}
-
+	log.Println(ids)
 	users, _ := models.FindUsersByIds(1, ids...)
 	index := 0
 	for _, kv := range kvs {
