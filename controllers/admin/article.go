@@ -159,6 +159,10 @@ func articleListHandler(w http.ResponseWriter, redis *models.RedisLogger, form a
 	writeResponse(w, resp)
 }
 
+func hotArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
+
+}
+
 func articleTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
 	/*
 		user := redis.OnlineUser(form.Token)
@@ -303,7 +307,7 @@ func delArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form de
 }
 
 type articleSearchForm struct {
-	Keyword string `form:"keyword" binding:"required"`
+	Keyword string `form:"keyword"`
 	Tag     string `form:"tag"`
 	AdminPaging
 	Token string `form:"access_token"`

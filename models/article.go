@@ -33,8 +33,11 @@ type Article struct {
 
 	Views       []string `bson:",omitempty"`
 	Thumbs      []string `bson:",omitempty"`
+	ThumbCount  int      `bson:"thumb_count"`
 	Reviews     []string `bson:",omitempty"`
+	ReviewCount int      `bson:"review_count"`
 	Rewards     []string `bson:",omitempty"`
+	RewardCount int      `bson:"reward_count"`
 	TotalReward int64    `bson:"total_reward"`
 	Tags        []string `bson:",omitempty"`
 }
@@ -110,6 +113,9 @@ func (this *Article) Save() error {
 					"$addToSet": bson.M{
 						"reviews": this.Id.Hex(),
 					},
+					"$inc": bson.M{
+						"review_count": 1,
+					},
 				},
 			},
 		}
@@ -163,6 +169,9 @@ func (this *Article) Remove() error {
 					"$pull": bson.M{
 						"reviews": this.Id.Hex(),
 					},
+					"$inc": bson.M{
+						"review_count": -1,
+					},
 				},
 			},
 		}
@@ -211,11 +220,17 @@ func (this *Article) SetThumb(userid string, thumb bool) error {
 			"$addToSet": bson.M{
 				"thumbs": userid,
 			},
+			"$inc": bson.M{
+				"thumb_count": 1,
+			},
 		}
 	} else {
 		m = bson.M{
 			"$pull": bson.M{
 				"thumbs": userid,
+			},
+			"$inc": bson.M{
+				"thumb_count": -1,
 			},
 		}
 	}
@@ -377,6 +392,7 @@ func (this *Article) Reward(userid string, amount int64) error {
 			},
 			"$inc": bson.M{
 				"total_reward": amount,
+				"reward_count": 1,
 			},
 		},
 		ReturnNew: true,
@@ -396,7 +412,7 @@ func SearchArticle(keyword string, paging *Paging) (int, []Article, error) {
 	total := 0
 
 	query := bson.M{
-		"contents.seg_content": bson.M{
+		"content": bson.M{
 			"$regex":   keyword,
 			"$options": "i",
 		},
@@ -435,25 +451,36 @@ func SearchArticle(keyword string, paging *Paging) (int, []Article, error) {
 
 func AdminSearchArticle(keyword string, tag string,
 	pageIndex, pageCount int) (total int, articles []Article, err error) {
-	query := bson.M{}
+	query := bson.M{"parent": nil}
 
-	if len(keyword) == 0 {
-		query = bson.M{
-			"parent": nil,
-			"tags":   tag,
-		}
-	} else {
-		query = bson.M{
-			"parent": nil,
-			"contents.seg_content": bson.M{
-				"$regex":   keyword,
-				"$options": "i",
-			},
-		}
-		if len(tag) > 0 {
-			query["tags"] = tag
+	if len(keyword) > 0 {
+		query["content"] = bson.M{
+			"$regex":   keyword,
+			"$options": "i",
 		}
 	}
+	if len(tag) > 0 {
+		query["tags"] = tag
+	}
+	/*
+		if len(keyword) == 0 {
+			query = bson.M{
+				"parent": nil,
+				"tags":   tag,
+			}
+		} else {
+			query = bson.M{
+				"parent": nil,
+				"content": bson.M{
+					"$regex":   keyword,
+					"$options": "i",
+				},
+			}
+			if len(tag) > 0 {
+				query["tags"] = tag
+			}
+		}
+	*/
 
 	err = search(articleColl, query, bson.M{"content": 0, "contents": 0},
 		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &articles)

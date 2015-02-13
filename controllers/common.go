@@ -152,7 +152,7 @@ func loadUserHandler(c martini.Context, user *models.Account, redis *models.Redi
 
 func checkLimitHandler(user *models.Account, r *http.Request, w http.ResponseWriter) {
 	if user.TimeLimit < 0 || user.TimeLimit > time.Now().Unix() {
-		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "禁止操作，该帐号已被管理员锁定"))
 	}
 }
 

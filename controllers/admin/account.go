@@ -75,6 +75,11 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
+	if user.Privilege < 10 {
+		writeResponse(resp, errors.NewError(errors.AuthError, "未授权登录用户"))
+		return
+	}
+
 	user.SetLastLogin(0, 0, time.Now())
 	redis.SetOnlineUser(token, user.Id)
 	redis.LogLogin(user.Id)

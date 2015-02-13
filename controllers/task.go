@@ -3,7 +3,7 @@ package controllers
 import (
 	//"encoding/json"
 	"fmt"
-	"github.com/ginuerzh/sports/errors"
+	//"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/jinzhu/now"
 	"github.com/martini-contrib/binding"
@@ -94,7 +94,7 @@ func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Accoun
 		}
 		if task.Type == models.TaskGame && task.Status == models.StatusFinish &&
 			record.Game != nil {
-			tasks[i].Desc = fmt.Sprintf("你在%s游戏中得了%d分",
+			tasks[i].Result = fmt.Sprintf("你在%s游戏中得了%d分",
 				record.Game.Name, record.Game.Score)
 		}
 	}
@@ -138,8 +138,11 @@ func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
 			task.Result = record.Sport.Review
 		}
 		if record.Game != nil && task.Status == models.StatusFinish {
-			task.Desc = fmt.Sprintf("你在%s游戏中得了%d分, 得到了%d魔法值和%d贝币",
+			task.Result = fmt.Sprintf("你在%s游戏中得了%d分, 得到了%d魔法值和%d贝币",
 				record.Game.Name, record.Game.Score, record.Game.Magic, record.Game.Coin/models.Satoshi)
+		}
+		if task.Type == models.TaskPost {
+			task.Result = fmt.Sprintf("你得到了%d体魄值和%d贝币", record.Coin/models.Satoshi, record.Coin)
 		}
 	}
 	/*
@@ -187,16 +190,16 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 	case models.TaskPost:
 		record.Type = "post"
 		record.Status = models.StatusFinish
+		record.Coin = 10 * models.Satoshi
 	default:
 	}
 
 	awards := Awards{}
 	if form.Tid == 1 {
 		awards = Awards{Score: 30, Wealth: 30 * models.Satoshi}
-		if err := GiveAwards(user, awards, redis); err != nil {
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError))
-			return
-		}
+		GiveAwards(user, awards, redis)
+		record.Coin = awards.Wealth
+
 		// ws push
 		event := &models.Event{
 			Type: models.EventStatus,
