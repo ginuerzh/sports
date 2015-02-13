@@ -30,6 +30,7 @@ type wsAuthResp struct {
 	Userid     string `json:"userid"`
 	LoginCount int    `json:"login_count"`
 	LastLog    int64  `json:"last_login_time"`
+	TimeLimit  int64  `json:"ban_time,omitempty"`
 }
 
 func BindWSPushApi(m *martini.ClassicMartini) {
@@ -66,16 +67,19 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	var auth wsAuth
 	conn.ReadJSON(&auth)
 
+	log.Println("check token:", auth.Token)
 	if !checkTokenValid(auth.Token) {
+		log.Println("check token valid")
 		redisLogger.DelOnlineUser(auth.Token)
 		conn.WriteJSON(r)
 		return
 	}
-	//log.Println("check token:", auth.Token)
+
 	uid := redisLogger.OnlineUser(auth.Token)
 
 	user := &models.Account{}
 	if find, _ := user.FindByUserid(uid); !find || user.TimeLimit < 0 {
+		r.TimeLimit = user.TimeLimit
 		conn.WriteJSON(r)
 		return
 	}

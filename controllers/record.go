@@ -46,7 +46,9 @@ func BindRecordApi(m *martini.ClassicMartini) {
 
 type record struct {
 	Type      string   `json:"type"`
-	Time      int64    `json:"action_time"`
+	Source    string   `json:"source"`
+	BeginTime int64    `json:"begin_time"`
+	EndTime   int64    `json:"end_time"`
 	Duration  int64    `json:"duration"`
 	Distance  int      `json:"distance"`
 	Pics      []string `json:"sport_pics"`
@@ -91,11 +93,12 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 	form := p.(newRecordForm)
 
 	rec := &models.Record{
-		Uid:     user.Id,
-		Task:    form.Task,
-		Type:    form.Record.Type,
-		Time:    time.Unix(form.Record.Time, 0),
-		PubTime: time.Now(),
+		Uid:       user.Id,
+		Task:      form.Task,
+		Type:      form.Record.Type,
+		StartTime: time.Unix(form.Record.BeginTime, 0),
+		EndTime:   time.Unix(form.Record.EndTime, 0),
+		PubTime:   time.Now(),
 	}
 
 	awards := Awards{}
@@ -112,7 +115,6 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 				awards = gameAwards(level, form.Record.GameScore, false)
 			}
 		}
-		awards.Level = models.Score2Level(user.Props.Score+awards.Score) - level
 		GiveAwards(user, awards, redis)
 
 		rec.Game = &models.GameRecord{
@@ -127,7 +129,11 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		user.SetGameTime(gameType(rec.Game.Type), time.Now())
 
 	case "run":
+		if rec.Task > 0 {
+			rec.Delete()
+		}
 		rec.Sport = &models.SportRecord{
+			Source:   form.Record.Source,
 			Duration: form.Record.Duration,
 			Distance: form.Record.Distance,
 			Pics:     form.Record.Pics,
@@ -136,6 +142,22 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			rec.Sport.Speed = float64(form.Record.Distance) / float64(form.Record.Duration)
 		}
 		rec.Status = models.StatusAuth
+		/*
+			if len(form.Record.Source) > 0 {
+				level := user.Level()
+				awards = Awards{
+					Physical: 30 + level,
+					Wealth:   30 * models.Satoshi,
+					Score:    30 + level,
+				}
+
+				GiveAwards(user, awards, redis)
+				redis.UpdateRecLB(user.Id, rec.Sport.Distance, int(rec.Sport.Duration))
+
+				rec.Coin = awards.Wealth
+				rec.Status = models.StatusFinish
+			}
+		*/
 	default:
 		log.Println("Unknown record type:", form.Record.Type)
 	}
@@ -147,24 +169,8 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
 	}
-	/*
-		rank := redis.LBDisRank(user.Id)
-		maxDis := redis.MaxDisRecord(user.Id)
-		redis.UpdateRecLB(user.Id, form.Record.Distance, int(form.Record.Duration))
-		rankDiff := 0
-		if rank >= 0 {
-			rankDiff = redis.LBDisRank(user.Id) - rank
-		}
-
-		recDiff := 0
-		if maxDis > 0 {
-			recDiff = redis.MaxDisRecord(user.Id) - maxDis
-		}
-	*/
 
 	respData := map[string]interface{}{
-		//"leaderboard_effect": rankDiff,
-		//"self_record_effect": recDiff,
 		"ExpEffect": awards,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
@@ -190,11 +196,13 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter,
 	recs := make([]record, len(records))
 	for i, _ := range records {
 		recs[i].Type = records[i].Type
-		recs[i].Time = records[i].Time.Unix()
 		recs[i].Status = records[i].Status
 		recs[i].Coins = records[i].Coin
+		recs[i].BeginTime = records[i].StartTime.Unix()
+		recs[i].EndTime = records[i].EndTime.Unix()
 
 		if records[i].Sport != nil {
+			recs[i].Source = records[i].Sport.Source
 			recs[i].Duration = records[i].Sport.Duration
 			recs[i].Distance = records[i].Sport.Distance
 			recs[i].Pics = records[i].Sport.Pics
@@ -403,20 +411,22 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 	maxDisRec, _ := models.MaxDistanceRecord(form.Userid)
 	maxSpeedRec, _ := models.MaxSpeedRecord(form.Userid)
 
-	stats.MaxDistance = &record{
-		Type: maxDisRec.Type,
-		Time: maxDisRec.Time.Unix(),
-	}
+	stats.MaxDistance = &record{}
 	if maxDisRec.Sport != nil {
+		stats.MaxDistance.Type = maxDisRec.Type
+		stats.MaxDistance.Source = maxDisRec.Sport.Source
+		stats.MaxDistance.BeginTime = maxDisRec.StartTime.Unix()
+		stats.MaxDistance.EndTime = maxDisRec.EndTime.Unix()
 		stats.MaxDistance.Duration = maxDisRec.Sport.Duration
 		stats.MaxDistance.Distance = maxDisRec.Sport.Distance
 	}
 
-	stats.MaxSpeed = &record{
-		Type: maxSpeedRec.Type,
-		Time: maxSpeedRec.Time.Unix(),
-	}
+	stats.MaxSpeed = &record{}
 	if maxSpeedRec.Sport != nil {
+		stats.MaxDistance.Type = maxDisRec.Type
+		stats.MaxDistance.Source = maxDisRec.Sport.Source
+		stats.MaxDistance.BeginTime = maxDisRec.StartTime.Unix()
+		stats.MaxDistance.EndTime = maxDisRec.EndTime.Unix()
 		stats.MaxSpeed.Duration = maxSpeedRec.Sport.Duration
 		stats.MaxSpeed.Distance = maxSpeedRec.Sport.Distance
 	}

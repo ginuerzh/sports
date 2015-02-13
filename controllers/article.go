@@ -76,6 +76,7 @@ type articleJsonStruct struct {
 	Contents   []models.Segment `json:"article_segments"`
 	Content    string           `json:"content"`
 	Rewards    int64            `json:"reward_total"`
+	Relation   string           `json:"relation"`
 }
 
 var (
@@ -326,14 +327,10 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	awards := Awards{}
-	/*
-		awards := Awards{Physical: 1, Wealth: 1 * models.Satoshi}
-		if err := giveAwards(user, awards); err != nil {
-			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.DbError, err.Error()))
-			return
-		}
-	*/
-
+	if form.Status {
+		awards = Awards{Score: 1, Wealth: 1 * models.Satoshi}
+		GiveAwards(user, awards, redis)
+	}
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 
 	author := &models.Account{Id: article.Author}
@@ -454,7 +451,17 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 	}
 
 	jsonStruct := convertArticle(article)
-
+	jsonStruct.Relation = redis.Relationship(redis.OnlineUser(form.Token), article.Author)
+	switch jsonStruct.Relation {
+	case models.RelFriend:
+		jsonStruct.Relation = "FRIENDS"
+	case models.RelFollowing:
+		jsonStruct.Relation = "ATTENTION"
+	case models.RelFollower:
+		jsonStruct.Relation = "FANS"
+	case models.RelBlacklist:
+		jsonStruct.Relation = "DEFRIEND"
+	}
 	thumbers := article.Thumbs
 	if len(article.Thumbs) > 6 {
 		thumbers = article.Thumbs[len(article.Thumbs)-6:]

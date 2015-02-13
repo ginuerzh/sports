@@ -82,8 +82,8 @@ func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redi
 	for i, _ := range records {
 		recs[i].ID = records[i].Uid
 		recs[i].Type = records[i].Type
-		recs[i].RecTime = records[i].Time.Unix()
-		recs[i].RecTimeStr = records[i].Time.Format("2006-01-02 15:04:05")
+		recs[i].RecTime = records[i].PubTime.Unix()
+		recs[i].RecTimeStr = records[i].PubTime.Format("2006-01-02 15:04:05")
 		if records[i].Sport != nil {
 			recs[i].Duration = int(records[i].Sport.Duration)
 			recs[i].Distance = records[i].Sport.Distance
