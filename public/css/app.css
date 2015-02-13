@@ -1900,8 +1900,8 @@ table{
 }
 
 .divimg{
-    width: 100%;
     text-align: center;
+    max-width: 40px;
 }
 
 .content-p-show{

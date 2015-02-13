@@ -12,12 +12,9 @@
                 <th st-sort="type">type</th>
                 <th st-sort="desc">desc</th>
                 <th st-sort="images">images</th>
-                <th st-sort="status">status</th>
 
-                <th st-sort="userid">userid</th>
                 <th st-sort="nickname">nickname</th>
                 <th st-sort="profile">profile</th>
-                <th st-sort="audit">audit</th>
                 <th st-sort="reason">reason</th>
                 <th ng-show="checked">action</th>
             </tr>
@@ -25,25 +22,29 @@
             </thead>
             <tbody>
             <tr ng-repeat="row in displayedCollection">
-                <td>{{row.taskid}}</td>
-                <td>{{row.type|typename}}</td>
-                <td>{{row.desc}}</td>
-                <td ng-repeat="image in row.images ">
-                    <a href="{{image}}" target=_blank><div><img ng-src="{{image}}" class="img-small"></div></a>
+                <td class="col-md-1">{{row.taskid}}</td>
+                <td class="col-md-1">{{row.type|typename}}</td>
+                <td class="col-md-2">{{row.desc}}</td>
+                <td class="col-md-2">
+                    <div ng-show="row.images.length>0">
+                        <a href="{{row.images[0]}}" target=_blank><div><img ng-src="{{row.images[0]}}" class="img-small"></div></a>
+
+                        <p>共{{row.images.length}}张图片</p>
+                    </div>
+                    <p class="inner" ng-show="row.images.length==0">无图片</p>
+
                 </td>
-                <td>{{row.status|statusname}}</td>
 
-                <td>{{row.userid}}</td>
-                <td>{{row.nickname}}</td>
-                <td><img ng-src="{{row.profile|profilefilter}}" class="img-circle admin-profile"> </td>
+                <td class="col-md-2">{{row.nickname}}</td>
+                <td class="col-md-1"><img ng-src="{{row.profile|profilefilter}}" class="img-circle admin-profile"> </td>
 
-                <td>
+                <td class="col-md-2">
                     <textarea rows="4" name="S1" cols="20" ng-model="row.reason"></textarea>
                 </td>
-                <td ng-show="checked">
-                    <button type="button" class="btn btn-primary" ng-click="Approve(row)">批准</button>
+                <td ng-show="checked" class="col-md-1">
+                    <button type="button" class="btn btn-primary" ng-click="Approve(row)" ng-disabled="row.reason.length==0">批准</button>
 
-                    <button type="button" class="btn btn-primary" ng-click="Reject(row)">拒绝</button>
+                    <button type="button" class="btn btn-primary" ng-click="Reject(row)" ng-disabled="row.reason.length==0">拒绝</button>
                 </td>
             </tr>
             </tbody>
