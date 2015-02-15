@@ -1,33 +1,19 @@
 <div class="main-bg">
-<form name="addarticle" ng-controller="articleimportController">
-
-
-<div>
-    标题:   <input type="text" width=400 ng-model="title" ng-init="" required>
-</div>
-    <br>
-<div class="ueditor"  config="config" ng-model="content">
-
-
-</div>
-
-
-
-
-<br>
-    <select ng-model="tag" ng-options="tag.tagname for tag in tags">
-        <option value=""></option>
-    </select>
-    <br>
-    用户名ID:   <input type="text" width=400 ng-model="userid" ng-init="" required>
-    <br>
-    <div>
-        <button type="button" class="btn btn-primary" ng-click="importarticle()" ng-disable="!addarticle.$valid">提交</button>
-    </div>
-
-
-    <br>
-<ng-form>
+    <form name="addarticle" ng-controller="articleimportController">
+        <div>
+            标题:   <input type="text" size=100 ng-model="title" ng-init="" required>
+            <select ng-model="tag" ng-options="tag.tagname for tag in tags">
+                <option value=""></option>
+            </select>
+        </div>
+            <br>
+        <div class="ueditor"  config="config" ng-model="content"></div>
+        <br>
+        <div align="right" >
+            <button type="button" class="btn btn-primary" ng-click="importarticle()" ng-disabled="content.length==0">提交</button>
+        </div>
+        <br>
+    <ng-form>
     <div id="preview">
         {{content}}
     </div>

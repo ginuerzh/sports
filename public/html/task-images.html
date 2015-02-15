@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="utf-8">
+    <meta content="IE=edge" http-equiv="X-UA-Compatible">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <meta content="悦动力是一个游戏化的跑步社区，在此您可以发现和结交各种和您兴趣相投的运动爱好者。" name="description">
+    <meta content="悦动力，乐动力，跑步，运动，咕咚运动，智能穿戴设备" name="keywords">
+    <meta content="320" name="MobileOptimized">
+    <title>悦动力</title>
+    <script src="../js/jquery.min.js"></script>
+
+</head>
+<body>
+    <div id="imgDiv"></div>
+    <script type="text/javascript">
+
+        var jsonStr = window.localStorage.getItem('app_local_data')
+        var imgArray = JSON.parse(jsonStr).task_imgs
+        for(var i=0;i<imgArray.length;i++)
+        {
+            var html =  '<a href="' + imgArray[i] + '"target="_blank"><img src="' + imgArray[i] + '"</img></a><br>'
+            $('#imgDiv').append(html)
+        }
+
+
+    </script>
+</body>
+
+</html>

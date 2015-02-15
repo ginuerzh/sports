@@ -528,7 +528,7 @@ app.factory('articleq', [
   '$http', function($http) {
     return {
       articlepost: function(article_id, title, author, imglist, contents, tag) {
-        return $http.post(Util.host + '/admin/article/post', {
+        return $http.post(Util.host + "/admin/article/post", {
           article_id: article_id,
           title: title,
           author: author,
@@ -642,7 +642,7 @@ app.factory('taskq', [
   '$http', function($http) {
     return {
       gettasklist: function() {
-        return $http.get('http://172.24.222.54:8080/admin/task/list', {
+        return $http.get(Util.host + '/admin/task/list', {
           params: {
             page_index: 0,
             page_count: 50,
@@ -651,12 +651,23 @@ app.factory('taskq', [
         });
       },
       taskaudit: function(userid, taskid, pass, reason) {
-        return $http.post('http://172.24.222.54:8080/admin/task/auth', {
+        return $http.post(Util.host + '/admin/task/auth', {
           userid: userid,
           task_id: taskid,
           pass: pass,
           reason: reason,
           access_token: userToken
+        });
+      },
+      search: function(nickname, finish, page_count, page_index) {
+        return $http.get(Util.host + '/admin/task/timeline', {
+          params: {
+            nickname: nickname,
+            finish: finish,
+            page_index: page_index,
+            page_count: page_count,
+            access_token: userToken
+          }
         });
       }
     };
@@ -918,7 +929,7 @@ app.filter("statusname", function() {
 }).filter("typename", function() {
   return function(data) {
     var typename;
-    typename = "其他任务";
+    typename = "跑步纪录";
     switch (data) {
       case "PHYSIQUE":
         typename = "跑步任务";
@@ -978,6 +989,17 @@ app.filter("statusname", function() {
       }
     }
     return tagstr;
+  };
+}).filter("taskSource", function() {
+  return function(data) {
+    var taskSource;
+    taskSource = "手动";
+    if (angular.isString(data)) {
+      if (data.length > 0) {
+        taskSource = "自动";
+      }
+    }
+    return taskSource;
   };
 });
 
@@ -1267,7 +1289,7 @@ articleimportController = app.controller('articleimportController', [
       } else {
         imglist = articleService.getimagelist($scope.content);
         console.log(imglist);
-        articleService.articlepost("", $scope.title, "1419305934614", imglist, $scope.content, $scope.tag.id);
+        articleService.articlepost("", $scope.title, userId, imglist, $scope.content, $scope.tag.id);
         return refreshinput();
       }
     };
@@ -1316,16 +1338,16 @@ loginController = app.controller('loginController', [
 var tasklistController;
 
 tasklistController = app.controller('tasklistController', [
-  'app', '$scope', '$rootScope', 'taskService', function(app, $scope, $rootScope, taskService) {
-    var refreshtable;
+  'app', '$scope', '$rootScope', 'taskService', 'utils', function(app, $scope, $rootScope, taskService, utils) {
+    var refreshtable, taskStr, timeline;
     $scope.checked = true;
+    $scope.itemsByPage = 50;
+    taskStr = 'Auditting';
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
     }
     refreshtable = function() {
-      var taskStr;
-      taskStr = 'Auditting';
       $scope.checked = true;
       if (window.location.href.indexOf('tasklisthistory') > 0) {
         $scope.checked = false;
@@ -1334,7 +1356,16 @@ tasklistController = app.controller('tasklistController', [
       $scope.rowCollection = taskService.gettasklist(taskStr);
       return $scope.displayedCollection = [].concat($scope.rowCollection);
     };
-    $scope.itemsByPage = 20;
+    timeline = function() {
+      $scope.rowCollection = taskService.searchtask($scope.searchData.data, !$scope.checked);
+      return $scope.displayedCollection = [].concat($scope.rowCollection);
+    };
+    $scope.showImgs = function(index) {
+      var str;
+      utils.removeItem("task_imgs");
+      utils.setItem("task_imgs", $scope.rowCollection[index].images);
+      return str = utils.getItem("task_imgs");
+    };
     $scope.Approve = function(row) {
       this.reason = row.reason.trim();
       if (this.reason === "") {
@@ -1349,6 +1380,13 @@ tasklistController = app.controller('tasklistController', [
         return alert("please input the reason for the rejection");
       } else {
         return taskService.taskreject(row.userid, row.taskid, this.reason).then(refreshtable);
+      }
+    };
+    $scope.searchChange = function() {
+      if (($scope.searchData.data != null) && $scope.searchData.data.length > 0) {
+        return timeline();
+      } else {
+        return refreshtable();
       }
     };
     return refreshtable();
@@ -1872,7 +1910,10 @@ app.factory('taskService', [
                   images: task.images,
                   userid: taskitem.userid,
                   nickname: taskitem.nickname,
-                  profile: taskitem.profile
+                  profile: taskitem.profile,
+                  begin_time: task.begin_time,
+                  end_time: task.end_time,
+                  distance: task.distance
                 };
                 switch (tasktype) {
                   case "Auditting":
@@ -1903,6 +1944,61 @@ app.factory('taskService', [
       },
       taskreject: function(userid, taskid, reason) {
         return $taskq.taskaudit(userid, taskid, false, reason).success();
+      },
+      searchtask: function(nickname, finish) {
+        var tasklist;
+        tasklist = [];
+        $taskq.search(nickname, finish, 50, 0).success(function(response) {
+          var task, taskitem, taskjson, _i, _len, _ref, _results;
+          if (response.users != null) {
+            _ref = response.users;
+            _results = [];
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              taskitem = _ref[_i];
+              _results.push((function() {
+                var _j, _len1, _ref1, _results1;
+                _ref1 = taskitem.tasks;
+                _results1 = [];
+                for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+                  task = _ref1[_j];
+                  if (task.status === null) {
+                    continue;
+                  }
+                  taskjson = {
+                    taskid: task.task_id,
+                    type: task.type,
+                    desc: task.desc,
+                    status: task.status,
+                    reason: task.reason,
+                    images: task.images,
+                    userid: taskitem.userid,
+                    nickname: taskitem.nickname,
+                    profile: taskitem.profile,
+                    begin_time: task.begin_time,
+                    end_time: task.end_time,
+                    distance: task.distance
+                  };
+                  if (finish) {
+                    if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {
+                      _results1.push(tasklist.push(taskjson));
+                    } else {
+                      _results1.push(void 0);
+                    }
+                  } else {
+                    if (taskjson.status === "AUTHENTICATION") {
+                      _results1.push(tasklist.push(taskjson));
+                    } else {
+                      _results1.push(void 0);
+                    }
+                  }
+                }
+                return _results1;
+              })());
+            }
+            return _results;
+          }
+        });
+        return tasklist;
       }
     };
   }

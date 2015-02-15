@@ -1724,7 +1724,7 @@ body{
     margin-left: -100px;
 }
 
-.main-bg{	
+.main-bg{
     width:auto;
 	height:auto;
 	background:rgba(255,255,255,0.9);
@@ -1808,6 +1808,23 @@ body{
 	
 .login-erro{
 	margin-top:20px;}
+
+
+.modal{
+	width: 100%;
+	position: fixed;
+	text-align: center;
+	margin: 100px auto;
+	top: 0px; left: 0px;
+	bottom: 0px;
+	right: 0px;
+	z-index: 1050;
+}
+.modal-dialog{
+	margin-top: 0px;
+	display: table-cell;
+	vertical-align: middle;
+	margin: 0px 20px; }
 .belowTitle{
 	margin-top:30px;}
 
