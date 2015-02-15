@@ -16,20 +16,24 @@ import (
 
 func BindTaskApi(m *martini.ClassicMartini) {
 	m.Get("/admin/task/list", binding.Form(tasklistForm{}), adminErrorHandler, tasklistHandler)
-	m.Get("/admin/task/timeline", binding.Form(taskTimelineForm{}), adminErrorHandler, taskTimelineHandler)
+	m.Get("/admin/task/timeline", binding.Form(userTaskForm{}), adminErrorHandler, userTaskHandler)
+	//m.Get("/admin/task/timeline", binding.Form(taskTimelineForm{}), adminErrorHandler, taskTimelineHandler)
 	m.Post("/admin/task/auth", binding.Json(taskAuthForm{}), adminErrorHandler, taskAuthHandler)
 	m.Options("/admin/task/auth", taskAuthOptionsHandler)
 }
 
 type taskinfo struct {
-	Id       int64    `json:"task_id"`
-	Type     string   `json:"type"`
-	Desc     string   `json:"desc"`
-	Duration int64    `json:"duration"`
-	Distance int      `json:"distance"`
-	Images   []string `json:"images"`
-	Status   string   `json:"status"`
-	Reason   string   `json:"reason"`
+	Id        int64    `json:"task_id"`
+	Type      string   `json:"type"`
+	Desc      string   `json:"desc"`
+	BeginTime int64    `json:"begin_time"`
+	EndTime   int64    `json:"end_time"`
+	Duration  int64    `json:"duration"`
+	Distance  int      `json:"distance"`
+	Source    string   `json:"source"`
+	Images    []string `json:"images"`
+	Status    string   `json:"status"`
+	Reason    string   `json:"reason"`
 }
 
 /*
@@ -47,6 +51,40 @@ func convertTask(task *models.Task, tl *models.TaskList) *taskinfo {
 	return t
 }
 */
+
+func convertTask(record *models.Record) *taskinfo {
+	info := &taskinfo{
+		Id:        record.Task,
+		Status:    record.Status,
+		BeginTime: record.StartTime.Unix(),
+		EndTime:   record.EndTime.Unix(),
+	}
+	if record.Type == "run" {
+		if record.Task < 1000 {
+			info.Type = models.TaskRunning
+		} else {
+			info.Type = models.TaskNormal
+		}
+	} else if record.Type == "game" {
+		info.Type = models.TaskGame
+	}
+	if len(info.Status) == 0 {
+		info.Status = models.StatusFinish
+	}
+	if info.Id > 0 && info.Id <= int64(len(models.Tasks)) {
+		info.Desc = models.Tasks[info.Id-1].Desc
+	}
+	if record.Sport != nil {
+		info.Source = record.Sport.Source
+		info.Distance = record.Sport.Distance
+		info.Duration = record.Sport.Duration
+		info.Images = record.Sport.Pics
+		info.Reason = record.Sport.Review
+	}
+
+	return info
+}
+
 type tasklistForm struct {
 	AdminPaging
 	Token string `form:"access_token"`
@@ -69,31 +107,7 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 	total, records, _ := models.TaskRecords(form.PageIndex, form.PageCount)
 	for _, record := range records {
 
-		info := &taskinfo{
-			Id:     record.Task,
-			Status: record.Status,
-		}
-		if record.Type == "run" {
-			if record.Task < 1000 {
-				info.Type = models.TaskRunning
-			} else {
-				info.Type = models.TaskNormal
-			}
-		} else if record.Type == "game" {
-			info.Type = models.TaskGame
-		}
-		if len(info.Status) == 0 {
-			info.Status = models.StatusFinish
-		}
-		if info.Id > 0 && info.Id <= int64(len(models.Tasks)) {
-			info.Desc = models.Tasks[info.Id-1].Desc
-		}
-		if record.Sport != nil {
-			info.Distance = record.Sport.Distance
-			info.Duration = record.Sport.Duration
-			info.Images = record.Sport.Pics
-			info.Reason = record.Sport.Review
-		}
+		info := convertTask(&record)
 
 		user := users[record.Uid]
 		if user == nil {
@@ -132,6 +146,50 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			}
 		}
 	*/
+
+	pages := total / form.PageCount
+	if total%form.PageCount > 0 {
+		pages++
+	}
+	resp := map[string]interface{}{
+		"users":        tasks,
+		"page_index":   form.PageIndex,
+		"page_total":   pages,
+		"total_number": total,
+	}
+
+	writeResponse(w, resp)
+}
+
+type userTaskForm struct {
+	Nickname string `form:"nickname"`
+	Finish   bool   `form:"finish"`
+	AdminPaging
+	Token string `form:"access_token"`
+}
+
+func userTaskHandler(w http.ResponseWriter, redis *models.RedisLogger, form userTaskForm) {
+	if form.PageCount == 0 {
+		form.PageCount = 50
+	}
+
+	user := &models.Account{}
+	user.FindByNickname(form.Nickname)
+
+	var tasks []*userTask
+	total, records, _ := models.SearchTaskByUserid(user.Id, form.Finish, form.PageIndex, form.PageCount)
+	for _, record := range records {
+
+		info := convertTask(&record)
+
+		task := &userTask{
+			Id:       record.Uid,
+			Nickname: user.Nickname,
+			Profile:  user.Profile,
+			Tasks:    []*taskinfo{info},
+		}
+		tasks = append(tasks, task)
+	}
 
 	pages := total / form.PageCount
 	if total%form.PageCount > 0 {

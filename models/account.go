@@ -1758,3 +1758,16 @@ func (this *Account) SetGameTime(typ int, t time.Time) error {
 
 	return nil
 }
+
+func (this *Account) SetPrivilege(privilege int) error {
+	change := bson.M{
+		"$set": bson.M{
+			"privilege": privilege,
+		},
+	}
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+
+	return nil
+}

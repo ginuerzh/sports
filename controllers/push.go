@@ -67,7 +67,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	var auth wsAuth
 	conn.ReadJSON(&auth)
 
-	log.Println("check token:", auth.Token)
+	//log.Println("check token:", auth.Token)
 	if !checkTokenValid(auth.Token) {
 		log.Println("check token valid")
 		redisLogger.DelOnlineUser(auth.Token)

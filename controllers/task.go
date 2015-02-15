@@ -142,7 +142,7 @@ func getTaskInfoHandler(request *http.Request, resp http.ResponseWriter,
 				record.Game.Name, record.Game.Score, record.Game.Magic, record.Game.Coin/models.Satoshi)
 		}
 		if task.Type == models.TaskPost {
-			task.Result = fmt.Sprintf("你得到了%d体魄值和%d贝币", record.Coin/models.Satoshi, record.Coin)
+			task.Result = fmt.Sprintf("你得到了%d文学值和%d贝币", record.Coin/models.Satoshi, record.Coin/models.Satoshi)
 		}
 	}
 	/*

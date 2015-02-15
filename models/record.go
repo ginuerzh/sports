@@ -100,6 +100,29 @@ func TaskRecords(pageIndex, pageCount int) (int, []Record, error) {
 	return total, records, nil
 }
 
+func SearchTaskByUserid(userid string, finish bool, pageIndex, pageCount int) (int, []Record, error) {
+	var records []Record
+	total := 0
+	if len(userid) == 0 {
+		return total, records, nil
+	}
+
+	query := bson.M{
+		"type":   "run",
+		"uid":    userid,
+		"status": bson.M{"$in": []interface{}{StatusFinish, StatusUnFinish}},
+	}
+	if !finish {
+		query["status"] = StatusAuth
+	}
+	if err := search(recordColl, query, nil,
+		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &records); err != nil && err != mgo.ErrNotFound {
+		return total, nil, errors.NewError(errors.DbError)
+	}
+
+	return total, records, nil
+}
+
 func MaxDistanceRecord(userid string) (*Record, error) {
 	record := &Record{}
 	err := findOne(recordColl, bson.M{"uid": userid, "status": StatusFinish}, []string{"-sport.distance"}, record)

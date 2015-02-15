@@ -978,6 +978,7 @@ func checkNicknameHandler(r *http.Request, w http.ResponseWriter, form nicknameF
 
 type gameResultForm struct {
 	Type  string `form:"game_type"`
+	Score int    `form:"game_score"`
 	Count int    `form:"page_item_count"`
 	parameter
 }
@@ -999,12 +1000,27 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 	}
 
 	gt := gameType(form.Type)
+	if scores := redis.UserGameScores(gt, user.Id); len(scores) == 1 {
+		respData.Score = scores[0]
+	}
+	redis.SetGameScore(gt, user.Id, form.Score) // current score
+
 	kvs := redis.GameScores(gt, 0, form.Count)
 	var ids []string
 	for _, kv := range kvs {
 		ids = append(ids, kv.K)
 	}
-	log.Println(ids)
+	ranks := redis.UserGameRanks(gt, user.Id)
+
+	redis.SetGameScore(gt, user.Id, respData.Score) // recover max score
+
+	n := redis.GameUserCount(gt) - 1
+	log.Println(ranks, n)
+	if len(ranks) == 1 && form.Score > 0 {
+		respData.Percent = int(float64(n-ranks[0]) / float64(n) * 100.0)
+	}
+
+	//log.Println(ids)
 	users, _ := models.FindUsersByIds(1, ids...)
 	index := 0
 	for _, kv := range kvs {
@@ -1037,12 +1053,15 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		scores := redis.UserGameScores(gt, ids...)
 
 		if len(scores) != len(ids) {
-			scores = make([]int, len(ids))
+			scores = make([]int, total)
 		}
-		kvs = make([]models.KV, len(ids)+1)
+		kvs = make([]models.KV, total+1)
 		for i, _ := range ids {
 			kvs[i].K = ids[i]
 			kvs[i].V = int64(scores[i])
+			if ids[i] == user.Id {
+				kvs[i].V = int64(form.Score)
+			}
 		}
 
 		sort.Sort(sort.Reverse(models.KVSlice(kvs)))
@@ -1084,17 +1103,6 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		}
 
 		respData.PerFriend = int(float64(total-rank) / float64(total) * 100.0)
-	}
-
-	ranks := redis.UserGameRanks(gt, user.Id)
-	if scores := redis.UserGameScores(gt, user.Id); len(scores) == 1 {
-		respData.Score = scores[0]
-	}
-	n := redis.GameUserCount(gt) - 1
-	log.Println(ranks, n)
-	if len(ranks) == 1 && respData.Score > 0 {
-		respData.Percent = int(float64(n-ranks[0]) / float64(n) * 100.0)
-		log.Println(float64(n-ranks[0]) / float64(n))
 	}
 
 	writeResponse(r.RequestURI, w, respData, nil)

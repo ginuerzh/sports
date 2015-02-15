@@ -125,7 +125,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		}
 		rec.Coin = awards.Wealth
 
-		redis.SetGameScore(gameType(rec.Game.Type), user.Id, rec.Game.Score)
+		redis.SetGameMaxScore(gameType(rec.Game.Type), user.Id, rec.Game.Score)
 		user.SetGameTime(gameType(rec.Game.Type), time.Now())
 
 	case "run":
@@ -445,6 +445,7 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 type gamelbForm struct {
 	Query string `form:"query_type"`
 	Game  string `form:"game_type"`
+	Score int    `form:"game_score"`
 	Index int    `form:"page_index"`
 	Count int    `form:"page_count"`
 	parameter
@@ -493,6 +494,9 @@ func gamelbHandler(r *http.Request, w http.ResponseWriter,
 		for i, _ := range kvs {
 			kvs[i].K = ids[i]
 			kvs[i].V = int64(scores[i])
+			if ids[i] == user.Id {
+				kvs[i].V = int64(form.Score)
+			}
 		}
 		sort.Sort(sort.Reverse(models.KVSlice(kvs)))
 
@@ -504,9 +508,18 @@ func gamelbHandler(r *http.Request, w http.ResponseWriter,
 	case "TOP":
 		fallthrough
 	default:
+		maxScore := 0
+		if scores := redis.UserGameScores(gt, user.Id); len(scores) == 1 {
+			maxScore = scores[0]
+		}
+		redis.SetGameScore(gt, user.Id, form.Score) // current score
 		kvs = redis.GameScores(gt, form.Index*form.Count, form.Count)
-		for _, kv := range kvs {
+		redis.SetGameScore(gt, user.Id, maxScore) // recover max score
+		for i, kv := range kvs {
 			ids = append(ids, kv.K)
+			if kv.K == user.Id {
+				kvs[i].V = int64(form.Score)
+			}
 		}
 	}
 
