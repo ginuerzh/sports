@@ -912,7 +912,7 @@ func importContactsHandler(r *http.Request, w http.ResponseWriter,
 	for j, _ := range users {
 		i := 0
 		for ; i < len(ids); i++ {
-			if users[j].Id == ids[i] {
+			if users[j].Id == ids[i] || users[j].Id == user.Id {
 				break
 			}
 		}
