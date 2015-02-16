@@ -852,6 +852,10 @@ func lbGameKey(typ int) string {
 }
 
 func (logger *RedisLogger) SetGameScore(typ int, userid string, score int) {
+	logger.conn.Do("ZADD", lbGameKey(typ), score, userid)
+}
+
+func (logger *RedisLogger) SetGameMaxScore(typ int, userid string, score int) {
 	if len(userid) == 0 || score == 0 {
 		return
 	}
