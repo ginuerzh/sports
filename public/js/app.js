@@ -641,10 +641,10 @@ Task = (function() {
 app.factory('taskq', [
   '$http', function($http) {
     return {
-      gettasklist: function() {
+      gettasklist: function(page_index) {
         return $http.get(Util.host + '/admin/task/list', {
           params: {
-            page_index: 0,
+            page_index: page_index,
             page_count: 50,
             access_token: userToken
           }
@@ -1229,7 +1229,7 @@ articleListController = app.controller('articleListController', [
     };
     $scope.$on('genPagination', function(event, p) {
       event.stopPropagation();
-      if (searchMode) {
+      if (searchMode || (typeof tagID !== "undefined" && tagID !== null)) {
         return $scope.search(p);
       } else {
         return $scope.getArticleList(p);
@@ -1237,7 +1237,6 @@ articleListController = app.controller('articleListController', [
     });
     tagID = $routeParams.tagid;
     if (tagID != null) {
-      searchStr = tagID;
       return $scope.search(0);
     } else {
       return $scope.getArticleList(0);
@@ -1339,26 +1338,41 @@ var tasklistController;
 
 tasklistController = app.controller('tasklistController', [
   'app', '$scope', '$rootScope', 'taskService', 'utils', function(app, $scope, $rootScope, taskService, utils) {
-    var refreshtable, taskStr, timeline;
+    var pageIndex, refreshtable, taskStr, timeline;
     $scope.checked = true;
     $scope.itemsByPage = 50;
     taskStr = 'Auditting';
+    pageIndex = 0;
+    $scope.searchData = {
+      "data": ""
+    };
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
     }
     refreshtable = function() {
-      $scope.checked = true;
-      if (window.location.href.indexOf('tasklisthistory') > 0) {
-        $scope.checked = false;
-        taskStr = 'Audited';
+      var tasklistInfo;
+      if (!$scope.checked) {
+        $scope.checked = true;
+        taskStr = 'Auditting';
       }
-      $scope.rowCollection = taskService.gettasklist(taskStr);
-      return $scope.displayedCollection = [].concat($scope.rowCollection);
+      if (window.location.href.indexOf('tasklisthistory') > 0) {
+        if ($scope.checked) {
+          $scope.checked = false;
+          taskStr = 'Audited';
+        }
+      }
+      tasklistInfo = taskService.gettasklist(taskStr, pageIndex);
+      $scope.rowCollection = tasklistInfo.tasklist;
+      $scope.displayedCollection = [].concat($scope.rowCollection);
+      return $scope.pagination = tasklistInfo.pagination;
     };
     timeline = function() {
-      $scope.rowCollection = taskService.searchtask($scope.searchData.data, !$scope.checked);
-      return $scope.displayedCollection = [].concat($scope.rowCollection);
+      var tasklistInfo;
+      tasklistInfo = taskService.searchtask($scope.searchData.data, !$scope.checked, pageIndex);
+      $scope.rowCollection = tasklistInfo.tasklist;
+      $scope.displayedCollection = [].concat($scope.rowCollection);
+      return $scope.pagination = tasklistInfo.pagination;
     };
     $scope.showImgs = function(index) {
       var str;
@@ -1371,6 +1385,7 @@ tasklistController = app.controller('tasklistController', [
       if (this.reason === "") {
         return alert("please input the reason for the rejection");
       } else {
+        pageIndex = 0;
         return taskService.taskapprove(row.userid, row.taskid, this.reason).then(refreshtable);
       }
     };
@@ -1379,16 +1394,27 @@ tasklistController = app.controller('tasklistController', [
       if (this.reason === "") {
         return alert("please input the reason for the rejection");
       } else {
+        pageIndex = 0;
         return taskService.taskreject(row.userid, row.taskid, this.reason).then(refreshtable);
       }
     };
     $scope.searchChange = function() {
       if (($scope.searchData.data != null) && $scope.searchData.data.length > 0) {
+        pageIndex = 0;
         return timeline();
       } else {
         return refreshtable();
       }
     };
+    $scope.$on('genPagination', function(event, p) {
+      event.stopPropagation();
+      pageIndex = p;
+      if (($scope.searchData.data != null) && $scope.searchData.data.length > 0) {
+        return timeline();
+      } else {
+        return refreshtable();
+      }
+    });
     return refreshtable();
   }
 ]);
@@ -1883,19 +1909,91 @@ userlistController = app.controller('userlistController', [
 app.factory('taskService', [
   '$q', 'taskq', function($q, $taskq) {
     return {
-      gettasklist: function(tasktype) {
-        var tasklist;
-        tasklist = [];
-        $taskq.gettasklist().success(function(response) {
-          var task, taskitem, taskjson, _i, _len, _ref, _results;
+      gettasklist: function(tasktype, page_index) {
+        var tasklistInfo;
+        tasklistInfo = {
+          'tasklist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $taskq.gettasklist(page_index).success(function(response) {
+          var task, taskitem, taskjson, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2, _results;
           _ref = response.users;
-          _results = [];
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             taskitem = _ref[_i];
-            _results.push((function() {
-              var _j, _len1, _ref1, _results1;
+            _ref1 = taskitem.tasks;
+            for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+              task = _ref1[_j];
+              if (task.status === null) {
+                continue;
+              }
+              taskjson = {
+                taskid: task.task_id,
+                type: task.type,
+                desc: task.desc,
+                status: task.status,
+                reason: task.reason,
+                images: task.images,
+                userid: taskitem.userid,
+                nickname: taskitem.nickname,
+                profile: taskitem.profile,
+                begin_time: task.begin_time,
+                end_time: task.end_time,
+                distance: task.distance
+              };
+              switch (tasktype) {
+                case "Auditting":
+                  if (taskjson.status === "AUTHENTICATION") {
+                    tasklistInfo.tasklist.push(taskjson);
+                  }
+                  break;
+                case "Audited":
+                  if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {
+                    tasklistInfo.tasklist.push(taskjson);
+                  }
+                  break;
+              }
+            }
+          }
+          tasklistInfo.pagination.pageIndex = response.page_index;
+          tasklistInfo.pagination.total = response.total_number;
+          tasklistInfo.pagination.showPages = (function() {
+            _results = [];
+            for (var _k = 0, _ref2 = response.page_total; 0 <= _ref2 ? _k < _ref2 : _k > _ref2; 0 <= _ref2 ? _k++ : _k--){ _results.push(_k); }
+            return _results;
+          }).apply(this);
+          return tasklistInfo.pagination.pagetotal = response.page_total;
+        });
+        return tasklistInfo;
+      },
+      taskapprove: function(userid, taskid, reason) {
+        return $taskq.taskaudit(userid, taskid, true, reason).success();
+      },
+      taskreject: function(userid, taskid, reason) {
+        return $taskq.taskaudit(userid, taskid, false, reason).success();
+      },
+      searchtask: function(nickname, finish, page_index) {
+        var tasklistInfo;
+        tasklistInfo = {
+          'tasklist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $taskq.search(nickname, finish, 50, page_index).success(function(response) {
+          var task, taskitem, taskjson, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2, _results;
+          if (response.users != null) {
+            _ref = response.users;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              taskitem = _ref[_i];
               _ref1 = taskitem.tasks;
-              _results1 = [];
               for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
                 task = _ref1[_j];
                 if (task.status === null) {
@@ -1915,90 +2013,28 @@ app.factory('taskService', [
                   end_time: task.end_time,
                   distance: task.distance
                 };
-                switch (tasktype) {
-                  case "Auditting":
-                    if (taskjson.status === "AUTHENTICATION") {
-                      _results1.push(tasklist.push(taskjson));
-                    } else {
-                      _results1.push(void 0);
-                    }
-                    break;
-                  case "Audited":
-                    if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {
-                      _results1.push(tasklist.push(taskjson));
-                    } else {
-                      _results1.push(void 0);
-                    }
-                    break;
+                if (finish) {
+                  if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {
+                    tasklistInfo.tasklist.push(taskjson);
+                  }
+                } else {
+                  if (taskjson.status === "AUTHENTICATION") {
+                    tasklistInfo.tasklist.push(taskjson);
+                  }
                 }
               }
-              return _results1;
-            })());
-          }
-          return _results;
-        });
-        return tasklist;
-      },
-      taskapprove: function(userid, taskid, reason) {
-        return $taskq.taskaudit(userid, taskid, true, reason).success();
-      },
-      taskreject: function(userid, taskid, reason) {
-        return $taskq.taskaudit(userid, taskid, false, reason).success();
-      },
-      searchtask: function(nickname, finish) {
-        var tasklist;
-        tasklist = [];
-        $taskq.search(nickname, finish, 50, 0).success(function(response) {
-          var task, taskitem, taskjson, _i, _len, _ref, _results;
-          if (response.users != null) {
-            _ref = response.users;
-            _results = [];
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              taskitem = _ref[_i];
-              _results.push((function() {
-                var _j, _len1, _ref1, _results1;
-                _ref1 = taskitem.tasks;
-                _results1 = [];
-                for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-                  task = _ref1[_j];
-                  if (task.status === null) {
-                    continue;
-                  }
-                  taskjson = {
-                    taskid: task.task_id,
-                    type: task.type,
-                    desc: task.desc,
-                    status: task.status,
-                    reason: task.reason,
-                    images: task.images,
-                    userid: taskitem.userid,
-                    nickname: taskitem.nickname,
-                    profile: taskitem.profile,
-                    begin_time: task.begin_time,
-                    end_time: task.end_time,
-                    distance: task.distance
-                  };
-                  if (finish) {
-                    if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {
-                      _results1.push(tasklist.push(taskjson));
-                    } else {
-                      _results1.push(void 0);
-                    }
-                  } else {
-                    if (taskjson.status === "AUTHENTICATION") {
-                      _results1.push(tasklist.push(taskjson));
-                    } else {
-                      _results1.push(void 0);
-                    }
-                  }
-                }
-                return _results1;
-              })());
             }
-            return _results;
+            tasklistInfo.pagination.pageIndex = response.page_index;
+            tasklistInfo.pagination.total = response.total_number;
+            tasklistInfo.pagination.showPages = (function() {
+              _results = [];
+              for (var _k = 0, _ref2 = response.page_total; 0 <= _ref2 ? _k < _ref2 : _k > _ref2; 0 <= _ref2 ? _k++ : _k--){ _results.push(_k); }
+              return _results;
+            }).apply(this);
+            return tasklistInfo.pagination.pagetotal = response.page_total;
           }
         });
-        return tasklist;
+        return tasklistInfo;
       }
     };
   }
