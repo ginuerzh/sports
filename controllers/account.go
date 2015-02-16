@@ -1016,7 +1016,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 
 	n := redis.GameUserCount(gt) - 1
 	log.Println(ranks, n)
-	if len(ranks) == 1 && form.Score > 0 {
+	if len(ranks) == 1 && n > 0 && form.Score > 0 {
 		respData.Percent = int(float64(n-ranks[0]) / float64(n) * 100.0)
 	}
 
