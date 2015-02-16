@@ -1101,8 +1101,9 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 				rank = j
 			}
 		}
-
-		respData.PerFriend = int(float64(total-rank) / float64(total) * 100.0)
+		if total > 0 {
+			respData.PerFriend = int(float64(total-rank) / float64(total) * 100.0)
+		}
 	}
 
 	writeResponse(r.RequestURI, w, respData, nil)
