@@ -1065,6 +1065,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		}
 
 		sort.Sort(sort.Reverse(models.KVSlice(kvs)))
+		lb := kvs
 		if len(kvs) > 3 {
 			kvs = kvs[0:3]
 		}
@@ -1076,7 +1077,14 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		index := 0
 		rank := 0
 
-		for j, kv := range kvs {
+		for i, _ := range lb {
+			if lb[i].K == user.Id {
+				rank = i
+				break
+			}
+		}
+
+		for _, kv := range kvs {
 			for i, _ := range users {
 				if users[i].Id == kv.K {
 					respData.Friends = append(respData.Friends, &leaderboardResp{
@@ -1097,10 +1105,8 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 					break
 				}
 			}
-			if kv.K == user.Id {
-				rank = j
-			}
 		}
+
 		if total > 0 {
 			respData.PerFriend = int(float64(total-rank) / float64(total) * 100.0)
 		}
