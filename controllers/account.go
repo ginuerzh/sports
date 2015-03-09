@@ -135,6 +135,20 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		loadUserHandler,
 		gameResultHandler)
+	m.Post("/1/user/purchaseSuccess",
+		binding.Json(purchaseForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		purchaseHandler,
+	)
+
+	m.Get("/1/user/getPayHistory",
+		binding.Form(purchaseListForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		purchaseListHandler,
+	)
 }
 
 // user register parameter
@@ -1112,5 +1126,69 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		}
 	}
 
+	writeResponse(r.RequestURI, w, respData, nil)
+}
+
+type purchaseForm struct {
+	Coins int64 `json:"coin_value"`
+	Value int   `json:"value"`
+	Time  int64 `json:"time"`
+	parameter
+}
+
+func purchaseHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(purchaseForm)
+
+	awards := Awards{Wealth: form.Coins}
+	if err := GiveAwards(user, awards, redis); err != nil {
+		writeResponse(r.RequestURI, w, nil, err)
+		return
+	}
+
+	tx := &models.Tx{
+		Uid:   user.Id,
+		Coins: form.Coins,
+		Value: form.Value,
+		Time:  time.Unix(form.Time, 0),
+	}
+
+	err := tx.Save()
+
+	respData := map[string]interface{}{"ExpEffect": awards}
+	writeResponse(r.RequestURI, w, respData, err)
+}
+
+type purchaseListForm struct {
+	models.Paging
+	parameter
+}
+
+type purchaseStruct struct {
+	Coins int64 `json:"coin_value"`
+	Value int   `json:"value"`
+	Time  int64 `json:"time"`
+}
+
+func purchaseListHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(purchaseListForm)
+
+	_, txs, _ := user.Txs(&form.Paging)
+
+	list := []*purchaseStruct{}
+	for _, tx := range txs {
+		list = append(list, &purchaseStruct{
+			Coins: tx.Coins,
+			Value: tx.Value,
+			Time:  tx.Time.Unix(),
+		})
+	}
+
+	respData := map[string]interface{}{
+		"payCoinList":   list,
+		"page_frist_id": form.Paging.First,
+		"page_last_id":  form.Paging.Last,
+	}
 	writeResponse(r.RequestURI, w, respData, nil)
 }

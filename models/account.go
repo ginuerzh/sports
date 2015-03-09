@@ -1771,3 +1771,59 @@ func (this *Account) SetPrivilege(privilege int) error {
 
 	return nil
 }
+
+func txPagingFunc(c *mgo.Collection, first, last string, args ...interface{}) (query bson.M, err error) {
+	tx := &Tx{}
+
+	if bson.IsObjectIdHex(first) {
+		if err := c.FindId(bson.ObjectIdHex(first)).One(tx); err != nil {
+			return nil, err
+		}
+		query = bson.M{
+			"time": bson.M{
+				"$gte": tx.Time,
+			},
+		}
+	} else if bson.IsObjectIdHex(last) {
+		if err := c.FindId(bson.ObjectIdHex(last)).One(tx); err != nil {
+			return nil, err
+		}
+		query = bson.M{
+			"time": bson.M{
+				"$lte": tx.Time,
+			},
+		}
+	}
+
+	return
+}
+
+func (this *Account) Txs(paging *Paging) (int, []Tx, error) {
+	var txs []Tx
+	total := 0
+
+	sortFields := []string{"-time", "-_id"}
+	query := bson.M{"uid": this.Id}
+	psearch(txColl, query, nil, sortFields, nil, &txs, txPagingFunc, paging)
+
+	for i := 0; i < len(txs); i++ {
+		if txs[i].Id.Hex() == paging.First {
+			txs = txs[:i]
+			break
+		} else if txs[i].Id.Hex() == paging.Last {
+			txs = txs[i+1:]
+			break
+		}
+	}
+
+	paging.First = ""
+	paging.Last = ""
+	paging.Count = 0
+	if len(txs) > 0 {
+		paging.First = txs[0].Id.Hex()
+		paging.Last = txs[len(txs)-1].Id.Hex()
+		paging.Count = total
+	}
+
+	return total, txs, nil
+}
