@@ -255,6 +255,7 @@ User = (function() {
     this.followers_count = data.followers_count;
     this.friends_count = data.friends_count;
     this.blacklist_count = data.blacklist_count;
+    this.email = data.email;
     this.ban_time = "";
     this.ban_status = "normal";
     if (data.ban_time != null) {
@@ -1522,7 +1523,7 @@ userlistController = app.controller('userlistController', [
       window.location.href = "#/";
       return;
     }
-    $scope.dropdowmItems = ["20222332项", "50项", "100项", "200项"];
+    $scope.dropdowmItems = ["50项", "100项", "200项"];
     $scope.selectType = ["选择", "性别", "年龄", "状态"];
     $scope.selectItemList = [["选择"], ["男", "女"], ["< 20岁", "20～40岁", "> 40岁"], ["正常", "禁言", "拉黑"]];
     $scope.selectItem = $scope.selectItemList[0];
@@ -1728,8 +1729,6 @@ userlistController = app.controller('userlistController', [
           }
           searchMode = false;
           return $scope.$apply();
-        } else {
-          return setTimeout($scope.getUserList(pageIndex), 500);
         }
       }, pageIndex, pageCount);
     };
