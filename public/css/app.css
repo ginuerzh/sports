@@ -1677,7 +1677,14 @@ body{
     background-size: cover;
     font-family: Helvetica Neue,Microsoft Yahei,Hiragino Sans GB,Microsoft Sans Serif,WenQuanYi Micro Hei,sans-serif;
 	}
-	
+
+.container1 {
+    padding-right: 50px;
+    padding-left: 50px;
+    margin-right: auto;
+    margin-left: auto;
+}
+
 .navbar-toggle {
     display: none;}
 	
