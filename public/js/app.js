@@ -1550,7 +1550,8 @@ userlistController = app.controller('userlistController', [
       "logintime": 0,
       "score": 0,
       "ban": 0,
-      "gender": 0
+      "gender": 0,
+      "email": 0
     };
     resetCheckState = function(state) {
       var item, _i, _len, _ref, _results;
@@ -1891,7 +1892,8 @@ userlistController = app.controller('userlistController', [
           "logintime": 0,
           "score": 0,
           "ban": 0,
-          "gender": 0
+          "gender": 0,
+          "email": 0
         };
         $scope.sortState[str] = 2;
         sortStr = "-" + sortStr;
