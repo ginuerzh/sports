@@ -396,7 +396,8 @@ func articleIsThumbedHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type articleListForm struct {
-	Token string `form:"access_token"`
+	Circle bool   `form:"IsAttentionCircle"`
+	Token  string `form:"access_token"`
 	models.Paging
 	Tag string `form:"article_tag"`
 }

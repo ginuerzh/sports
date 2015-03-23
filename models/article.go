@@ -277,6 +277,18 @@ func articlePagingFunc(c *mgo.Collection, first, last string, args ...interface{
 	return
 }
 
+/*
+func GetFollowingsArticles(followings []string, paging *Paging) (int, []Article, error) {
+	var articles []Article
+	total := 0
+
+	query := bson.M{
+		"parent": nil,
+		"author": bson.M{"$in": followings},
+	}
+
+}
+*/
 func GetArticles(tag string, paging *Paging, withoutContent bool) (int, []Article, error) {
 	var articles []Article
 	total := 0

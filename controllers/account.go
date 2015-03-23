@@ -149,6 +149,8 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		purchaseListHandler,
 	)
+
+	m.Get("/1/user/isPreSportForm", testHandler)
 }
 
 // user register parameter
@@ -1191,4 +1193,8 @@ func purchaseListHandler(r *http.Request, w http.ResponseWriter,
 		"page_last_id":  form.Paging.Last,
 	}
 	writeResponse(r.RequestURI, w, respData, nil)
+}
+
+func testHandler(r *http.Request, w http.ResponseWriter) {
+	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": true}, nil)
 }
