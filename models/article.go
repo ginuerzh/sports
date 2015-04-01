@@ -40,6 +40,7 @@ type Article struct {
 	RewardCount int      `bson:"reward_count"`
 	TotalReward int64    `bson:"total_reward"`
 	Tags        []string `bson:",omitempty"`
+	Loc         Location `bson:",omitempty"`
 }
 
 func (this *Article) Exists() (bool, error) {
@@ -277,18 +278,56 @@ func articlePagingFunc(c *mgo.Collection, first, last string, args ...interface{
 	return
 }
 
-/*
-func GetFollowingsArticles(followings []string, paging *Paging) (int, []Article, error) {
+func GetUserArticles(ids []string, paging *Paging) (int, []Article, error) {
 	var articles []Article
 	total := 0
 
 	query := bson.M{
 		"parent": nil,
-		"author": bson.M{"$in": followings},
+		"author": bson.M{"$in": ids},
 	}
 
+	sortFields := []string{"-pub_time", "-_id"}
+
+	if err := psearch(articleColl, query, nil,
+		sortFields, nil, &articles, articlePagingFunc, paging); err != nil {
+		e := errors.NewError(errors.DbError, err.Error())
+		if err == mgo.ErrNotFound {
+			e = errors.NewError(errors.NotFoundError, err.Error())
+		}
+		return total, nil, e
+	}
+
+	for i := 0; i < len(articles); i++ {
+		if articles[i].Id.Hex() == paging.First {
+			articles = articles[:i]
+			break
+		} else if articles[i].Id.Hex() == paging.Last {
+			articles = articles[i+1:]
+			break
+		}
+	}
+
+	paging.First = ""
+	paging.Last = ""
+	paging.Count = 0
+	if len(articles) > 0 {
+		paging.First = articles[0].Id.Hex()
+		paging.Last = articles[len(articles)-1].Id.Hex()
+		paging.Count = total
+	}
+
+	return total, articles, nil
 }
-*/
+
+func GetFollowingsArticles(followings []string, paging *Paging) (int, []Article, error) {
+	return GetUserArticles(followings, paging)
+}
+
+func GetRecommendArticles(recommends []string, paging *Paging) (int, []Article, error) {
+	return GetUserArticles(recommends, paging)
+}
+
 func GetArticles(tag string, paging *Paging, withoutContent bool) (int, []Article, error) {
 	var articles []Article
 	total := 0

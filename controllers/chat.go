@@ -6,7 +6,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
-	"log"
+	//"log"
 	"net/http"
 	"time"
 )
@@ -16,7 +16,7 @@ func BindChatApi(m *martini.ClassicMartini) {
 		binding.Form(contactsForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
-		//loadUserHandler,
+		loadUserHandler,
 		contactsHandler)
 	m.Post("/1/chat/send_message",
 		binding.Json(sendMsgForm{}, (*Parameter)(nil)),
@@ -30,6 +30,11 @@ func BindChatApi(m *martini.ClassicMartini) {
 		ErrorHandler,
 		checkTokenHandler,
 		msgListHandler)
+	m.Post("/1/chat/delete",
+		binding.Json(delChatForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		delChatHandler)
 }
 
 type contactStruct struct {
@@ -40,13 +45,18 @@ type contactStruct struct {
 	Last     *msgJsonStruct `json:"last_message"`
 }
 
-func convertContact(contact *models.Contact) *contactStruct {
+func convertContact(userid, contact string) *contactStruct {
+	user := &models.Account{}
+	user.FindByUserid(contact)
+	lastmsg := &models.Message{}
+	lastmsg.Last(userid, contact)
+
 	return &contactStruct{
-		Id:       contact.Id,
-		Profile:  contact.Profile,
-		Nickname: contact.Nickname,
-		//Count:    contact.Count,
-		Last: convertMsg(contact.Last),
+		Id:       contact,
+		Profile:  user.Profile,
+		Nickname: user.Nickname,
+		Count:    models.EventCount(models.EventChat, contact, userid),
+		Last:     convertMsg(lastmsg),
 	}
 }
 
@@ -57,11 +67,10 @@ type contactsForm struct {
 func contactsHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
-	user.ContactList()
+	//user.ContactList()
 	contacts := make([]*contactStruct, len(user.Contacts))
 	for i, _ := range user.Contacts {
-		contacts[i] = convertContact(&user.Contacts[i])
-		contacts[i].Count = models.EventCount(models.EventChat, contacts[i].Id, user.Id)
+		contacts[i] = convertContact(user.Id, user.Contacts[i])
 	}
 
 	respData := map[string]interface{}{
@@ -111,32 +120,35 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
 	}
+	/*
+		//u := &models.User{Id: user.Id}
+		contact := &models.Contact{
+			Id:       touser.Id,
+			Profile:  touser.Profile,
+			Nickname: touser.Nickname,
+			Last:     msg,
+		}
+		if err := user.AddContact(contact); err != nil {
+			log.Println(err)
+		}
 
-	//u := &models.User{Id: user.Id}
-	contact := &models.Contact{
-		Id:       touser.Id,
-		Profile:  touser.Profile,
-		Nickname: touser.Nickname,
-		Last:     msg,
-	}
-	if err := user.AddContact(contact); err != nil {
-		log.Println(err)
-	}
-
-	//u.Id = touser.Id
-	contact.Id = user.Id
-	contact.Profile = user.Profile
-	contact.Nickname = user.Nickname
-	contact.Count = 1
-	if err := touser.AddContact(contact); err != nil {
-		log.Println(err)
-	}
+		//u.Id = touser.Id
+		contact.Id = user.Id
+		contact.Profile = user.Profile
+		contact.Nickname = user.Nickname
+		//contact.Count = 1
+		if err := touser.AddContact(contact); err != nil {
+			log.Println(err)
+		}
+	*/
+	user.AddContact(touser.Id)
+	touser.AddContact(user.Id)
 
 	writeResponse(request.RequestURI, resp, map[string]string{"message_id": msg.Id.Hex()}, nil)
 
 	content := form.Content
-	if r := []rune(content); len(r) > 10 {
-		content = string(r[:10]) + "..."
+	if r := []rune(content); len(r) > 20 {
+		content = string(r[:20]) + "..."
 	}
 	// ws push
 	event := &models.Event{
@@ -211,4 +223,20 @@ func msgListHandler(request *http.Request, resp http.ResponseWriter,
 	//respData["page_item_count"] = total
 	respData["messages"] = jsonStructs
 	writeResponse(request.RequestURI, resp, respData, err)
+}
+
+type delChatForm struct {
+	Userid string `json:"userid"`
+	parameter
+}
+
+func delChatHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(delChatForm)
+
+	msg := &models.Message{}
+	n, err := msg.Delete(user.Id, form.Userid, time.Unix(0, 0), time.Now())
+	user.DelContact(form.Userid)
+	writeResponse(request.RequestURI, resp, map[string]int{"count": n}, err)
 }

@@ -178,6 +178,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 
 type recTimelineForm struct {
 	Userid string `form:"userid" binding:"required"`
+	Class  string
 	models.Paging
 	parameter
 }
@@ -191,7 +192,7 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	u := &models.Account{Id: form.Userid}
-	_, records, err := u.Records(all, &form.Paging)
+	_, records, err := u.Records(all, form.Class, &form.Paging)
 
 	recs := make([]record, len(records))
 	for i, _ := range records {

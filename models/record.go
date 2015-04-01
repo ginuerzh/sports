@@ -23,6 +23,7 @@ type SportRecord struct {
 	Source   string
 	Duration int64
 	Distance int
+	Weight   int
 	Speed    float64
 	Pics     []string
 	Review   string

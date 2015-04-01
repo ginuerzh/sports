@@ -10,6 +10,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/zhengying/apns"
 	//"github.com/martini-contrib/gzip"
+	"github.com/facebookgo/grace/gracehttp"
 	"gopkg.in/ginuerzh/weedo.v0"
 	"gopkg.in/go-martini/martini.v1"
 	"log"
@@ -91,8 +92,8 @@ func main() {
 	//jsgen.BindArticleApi(m)
 
 	models.InsureIndexes()
-
-	log.Fatal(http.ListenAndServe(listenAddr, m))
+	gracehttp.Serve(&http.Server{Addr: listenAddr, Handler: m})
+	//log.Fatal(http.ListenAndServe(listenAddr, m))
 }
 
 func redisPool() *redis.Pool {

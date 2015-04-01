@@ -2,7 +2,7 @@
 package controllers
 
 import (
-	"bytes"
+	//"bytes"
 	//"encoding/json"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
@@ -45,16 +45,19 @@ func BindArticleApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		articleIsThumbedHandler)
 	m.Get("/1/article/timelines",
-		binding.Form(articleListForm{}),
+		binding.Form(articleListForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
 		articleListHandler)
 	m.Get("/1/article/get",
-		binding.Form(articleInfoForm{}),
+		binding.Form(articleInfoForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
 		articleInfoHandler)
 	m.Post("/1/article/comments",
-		binding.Json(articleCommentsForm{}),
+		binding.Json(articleCommentsForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
 		articleCommentsHandler)
 	m.Get("/1/aritcle/thumbList",
 		binding.Form(thumbersForm{}),
@@ -64,19 +67,22 @@ func BindArticleApi(m *martini.ClassicMartini) {
 type articleJsonStruct struct {
 	Id         string           `json:"article_id"`
 	Parent     string           `json:"parent_article_id"`
-	Author     string           `json:"author"`
+	Author     *userJsonStruct  `json:"author"`
 	Title      string           `json:"cover_text"`
 	Image      string           `json:"cover_image"`
 	PubTime    int64            `json:"time"`
+	Thumbed    bool             `json:"isThumbed"`
 	Thumbs     int              `json:"thumb_count"`
 	ThumbUsers []string         `json:"thumb_users"`
 	NewThumbs  int              `json:"new_thumb_count"`
 	Reviews    int              `json:"sub_article_count"`
 	NewReviews int              `json:"new_sub_article_count"`
-	Contents   []models.Segment `json:"article_segments"`
-	Content    string           `json:"content"`
-	Rewards    int64            `json:"reward_total"`
-	Relation   string           `json:"relation"`
+	Contents   []models.Segment `json:"article_segments,omitempty"`
+	//Images     []string         `json:"images"`
+	Content  string `json:"content,omitempty"`
+	Rewards  int64  `json:"reward_total"`
+	Relation string `json:"relation"`
+	models.Location
 }
 
 var (
@@ -116,30 +122,39 @@ var (
 </html>`
 )
 
-func convertArticle(article *models.Article) *articleJsonStruct {
+func convertArticle(user *models.Account, article *models.Article, author *userJsonStruct) *articleJsonStruct {
 	jsonStruct := &articleJsonStruct{}
 	jsonStruct.Id = article.Id.Hex()
 	jsonStruct.Parent = article.Parent
-	jsonStruct.Author = article.Author
 	//jsonStruct.Contents = article.Contents
 	jsonStruct.PubTime = article.PubTime.Unix()
 	jsonStruct.Thumbs = len(article.Thumbs)
+	jsonStruct.ThumbUsers = article.Thumbs
+	for _, thumber := range article.Thumbs {
+		if thumber == user.Id {
+			jsonStruct.Thumbed = true
+		}
+	}
+
 	jsonStruct.Reviews = len(article.Reviews)
 	jsonStruct.Rewards = article.TotalReward
 
 	jsonStruct.Title = article.Title
 	jsonStruct.Image = article.Image
+	//jsonStruct.Images = article.Images
+	jsonStruct.Content = article.Content
+	jsonStruct.Contents = article.Contents
+	jsonStruct.Location = article.Loc
+	if jsonStruct.Location.Lat == 0 {
+		jsonStruct.Location = author.Location
+	}
 
-	if len(article.Content) > 0 {
-		jsonStruct.Content = header + article.Content + footer
-	}
-	if len(article.Contents) > 0 {
-		jsonStruct.Content = header + content2Html(article.Contents) + footer
-	}
+	jsonStruct.Author = author
 
 	return jsonStruct
 }
 
+/*
 func content2Html(contents []models.Segment) string {
 	buf := &bytes.Buffer{}
 	for _, content := range contents {
@@ -158,11 +173,12 @@ func content2Html(contents []models.Segment) string {
 
 	return buf.String()
 }
-
+*/
 type newArticleForm struct {
 	Parent   string           `json:"parent_article_id"`
 	Contents []models.Segment `json:"article_segments" binding:"required"`
-	Tags     []string         `json:"article_tag"`
+	models.Location
+	Tags []string `json:"article_tag"`
 	parameter
 }
 
@@ -182,11 +198,12 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	form := p.(newArticleForm)
 
 	article := &models.Article{
-		Author:  user.Id,
-		Content: content2Html(form.Contents),
-		PubTime: time.Now(),
-		Parent:  form.Parent,
-		Tags:    form.Tags,
+		Author:   user.Id,
+		Contents: form.Contents,
+		PubTime:  time.Now(),
+		Parent:   form.Parent,
+		Tags:     form.Tags,
+		Loc:      form.Location,
 	}
 	article.Title, article.Images = articleCover(form.Contents)
 	if len(article.Images) > 0 {
@@ -399,19 +416,36 @@ type articleListForm struct {
 	Circle bool   `form:"IsAttentionCircle"`
 	Token  string `form:"access_token"`
 	models.Paging
-	Tag string `form:"article_tag"`
+	parameter
+	//Tag string `form:"article_tag"`
 }
 
-func articleListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
-	_, articles, err := models.GetArticles(form.Tag, &form.Paging, true)
-	if err != nil {
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
+func articleListHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	var articles []models.Article
+	var err error
+	form := p.(articleListForm)
+	if form.Circle {
+		followings := redis.Friends(models.RelFollowing, user.Id)
+		followings = append(followings, user.Id) // self included
+		_, articles, err = models.GetFollowingsArticles(followings, &form.Paging)
+	} else {
+		excludes := redis.Friends(models.RelFollowing, user.Id)
+		excludes = append(excludes, redis.Friends(models.RelBlacklist, user.Id)...)
+		recommends, _ := user.Recommend(excludes)
+		ids := []string{}
+		for i, _ := range recommends {
+			ids = append(ids, recommends[i].Id)
+		}
+		_, articles, err = models.GetRecommendArticles(ids, &form.Paging)
 	}
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
-		jsonStructs[i] = convertArticle(&articles[i])
+		u := &models.Account{}
+		u.FindByUserid(articles[i].Author)
+		author := convertUser(u, redis)
+		jsonStructs[i] = convertArticle(user, &articles[i], author)
 	}
 
 	respData := make(map[string]interface{})
@@ -423,11 +457,13 @@ func articleListHandler(request *http.Request, resp http.ResponseWriter, redis *
 }
 
 type articleInfoForm struct {
-	Id    string `form:"article_id" binding:"required"`
-	Token string `form:"access_token"`
+	Id string `form:"article_id" binding:"required"`
+	parameter
 }
 
-func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form articleInfoForm) {
+func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(articleInfoForm)
 	article := &models.Article{}
 	if find, err := article.FindById(form.Id); !find {
 		if err == nil {
@@ -451,7 +487,11 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 		event.Clear()
 	}
 
-	jsonStruct := convertArticle(article)
+	u := &models.Account{}
+	u.FindByUserid(article.Author)
+	author := convertUser(u, redis)
+	jsonStruct := convertArticle(user, article, author)
+
 	jsonStruct.Relation = redis.Relationship(redis.OnlineUser(form.Token), article.Author)
 	switch jsonStruct.Relation {
 	case models.RelFriend:
@@ -467,6 +507,7 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 	if len(article.Thumbs) > 6 {
 		thumbers = article.Thumbs[len(article.Thumbs)-6:]
 	}
+	jsonStruct.ThumbUsers = nil
 	users, _ := models.FindUsersByIds(0, thumbers...)
 	for i := len(thumbers); i > 0; i-- { // reverse
 		for j, _ := range users {
@@ -483,17 +524,22 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter, redis *
 type articleCommentsForm struct {
 	Id string `json:"article_id"  binding:"required"`
 	models.Paging
+	parameter
 }
 
 func articleCommentsHandler(request *http.Request, resp http.ResponseWriter,
-	form articleCommentsForm) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(articleCommentsForm)
 
 	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
 	_, comments, err := article.Comments(&form.Paging, true)
 
 	jsonStructs := make([]*articleJsonStruct, len(comments))
 	for i, _ := range comments {
-		jsonStructs[i] = convertArticle(&comments[i])
+		u := &models.Account{}
+		u.FindByUserid(comments[i].Author)
+		author := convertUser(u, redis)
+		jsonStructs[i] = convertArticle(user, &comments[i], author)
 	}
 
 	respData := make(map[string]interface{})

@@ -422,10 +422,16 @@ type userJsonStruct struct {
 	About    string `json:"about"`
 	Profile  string `json:"profile_image"`
 	RegTime  int64  `json:"register_time"`
-	Hobby    string `json:"hobby"`
 	Height   int    `json:"height"`
 	Weight   int    `json:"weight"`
 	Birth    int64  `json:"birthday"`
+
+	Sign        string `json:"sign"`
+	Emotion     string `json:"emotion"`
+	Profession  string `json:"profession"`
+	Hobby       string `json:"fond"`
+	Hometown    string `json:"hometown"`
+	OftenAppear string `json:"oftenAppear"`
 
 	Actor string `json:"actor"`
 	Rank  string `json:"rankName"`
@@ -462,12 +468,18 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 		About:    user.About,
 		Profile:  user.Profile,
 		RegTime:  user.RegTime.Unix(),
-		Hobby:    user.Hobby,
 		Height:   user.Height,
 		Weight:   user.Weight,
 		Birth:    user.Birth,
 		Actor:    userActor(user.Actor),
 		Location: user.Loc,
+
+		Sign:        user.Sign,
+		Emotion:     user.Emotion,
+		Profession:  user.Profession,
+		Hometown:    user.Hometown,
+		OftenAppear: user.Oftenappear,
+		Hobby:       user.Hobby,
 
 		//Rank:   userRank(user.Level),
 		Online: redis.IsOnline(user.Id),
@@ -584,7 +596,15 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 		Weight:   form.UserInfo.Weight,
 		Birth:    form.UserInfo.Birth,
 		Gender:   form.UserInfo.Gender,
-		Setinfo:  true,
+
+		Sign:        form.UserInfo.Sign,
+		Emotion:     form.UserInfo.Emotion,
+		Profession:  form.UserInfo.Profession,
+		Hobby:       form.UserInfo.Hobby,
+		Hometown:    form.UserInfo.Hometown,
+		OftenAppear: form.UserInfo.OftenAppear,
+
+		Setinfo: true,
 	}
 
 	addr := &models.Address{
@@ -800,7 +820,7 @@ func searchHandler(r *http.Request, w http.ResponseWriter,
 		form.Paging.Count = 50
 		users, err = user.SearchNear(&form.Paging, 50000)
 	} else {
-		users, err = models.Search(form.Nickname, &form.Paging)
+		users, err = models.SearchUsers(form.Nickname, &form.Paging)
 	}
 
 	var list []*leaderboardResp
@@ -899,7 +919,10 @@ func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
-		jsonStructs[i] = convertArticle(&articles[i])
+		user := &models.Account{}
+		user.FindByUserid(form.Id)
+		author := &userJsonStruct{Userid: user.Id, Nickname: user.Nickname}
+		jsonStructs[i] = convertArticle(user, &articles[i], author)
 	}
 
 	respData := make(map[string]interface{})
@@ -1196,5 +1219,5 @@ func purchaseListHandler(r *http.Request, w http.ResponseWriter,
 }
 
 func testHandler(r *http.Request, w http.ResponseWriter) {
-	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": false}, nil)
+	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": true}, nil)
 }

@@ -25,7 +25,6 @@ func init() {
 }
 
 type UserInfo struct {
-	Hobby    string `json:"hobby"`
 	Height   int    `json:"height"`
 	Weight   int    `json:"weight"`
 	Birth    int64  `json:"birthday"`
@@ -40,6 +39,32 @@ type UserInfo struct {
 	City     string `json:"city"`
 	Area     string `json:"area"`
 	LocDesc  string `json:"location_desc"`
+
+	Sign        string `json:"sign"`
+	Emotion     string `json:"emotion"`
+	Profession  string `json:"profession"`
+	Hobby       string `json:"fond"`
+	Hometown    string `json:"hometown"`
+	OftenAppear string `json:"oftenAppear"`
+}
+
+type SetInfo struct {
+	Phone    string   `json:"phone,omitempty"`
+	Nickname string   `json:"nickname,omitempty"`
+	Height   int      `json:"height,omitempty"`
+	Weight   int      `json:"weight,omitempty"`
+	Birth    int64    `json:"birth,omitempty"`
+	Gender   string   `json:"gender,omitempty"`
+	Address  *Address `json:"addr,omitempty"`
+
+	Sign        string `json:"sign,omitempty"`
+	Emotion     string `json:"emotion,omitempty"`
+	Profession  string `json:"profession,omitempty"`
+	Hobby       string `json:"hobby,omitempty"`
+	Hometown    string `json:"hometown,omitempty"`
+	OftenAppear string `json:"oftenappear,omitempty"`
+
+	Setinfo bool `json:"setinfo,omitempty"`
 }
 
 type DbWallet struct {
@@ -64,6 +89,7 @@ type Props struct {
 	Level    int64 `json:"rankLevel"`
 }
 
+/*
 type Contact struct {
 	Id       string
 	Profile  string
@@ -71,18 +97,7 @@ type Contact struct {
 	Count    int
 	Last     *Message `bson:",omitempty"`
 }
-
-type SetInfo struct {
-	Phone    string   `json:"phone,omitempty"`
-	Nickname string   `json:"nickname,omitempty"`
-	Height   int      `json:"height,omitempty"`
-	Weight   int      `json:"weight,omitempty"`
-	Birth    int64    `json:"birth,omitempty"`
-	Gender   string   `json:"gender,omitempty"`
-	Address  *Address `json:"addr,omitempty"`
-	Setinfo  bool     `json:"setinfo,omitempty"`
-}
-
+*/
 type GameTime struct {
 	Game01 time.Time
 	Game02 time.Time
@@ -92,44 +107,52 @@ type GameTime struct {
 }
 
 type Account struct {
-	Id          string `bson:"_id,omitempty"`
-	Email       string
-	Phone       string `bson:",omitempty"`
-	Weibo       string
-	Nickname    string    `bson:",omitempty"`
-	Password    string    `bson:",omitempty"`
-	Profile     string    `bson:",omitempty"`
-	RegTime     time.Time `bson:"reg_time,omitempty"`
-	Role        string    `bson:",omitempty"`
-	Hobby       string    `bson:",omitempty"`
-	Height      int       `bson:",omitempty"`
-	Weight      int       `bson:",omitempty"`
-	Birth       int64     `bson:",omitempty"`
-	Actor       string    `bson:",omitempty"`
-	Gender      string    `bson:",omitempty"`
-	Url         string    `bson:",omitempty"`
-	About       string    `bson:",omitempty"`
-	Addr        *Address  `bson:",omitempty"`
-	Loc         Location  `bson:",omitempty"`
-	LocAddr     string    `bson:"locaddr"`
-	Photos      []string
-	Setinfo     bool
-	Wallet      DbWallet
+	Id       string `bson:"_id,omitempty"`
+	Email    string
+	Phone    string `bson:",omitempty"`
+	Weibo    string
+	Nickname string    `bson:",omitempty"`
+	Profile  string    `bson:",omitempty"`
+	Gender   string    `bson:",omitempty"`
+	Birth    int64     `bson:",omitempty"`
+	RegTime  time.Time `bson:"reg_time,omitempty"`
+	Loc      Location  `bson:",omitempty"`
+
+	Password string   `bson:",omitempty"`
+	Role     string   `bson:",omitempty"`
+	Height   int      `bson:",omitempty"`
+	Weight   int      `bson:",omitempty"`
+	Actor    string   `bson:",omitempty"`
+	Url      string   `bson:",omitempty"`
+	About    string   `bson:",omitempty"`
+	Addr     *Address `bson:",omitempty"`
+	LocAddr  string   `bson:"locaddr"`
+	Photos   []string
+	Wallet   DbWallet
+
 	LastLogin   time.Time `bson:"lastlogin"`
 	LoginCount  int       `bson:"login_count"`
 	LoginDays   int       `bson:"login_days"`
 	LoginAwards []int64   `bson:"login_awards"`
 
-	GameTime GameTime `bson:"game_time"`
 	Props    Props
-	Equips   *Equip `bson:",omitempty"`
+	Equips   *Equip   `bson:",omitempty"`
+	GameTime GameTime `bson:"game_time"`
 
-	Contacts []Contact `bson:",omitempty"`
-	Devs     []string  `bson:",omitempty"`
-	Push     bool
+	Sign        string `bson:",omitempty"`
+	Emotion     string `bson:",omitempty"`
+	Profession  string `bson:",omitempty"`
+	Hobby       string `bson:",omitempty"`
+	Hometown    string `bson:",omitempty"`
+	Oftenappear string `bson:",omitempty"`
+
+	Contacts []string `bson:",omitempty"`
+	Devs     []string `bson:",omitempty"` // apple device id
 
 	TimeLimit int64 `bson:"timelimit"`
 	Privilege int
+	Setinfo   bool
+	Push      bool
 }
 
 func (this *Account) Level() int64 {
@@ -505,7 +528,7 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 		"_id": bson.M{
 			"$nin": excludes,
 		},
-		"privilege": 10,
+		//"privilege": 10,
 	}
 	err = search(accountColl, query, bson.M{"contacts": 0}, 0, 10, nil, nil, &list)
 	users = append(users, list...)
@@ -1029,19 +1052,23 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 	return
 }
 
-func (this *Account) Records(all bool, paging *Paging) (int, []Record, error) {
+func (this *Account) Records(all bool, class string, paging *Paging) (int, []Record, error) {
 	var records []Record
 	total := 0
+	var query bson.M
 
-	sortFields := []string{"-pub_time", "-_id"}
-	query := bson.M{"uid": this.Id, "type": bson.M{"$ne": "post"}}
-	if !all {
-		query = bson.M{
-			"uid":    this.Id,
-			"type":   bson.M{"$ne": "post"},
-			"status": bson.M{"$in": []string{StatusFinish, ""}},
-		}
+	switch class {
+	case "game":
+		query = bson.M{"uid": this.Id, "type": "game"}
+	case "run":
+		query = bson.M{"uid": this.Id, "type": "run"}
+	default:
+		query = bson.M{"uid": this.Id, "type": bson.M{"$ne": "post"}}
 	}
+	if !all {
+		query["status"] = bson.M{"$in": []string{StatusFinish, ""}}
+	}
+	sortFields := []string{"-pub_time", "-_id"}
 
 	if err := psearch(recordColl, query, nil,
 		sortFields, nil, &records, recordPagingFunc, paging); err != nil && err != mgo.ErrNotFound {
@@ -1249,7 +1276,7 @@ func searchPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 	return
 }
 
-func Search(nickname string, paging *Paging) ([]Account, error) {
+func SearchUsers(nickname string, paging *Paging) ([]Account, error) {
 	var users []Account
 	total := 0
 
@@ -1461,11 +1488,13 @@ func (this *Account) SetTaskComplete(tid int, completed bool, reason string) err
 */
 func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error) {
 	var articles []Article
+	var query, selector bson.M
 	total := 0
-	var query bson.M
+
 	switch typ {
 	case "COMMENTS":
 		query = bson.M{"author": this.Id, "parent": bson.M{"$ne": nil}}
+		selector = bson.M{"content": 0, "contents": 0}
 	case "ARTICLES":
 		query = bson.M{"author": this.Id, "parent": nil}
 	default:
@@ -1474,7 +1503,7 @@ func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error
 
 	sortFields := []string{"-pub_time", "-_id"}
 
-	if err := psearch(articleColl, query, bson.M{"content": 0, "contents": 0}, sortFields, &total, &articles,
+	if err := psearch(articleColl, query, selector, sortFields, &total, &articles,
 		articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -1548,40 +1577,55 @@ func (this *Account) Messages(userid string, paging *Paging) (int, []Message, er
 	return total, msgs, nil
 }
 
-func (this *Account) AddContact(contact *Contact) error {
-	selector := bson.M{
-		"_id":         this.Id,
-		"contacts.id": contact.Id,
-	}
-	change := bson.M{
-		"$inc": bson.M{
-			"contacts.$.count": contact.Count,
-		},
-		"$set": bson.M{
-			"contacts.$.profile":  contact.Profile,
-			"contacts.$.nickname": contact.Nickname,
-			"contacts.$.last":     contact.Last,
-		},
-	}
-	err := update(accountColl, selector, change, true)
-	if err == nil {
-		return nil
-	}
-	//log.Println(err)
-	if err != mgo.ErrNotFound {
-		return errors.NewError(errors.DbError, err.Error())
-	}
+func (this *Account) AddContact(contact string) error {
+	/*
+		selector := bson.M{
+			"_id":         this.Id,
+			"contacts.id": contact.Id,
+		}
+		change := bson.M{
 
-	// not found
-	selector = bson.M{
-		"_id": this.Id,
-	}
-	change = bson.M{
-		"$push": bson.M{
+			"$inc": bson.M{
+				"contacts.$.count": contact.Count,
+			},
+
+			"$set": bson.M{
+				"contacts.$.profile":  contact.Profile,
+				"contacts.$.nickname": contact.Nickname,
+				"contacts.$.last":     contact.Last,
+			},
+		}
+		err := update(accountColl, selector, change, true)
+		if err == nil {
+			return nil
+		}
+		//log.Println(err)
+		if err != mgo.ErrNotFound {
+			return errors.NewError(errors.DbError, err.Error())
+		}
+
+		// not found
+	*/
+
+	change := bson.M{
+		"$addToSet": bson.M{
 			"contacts": contact,
 		},
 	}
-	err = update(accountColl, selector, change, true)
+	err := updateId(accountColl, this.Id, change, true)
+	if err != nil {
+		return errors.NewError(errors.DbError, err.Error())
+	}
+	return nil
+}
+
+func (this *Account) DelContact(contact string) error {
+	change := bson.M{
+		"$pull": bson.M{
+			"contacts": contact,
+		},
+	}
+	err := updateId(accountColl, this.Id, change, true)
 	if err != nil {
 		return errors.NewError(errors.DbError, err.Error())
 	}
@@ -1717,7 +1761,7 @@ func (this *Account) LatestArticle() *Article {
 	return article
 }
 
-func (this *Account) ContactList() ([]Contact, error) {
+func (this *Account) ContactList() ([]string, error) {
 	err := findOne(accountColl, bson.M{"_id": this.Id}, nil, this)
 	return this.Contacts, err
 }

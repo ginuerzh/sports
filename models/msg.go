@@ -42,18 +42,15 @@ func (this *Message) findOne(query interface{}) (bool, error) {
 	return len(msgs) > 0, nil
 }
 
-func (this *Message) Last(from string) error {
-	var msgs []Message
-
-	err := search(msgColl, bson.M{"from": from}, nil, 0, 1, []string{"-time"}, nil, &msgs)
-	if err != nil {
-		return errors.NewError(errors.DbError)
+func (this *Message) Last(from, to string) error {
+	query := bson.M{
+		"$or": []bson.M{
+			bson.M{"from": from, "to": to},
+			bson.M{"from": to, "to": from},
+		},
 	}
 
-	if len(msgs) > 0 {
-		*this = msgs[0]
-	}
-	return nil
+	return findOne(msgColl, query, []string{"-time"}, this)
 }
 
 func (this *Message) Save() error {
