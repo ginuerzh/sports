@@ -50,7 +50,7 @@ func convertContact(userid, contact string) *contactStruct {
 	user.FindByUserid(contact)
 	lastmsg := &models.Message{}
 	lastmsg.Last(userid, contact)
-
+	//log.Println(lastmsg)
 	return &contactStruct{
 		Id:       contact,
 		Profile:  user.Profile,
@@ -68,6 +68,7 @@ func contactsHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	//user.ContactList()
+	//log.Println(user.Id, user.Contacts)
 	contacts := make([]*contactStruct, len(user.Contacts))
 	for i, _ := range user.Contacts {
 		contacts[i] = convertContact(user.Id, user.Contacts[i])
@@ -177,7 +178,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	event.Save()
 
 	if touser.Push {
-		go sendApn(client, user.Nickname+": "+content, touser.Devs...)
+		go sendApn(client, user.Nickname+": "+content, touser.EventCount(""), touser.Devs...)
 	}
 }
 

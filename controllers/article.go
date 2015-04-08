@@ -67,7 +67,8 @@ func BindArticleApi(m *martini.ClassicMartini) {
 type articleJsonStruct struct {
 	Id         string           `json:"article_id"`
 	Parent     string           `json:"parent_article_id"`
-	Author     *userJsonStruct  `json:"author"`
+	Author     string           `json:"author"`
+	AuthorInfo *userJsonStruct  `json:"authorInfo"`
 	Title      string           `json:"cover_text"`
 	Image      string           `json:"cover_image"`
 	PubTime    int64            `json:"time"`
@@ -129,7 +130,7 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 	//jsonStruct.Contents = article.Contents
 	jsonStruct.PubTime = article.PubTime.Unix()
 	jsonStruct.Thumbs = len(article.Thumbs)
-	jsonStruct.ThumbUsers = article.Thumbs
+	//jsonStruct.ThumbUsers = article.Thumbs
 	for _, thumber := range article.Thumbs {
 		if thumber == user.Id {
 			jsonStruct.Thumbed = true
@@ -149,7 +150,23 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 		jsonStruct.Location = author.Location
 	}
 
-	jsonStruct.Author = author
+	jsonStruct.Author = author.Userid
+	jsonStruct.AuthorInfo = author
+
+	thumbers := article.Thumbs
+	if len(article.Thumbs) > 6 {
+		thumbers = article.Thumbs[len(article.Thumbs)-6:]
+	}
+	//jsonStruct.ThumbUsers = nil
+	users, _ := models.FindUsersByIds(0, thumbers...)
+	for i := len(thumbers); i > 0; i-- { // reverse
+		for j, _ := range users {
+			if users[j].Id == thumbers[i-1] {
+				jsonStruct.ThumbUsers = append(jsonStruct.ThumbUsers, users[j].Profile)
+				break
+			}
+		}
+	}
 
 	return jsonStruct
 }
@@ -283,7 +300,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		redis.PubMsg(models.EventArticle, parent.Author, event.Bytes())
 		// apple push
 		if author.Push {
-			go sendApn(client, user.Nickname+"评论了你的主题!", author.Devs...)
+			go sendApn(client, user.Nickname+"评论了你的主题!", author.EventCount(""), author.Devs...)
 		}
 	}
 
@@ -384,7 +401,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 
 		// apple push
 		if author.Push {
-			go sendApn(client, user.Nickname+"赞了你的主题!", author.Devs...)
+			go sendApn(client, user.Nickname+"赞了你的主题!", author.EventCount(""), author.Devs...)
 		}
 	} else {
 		//count := author.DelEvent(models.EventThumb, article.Id.Hex(), user.Id, author.Id)
@@ -417,7 +434,7 @@ type articleListForm struct {
 	Token  string `form:"access_token"`
 	models.Paging
 	parameter
-	//Tag string `form:"article_tag"`
+	Tag string `form:"article_tag"`
 }
 
 func articleListHandler(request *http.Request, resp http.ResponseWriter,
@@ -425,7 +442,10 @@ func articleListHandler(request *http.Request, resp http.ResponseWriter,
 	var articles []models.Article
 	var err error
 	form := p.(articleListForm)
-	if form.Circle {
+
+	if len(form.Tag) > 0 {
+		_, articles, err = models.GetArticles(form.Tag, &form.Paging, true)
+	} else if form.Circle {
 		followings := redis.Friends(models.RelFollowing, user.Id)
 		followings = append(followings, user.Id) // self included
 		_, articles, err = models.GetFollowingsArticles(followings, &form.Paging)
@@ -502,20 +522,6 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
 		jsonStruct.Relation = "FANS"
 	case models.RelBlacklist:
 		jsonStruct.Relation = "DEFRIEND"
-	}
-	thumbers := article.Thumbs
-	if len(article.Thumbs) > 6 {
-		thumbers = article.Thumbs[len(article.Thumbs)-6:]
-	}
-	jsonStruct.ThumbUsers = nil
-	users, _ := models.FindUsersByIds(0, thumbers...)
-	for i := len(thumbers); i > 0; i-- { // reverse
-		for j, _ := range users {
-			if users[j].Id == thumbers[i-1] {
-				jsonStruct.ThumbUsers = append(jsonStruct.ThumbUsers, users[j].Profile)
-				break
-			}
-		}
 	}
 
 	writeResponse(request.RequestURI, resp, jsonStruct, nil)

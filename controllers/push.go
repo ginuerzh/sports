@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 	//"sync"
-	"fmt"
+	//"fmt"
 	"time"
 )
 
@@ -69,7 +69,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 
 	//log.Println("check token:", auth.Token)
 	if !checkTokenValid(auth.Token) {
-		log.Println("check token valid")
+		//log.Println("check token valid")
 		redisLogger.DelOnlineUser(auth.Token)
 		conn.WriteJSON(r)
 		return
@@ -96,7 +96,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		}
 		loginCount = 1
 	}
-	fmt.Println(uid, "loginCount", loginCount)
+	//fmt.Println(uid, "loginCount", loginCount)
 	user.SetLastLogin(days, loginCount, time.Now())
 
 	r.Userid = uid
@@ -147,7 +147,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 					redisLogger.PubMsg(m.Type, m.To, event.Bytes())
 				}
 			case "status":
-				fmt.Println(user.Id, event.Data.Body)
+				//fmt.Println(user.Id, event.Data.Body)
 				switch event.Data.Type {
 				case "loc":
 					var lat, lng float64

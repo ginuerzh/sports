@@ -2,7 +2,7 @@
 package models
 
 import (
-	"encoding/json"
+	//"encoding/json"
 	"github.com/ginuerzh/sports/errors"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
@@ -129,6 +129,7 @@ type Account struct {
 	LocAddr  string   `bson:"locaddr"`
 	Photos   []string
 	Wallet   DbWallet
+	Chips    int64
 
 	LastLogin   time.Time `bson:"lastlogin"`
 	LoginCount  int       `bson:"login_count"`
@@ -223,7 +224,7 @@ func FindUsersByIds(verbose int, ids ...string) ([]Account, error) {
 func FindUsersByPhones(phones []string) ([]Account, error) {
 	var users []Account
 
-	if err := search(accountColl, bson.M{"phone": bson.M{"$in": phones}}, bson.M{"contacts": 0}, 0, 0, nil, nil, &users); err != nil {
+	if err := search(accountColl, bson.M{"phone": bson.M{"$in": phones}}, nil, 0, 0, nil, nil, &users); err != nil {
 		return nil, errors.NewError(errors.DbError)
 	}
 
@@ -240,7 +241,7 @@ func (this *Account) FindByWeibo(weibo string) (bool, error) {
 func (this *Account) findOne(query interface{}) (bool, error) {
 	var users []Account
 
-	err := search(accountColl, query, bson.M{"contacts": 0}, 0, 1, nil, nil, &users)
+	err := search(accountColl, query, nil, 0, 1, nil, nil, &users)
 	if err != nil {
 		return false, errors.NewError(errors.DbError)
 	}
@@ -262,6 +263,13 @@ func (this *Account) FindByNickname(nickname string) (bool, error) {
 		return false, nil
 	}
 	return this.findOne(bson.M{"nickname": nickname})
+}
+
+func (this *Account) FindByPhone(phone string) (bool, error) {
+	if len(phone) == 0 {
+		return false, nil
+	}
+	return this.findOne(bson.M{"phone": phone})
 }
 
 func (this *Account) FindByUserPass(userid, password string) (bool, error) {
@@ -454,6 +462,7 @@ func (this *Account) SetWallet(wallet DbWallet) error {
 	return nil
 }
 
+/*
 func (this *Account) ChangePassword(newPass string) error {
 	change := bson.M{
 		"$set": bson.M{
@@ -466,6 +475,7 @@ func (this *Account) ChangePassword(newPass string) error {
 	}
 	return nil
 }
+*/
 
 func (this *Account) SetPassword(newPass string) error {
 	change := bson.M{
@@ -474,7 +484,7 @@ func (this *Account) SetPassword(newPass string) error {
 		},
 	}
 
-	if err := update(accountColl, bson.M{"phone": this.Phone}, change, true); err != nil {
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
 		return errors.NewError(errors.DbError)
 	}
 	return nil
@@ -528,7 +538,7 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 		"_id": bson.M{
 			"$nin": excludes,
 		},
-		//"privilege": 10,
+		"privilege": 10,
 	}
 	err = search(accountColl, query, bson.M{"contacts": 0}, 0, 10, nil, nil, &list)
 	users = append(users, list...)
@@ -797,8 +807,8 @@ func GetSearchListBySort(id, nickname, keywords string,
 
 	query := bson.M{"$and": and}
 
-	b, _ := json.Marshal(query)
-	log.Println("query:", string(b))
+	//b, _ := json.Marshal(query)
+	//log.Println("query:", string(b))
 	if err = search(accountColl, query, bson.M{"contacts": 0}, skip, limit, []string{sortby}, &total, &users); err != nil {
 		return 0, nil, errors.NewError(errors.DbError)
 	}
@@ -1372,8 +1382,10 @@ func (this *Account) AddWalletAddr(addr string) error {
 
 func (this *Account) EventCount(eventType string) int {
 	query := bson.M{
-		"push.type": eventType,
-		"push.to":   this.Id,
+		"push.to": this.Id,
+	}
+	if len(eventType) > 0 {
+		query["push.type"] = eventType
 	}
 
 	n, _ := count(eventColl, query)
@@ -1494,7 +1506,7 @@ func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error
 	switch typ {
 	case "COMMENTS":
 		query = bson.M{"author": this.Id, "parent": bson.M{"$ne": nil}}
-		selector = bson.M{"content": 0, "contents": 0}
+		//selector = bson.M{"content": 0, "contents": 0}
 	case "ARTICLES":
 		query = bson.M{"author": this.Id, "parent": nil}
 	default:

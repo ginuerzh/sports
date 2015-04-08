@@ -213,6 +213,10 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		Weight:     user.Weight,
 		Birth:      user.Birth,
 
+		Lat:  user.Loc.Lat,
+		Lng:  user.Loc.Lng,
+		Addr: user.LocAddr,
+
 		Physical: user.Props.Physical,
 		Literal:  user.Props.Literal,
 		Mental:   user.Props.Mental,
@@ -229,6 +233,10 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		LastLog: user.LastLogin.Unix(),
 	}
 
+	if len(info.Gender) == 0 {
+		info.Gender = "male"
+	}
+
 	info.BanTime = user.TimeLimit
 	if user.TimeLimit > 0 {
 		if user.TimeLimit > time.Now().Unix() {
@@ -244,6 +252,8 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		}
 	}
 
+	info.Follows, info.Followers, info.FriendsCount, info.BlacklistsCount = redis.FriendCount(user.Id)
+
 	if user.Equips != nil {
 		eq := *user.Equips
 		info.Equip.Shoes = eq.Shoes
@@ -252,17 +262,19 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		//info.Equips = *user.Equips
 	}
 
-	if user.Addr != nil {
-		info.Addr = user.Addr.String()
-	}
-	info.Lat = user.Loc.Lat
-	info.Lng = user.Loc.Lng
+	/*
+		if user.Addr != nil {
+			info.Addr = user.Addr.String()
+		}
+		info.Lat = user.Loc.Lat
+		info.Lng = user.Loc.Lng
+	*/
 
 	return info
 }
 
 func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserInfoForm) {
-	log.Println("get a single user infomation")
+	//log.Println("get a single user infomation")
 
 	valid, errT := checkToken(redis, form.Token)
 	if !valid {
@@ -279,74 +291,7 @@ func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redi
 		return
 	}
 
-	info := &userInfoJsonStruct{
-		Userid:     user.Id,
-		Nickname:   user.Nickname,
-		Email:      user.Email,
-		Phone:      user.Phone,
-		Type:       user.Role,
-		About:      user.About,
-		Profile:    user.Profile,
-		RegTime:    user.RegTime.Unix(),
-		RegTimeStr: user.RegTime.Format("2006-01-02 15:04:05"),
-		Hobby:      user.Hobby,
-		Height:     user.Height,
-		Weight:     user.Weight,
-		Birth:      user.Birth,
-
-		Physical: user.Props.Physical,
-		Literal:  user.Props.Literal,
-		Mental:   user.Props.Mental,
-		Wealth:   redis.GetCoins(user.Id),
-		Score:    user.Props.Score,
-		Level:    user.Level(),
-
-		Gender: user.Gender,
-		Posts:  user.ArticleCount(),
-
-		Photos: user.Photos,
-
-		Wallet:     user.Wallet.Addr,
-		LastLog:    user.LastLogin.Unix(),
-		LastLogStr: user.LastLogin.Format("2006-01-02 15:04:05"),
-	}
-
-	if len(info.Gender) == 0 {
-		info.Gender = "male"
-	}
-	info.BanTime = user.TimeLimit
-	if user.TimeLimit > 0 {
-		if user.TimeLimit > time.Now().Unix() {
-			info.BanStatus = "normal"
-		} else {
-			info.BanStatus = "lock"
-		}
-
-		info.BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
-	} else {
-		if user.TimeLimit == 0 {
-			info.BanStatus = "normal"
-		} else if user.TimeLimit == -1 {
-			info.BanStatus = "ban"
-		}
-		info.BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
-	}
-
-	info.Follows, info.Followers, info.FriendsCount, info.BlacklistsCount = redis.FriendCount(user.Id)
-
-	if user.Equips != nil {
-		eq := *user.Equips
-		info.Equip.Shoes = eq.Shoes
-		info.Equip.Electronics = eq.Electronics
-		info.Equip.Softwares = eq.Softwares
-		//info.Equips = *user.Equips
-	}
-
-	if user.Addr != nil {
-		info.Addr = user.Addr.String()
-	}
-	info.Lat = user.Loc.Lat
-	info.Lng = user.Loc.Lng
+	info := convertUser(user, redis)
 
 	writeResponse(resp, info)
 }
@@ -362,7 +307,7 @@ type getUserListForm struct {
 }
 
 type userListJsonStruct struct {
-	Users []userInfoJsonStruct `json:"users"`
+	Users []*userInfoJsonStruct `json:"users"`
 	//NextCursor  string               `json:"next_cursor"`
 	//PrevCursor  string               `json:"prev_cursor"`
 	Page        int `json:"page_index"`
@@ -398,82 +343,9 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 			return
 		}
 	*/
-	list := make([]userInfoJsonStruct, countvalid)
+	list := make([]*userInfoJsonStruct, countvalid)
 	for i, user := range users {
-		list[i].Userid = user.Id
-		list[i].Nickname = user.Nickname
-		list[i].Email = user.Email
-		list[i].Phone = user.Phone
-		list[i].Type = user.Role
-		list[i].About = user.About
-		list[i].Profile = user.Profile
-		list[i].RegTime = user.RegTime.Unix()
-		list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
-		list[i].Hobby = user.Hobby
-		list[i].Height = user.Height
-		list[i].Weight = user.Weight
-		list[i].Birth = user.Birth
-		list[i].Gender = user.Gender
-		list[i].Posts = user.ArticleCount()
-		list[i].Photos = user.Photos
-		list[i].Wallet = user.Wallet.Addr
-		list[i].LastLog = user.LastLogin.Unix()
-
-		list[i].Physical = user.Props.Physical
-		list[i].Literal = user.Props.Literal
-		list[i].Mental = user.Props.Mental
-		list[i].Wealth = redis.GetCoins(user.Id)
-		list[i].Score = user.Props.Score
-		list[i].Level = user.Level()
-
-		if len(user.Gender) == 0 {
-			list[i].Gender = "male"
-		}
-		list[i].BanTime = user.TimeLimit
-		if user.TimeLimit > 0 {
-			if user.TimeLimit > time.Now().Unix() {
-				list[i].BanStatus = "normal"
-			} else {
-				list[i].BanStatus = "lock"
-			}
-
-			list[i].BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
-		} else {
-			if user.TimeLimit == 0 {
-				list[i].BanStatus = "normal"
-			} else if user.TimeLimit == -1 {
-				list[i].BanStatus = "ban"
-			}
-			list[i].BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
-		}
-		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
-		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
-		/*
-			pups := redis.UserProps(user.Id)
-			if pups != nil {
-				ups := *pups
-				list[i].Physical = user.Pro.Physical
-				list[i].Literal = ups.Literal
-				list[i].Mental = ups.Mental
-				list[i].Wealth = ups.Wealth
-				list[i].Score = ups.Score
-				list[i].Level = ups.Level
-			}
-		*/
-
-		if user.Equips != nil {
-			eq := *user.Equips
-			list[i].Equip.Shoes = eq.Shoes
-			list[i].Equip.Electronics = eq.Electronics
-			list[i].Equip.Softwares = eq.Softwares
-			//info.Equips = *user.Equips
-		}
-
-		if user.Addr != nil {
-			list[i].Addr = user.Addr.String()
-		}
-		list[i].Lat = user.Loc.Lat
-		list[i].Lng = user.Loc.Lng
+		list[i] = convertUser(&user, redis)
 	}
 	/*
 		var pc, nc string
@@ -554,7 +426,7 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
 	//count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, 0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
 
-	log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page, form.Gender, form.Age, form.BanStatus)
+	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page, form.Gender, form.Age, form.BanStatus)
 	count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, form.KeyWord,
 		form.Gender, form.Age, form.BanStatus, getCount*form.Page, getCount, form.Sort, "", "")
 	if err != nil {
@@ -562,90 +434,16 @@ func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis
 		return
 	}
 	countvalid := len(users)
-	log.Println("countvalid is :", countvalid)
+	//log.Println("countvalid is :", countvalid)
 	/*
 		if countvalid == 0 {
 			writeResponse(resp, err)
 			return
 		}
 	*/
-	list := make([]userInfoJsonStruct, countvalid)
+	list := make([]*userInfoJsonStruct, countvalid)
 	for i, user := range users {
-		list[i].Userid = user.Id
-		list[i].Nickname = user.Nickname
-		list[i].Email = user.Email
-		list[i].Phone = user.Phone
-		list[i].Type = user.Role
-		list[i].About = user.About
-		list[i].Profile = user.Profile
-		list[i].RegTime = user.RegTime.Unix()
-		//list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
-		list[i].Hobby = user.Hobby
-		list[i].Height = user.Height
-		list[i].Weight = user.Weight
-		list[i].Birth = user.Birth
-		list[i].Gender = user.Gender
-		list[i].Posts = user.ArticleCount()
-		list[i].Photos = user.Photos
-		list[i].Wallet = user.Wallet.Addr
-		list[i].LastLog = user.LastLogin.Unix()
-
-		list[i].Physical = user.Props.Physical
-		list[i].Literal = user.Props.Literal
-		list[i].Mental = user.Props.Mental
-		list[i].Wealth = redis.GetCoins(user.Id)
-		list[i].Score = user.Props.Score
-		list[i].Level = user.Level()
-
-		if len(user.Gender) == 0 {
-			list[i].Gender = "male"
-		}
-		//list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
-		list[i].BanTime = user.TimeLimit
-		if user.TimeLimit > 0 {
-			if user.TimeLimit > time.Now().Unix() {
-				list[i].BanStatus = "normal"
-			} else {
-				list[i].BanStatus = "lock"
-			}
-
-			list[i].BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
-		} else {
-			if user.TimeLimit == 0 {
-				list[i].BanStatus = "normal"
-			} else if user.TimeLimit == -1 {
-				list[i].BanStatus = "ban"
-			}
-			list[i].BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
-		}
-
-		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
-		/*
-			pups := redis.UserProps(user.Id)
-			if pups != nil {
-				ups := *pups
-				list[i].Physical = ups.Physical
-				list[i].Literal = ups.Literal
-				list[i].Mental = ups.Mental
-				list[i].Wealth = ups.Wealth
-				list[i].Score = ups.Score
-				list[i].Level = ups.Level
-			}
-		*/
-
-		if user.Equips != nil {
-			eq := *user.Equips
-			list[i].Equip.Shoes = eq.Shoes
-			list[i].Equip.Electronics = eq.Electronics
-			list[i].Equip.Softwares = eq.Softwares
-			//info.Equips = *user.Equips
-		}
-
-		if user.Addr != nil {
-			list[i].Addr = user.Addr.String()
-		}
-		list[i].Lat = user.Loc.Lat
-		list[i].Lng = user.Loc.Lng
+		list[i] = convertUser(&user, redis)
 	}
 
 	totalPage := count / getCount
@@ -721,7 +519,7 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 	}
 
 	if getCount == 0 {
-		listEmpty := make([]userInfoJsonStruct, getCount)
+		listEmpty := make([]*userInfoJsonStruct, getCount)
 		info := &userListJsonStruct{
 			Users:     listEmpty,
 			Page:      form.Page,
@@ -752,79 +550,9 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 			return
 		}
 	*/
-	list := make([]userInfoJsonStruct, countvalid)
+	list := make([]*userInfoJsonStruct, countvalid)
 	for i, user := range users {
-		list[i].Userid = user.Id
-		list[i].Nickname = user.Nickname
-		list[i].Email = user.Email
-		list[i].Phone = user.Phone
-		list[i].Type = user.Role
-		list[i].About = user.About
-		list[i].Profile = user.Profile
-		list[i].RegTime = user.RegTime.Unix()
-		list[i].RegTimeStr = user.RegTime.Format("2006-01-02 15:04:05")
-		list[i].Hobby = user.Hobby
-		list[i].Height = user.Height
-		list[i].Weight = user.Weight
-		list[i].Birth = user.Birth
-		list[i].Gender = user.Gender
-		list[i].Posts = user.ArticleCount()
-		list[i].Photos = user.Photos
-		list[i].Wallet = user.Wallet.Addr
-		list[i].LastLog = user.LastLogin.Unix()
-		list[i].LastLogStr = user.LastLogin.Format("2006-01-02 15:04:05")
-		list[i].Follows, list[i].Followers, list[i].FriendsCount, list[i].BlacklistsCount = redis.FriendCount(user.Id)
-		/*
-			pps := *redis.UserProps(user.Id)
-			list[i].Physical = pps.Physical
-			list[i].Literal = pps.Literal
-			list[i].Mental = pps.Mental
-			list[i].Wealth = pps.Wealth
-			list[i].Score = pps.Score
-			list[i].Level = pps.Level
-		*/
-		list[i].Physical = user.Props.Physical
-		list[i].Literal = user.Props.Literal
-		list[i].Mental = user.Props.Mental
-		list[i].Wealth = redis.GetCoins(user.Id)
-		list[i].Score = user.Props.Score
-		list[i].Level = user.Level()
-
-		if len(user.Gender) == 0 {
-			list[i].Gender = "male"
-		}
-
-		list[i].BanTime = user.TimeLimit
-		if user.TimeLimit > 0 {
-			if user.TimeLimit > time.Now().Unix() {
-				list[i].BanStatus = "normal"
-			} else {
-				list[i].BanStatus = "lock"
-			}
-
-			list[i].BanTimeStr = time.Unix(user.TimeLimit, 0).Format("2006-01-02 15:04:05")
-		} else {
-			if user.TimeLimit == 0 {
-				list[i].BanStatus = "normal"
-			} else if user.TimeLimit == -1 {
-				list[i].BanStatus = "ban"
-			}
-			list[i].BanTimeStr = strconv.FormatInt(user.TimeLimit, 10) //strconv.Itoa(user.TimeLimit)
-		}
-
-		if user.Equips != nil {
-			eq := *user.Equips
-			list[i].Equip.Shoes = eq.Shoes
-			list[i].Equip.Electronics = eq.Electronics
-			list[i].Equip.Softwares = eq.Softwares
-			//info.Equips = *user.Equips
-		}
-
-		if user.Addr != nil {
-			list[i].Addr = user.Addr.String()
-		}
-		list[i].Lat = user.Loc.Lat
-		list[i].Lng = user.Loc.Lng
+		list[i] = convertUser(&user, redis)
 	}
 	/*
 		var pc, nc string

@@ -31,6 +31,11 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(loginForm{}),
 		ErrorHandler,
 		loginHandler)
+	m.Post("/1/account/changePassword",
+		binding.Json(setPasswordForm{}, (*Parameter)(nil)),
+		checkTokenHandler,
+		loadUserHandler,
+		setPasswordHandler)
 	m.Get("/1/user/getDailyLoginRewardInfo",
 		binding.Form(loginAwardsForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -129,6 +134,9 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/1/user/isNikeNameUsed",
 		binding.Form(nicknameForm{}),
 		checkNicknameHandler)
+	m.Get("/1/user/isPhoneUsed",
+		binding.Form(checkPhoneForm{}),
+		checkPhoneHandler)
 	m.Get("/1/user/gameResults",
 		binding.Form(gameResultForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -252,7 +260,7 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 
 	if registered {
 		if user.Password != p {
-			user.ChangePassword(p)
+			user.SetPassword(p)
 		}
 		return false, user, nil
 	}
@@ -275,7 +283,7 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 	user.Weibo = uid
 	user.Url = weiboUser.Url
 	user.Profile = weiboUser.Avatar
-	user.Addr = &models.Address{Desc: weiboUser.Location}
+	//user.Addr = &models.Address{Desc: weiboUser.Location}
 	user.About = weiboUser.Description
 	user.Role = "weibo"
 	user.RegTime = time.Now()
@@ -473,6 +481,7 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 		Birth:    user.Birth,
 		Actor:    userActor(user.Actor),
 		Location: user.Loc,
+		Addr:     user.LocAddr,
 
 		Sign:        user.Sign,
 		Emotion:     user.Emotion,
@@ -517,9 +526,11 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 
 	info.Follows, info.Followers, _, _ = redis.FriendCount(user.Id)
 
-	if user.Addr != nil {
-		info.Addr = user.Addr.String()
-	}
+	/*
+		if user.Addr != nil {
+			info.Addr = user.Addr.String()
+		}
+	*/
 
 	if user.Equips != nil {
 		info.Equips = *user.Equips
@@ -971,8 +982,8 @@ type resetPasswdForm struct {
 
 func resetPasswdHandler(r *http.Request, w http.ResponseWriter,
 	form resetPasswdForm) {
-	user := &models.Account{Phone: form.Phone}
-	if b, err := user.Exists("phone"); !b {
+	user := &models.Account{}
+	if b, err := user.FindByPhone(form.Phone); !b {
 		e := errors.NewError(errors.NotExistsError, "未绑定手机,无法重置密码")
 		if err != nil {
 			e = errors.NewError(errors.DbError)
@@ -982,6 +993,25 @@ func resetPasswdHandler(r *http.Request, w http.ResponseWriter,
 	}
 
 	err := user.SetPassword(Md5(form.Password))
+	writeResponse(r.RequestURI, w, nil, err)
+}
+
+type setPasswordForm struct {
+	Old string `json:"password"`
+	New string `json:"passwordNew"`
+	parameter
+}
+
+func setPasswordHandler(r *http.Request, w http.ResponseWriter,
+	user *models.Account, p Parameter) {
+	form := p.(setPasswordForm)
+
+	if user.Password != Md5(form.Old) {
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.PasswordError, "原密码错误"))
+		return
+	}
+
+	err := user.SetPassword(Md5(form.New))
 	writeResponse(r.RequestURI, w, nil, err)
 }
 
@@ -1009,8 +1039,19 @@ type nicknameForm struct {
 }
 
 func checkNicknameHandler(r *http.Request, w http.ResponseWriter, form nicknameForm) {
-	user := &models.Account{}
-	find, err := user.FindByNickname(form.Nickname)
+	user := &models.Account{Nickname: form.Nickname}
+	find, err := user.Exists("nickname")
+
+	writeResponse(r.RequestURI, w, map[string]bool{"is_used": find}, err)
+}
+
+type checkPhoneForm struct {
+	Phone string `form:"phone"`
+}
+
+func checkPhoneHandler(r *http.Request, w http.ResponseWriter, form checkPhoneForm) {
+	user := &models.Account{Phone: form.Phone}
+	find, err := user.Exists("phone")
 
 	writeResponse(r.RequestURI, w, map[string]bool{"is_used": find}, err)
 }
