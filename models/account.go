@@ -197,6 +197,70 @@ func (this *Account) Exists(t string) (bool, error) {
 	return c > 0, err
 }
 
+func CheckUserExists(id, types string) (bool, error) {
+	var query bson.M
+
+	switch types {
+	case "weibo":
+		query = bson.M{"weibo": id}
+	case "email":
+		query = bson.M{"email": id}
+	case "phone":
+		query = bson.M{"phone": id}
+	case "nickname":
+		query = bson.M{"nickname": id}
+	default:
+		query = bson.M{"_id": id}
+	}
+
+	c, err := count(accountColl, query)
+	return c > 0, err
+}
+
+func (this *Account) Find(id, types string) (bool, error) {
+	var query bson.M
+
+	switch types {
+	case "email":
+		query = bson.M{"email": id}
+	case "phone":
+		query = bson.M{"phone": id}
+	case "nickname":
+		query = bson.M{"nickname": id}
+	case "weibo":
+		query = bson.M{"weibo": id}
+	default:
+		query = bson.M{"_id": id}
+	}
+
+	if err := findOne(accountColl, query, nil, this); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (this *Account) FindPass(id, types, password string) (bool, error) {
+	query := bson.M{"password": password}
+
+	switch types {
+	case "email":
+		query["email"] = id
+	case "phone":
+		query["phone"] = id
+	case "nickname":
+		query["nickname"] = id
+	case "weibo":
+		query["weibo"] = id
+	default:
+		query["_id"] = id
+	}
+
+	if err := findOne(accountColl, query, nil, this); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func FindUsersByIds(verbose int, ids ...string) ([]Account, error) {
 	var users []Account
 	var selector bson.M

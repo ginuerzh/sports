@@ -22,7 +22,7 @@ func (c *ApnClient) Send(token, alert string, badge int, sound string) error {
 	pn.AddPayload(payload)
 
 	resp := c.Dev.Send(pn)
-	log.Println("apns push", resp.AppleResponse)
+	//log.Println("apns push", resp.AppleResponse)
 	if !resp.Success {
 		log.Println("apns dev:", resp.Error)
 	}

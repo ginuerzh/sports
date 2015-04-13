@@ -122,8 +122,8 @@ func (logger *RedisLogger) PubMsg(typ string, to string, msg []byte) {
 	case "groupchat":
 		conn.Do("PUBLISH", redisPubSubGroup+to, msg)
 	default:
-		reply, err := conn.Do("PUBLISH", redisPubSubUser+to, msg)
-		log.Println("publish to", to, string(msg), reply, err)
+		conn.Do("PUBLISH", redisPubSubUser+to, msg)
+		//log.Println("publish to", to, string(msg), reply, err)
 	}
 }
 

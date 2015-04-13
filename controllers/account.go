@@ -23,6 +23,19 @@ var (
 )
 
 func BindAccountApi(m *martini.ClassicMartini) {
+	m.Post("/1/account/registerV2",
+		binding.Json(regFormV2{}),
+		ErrorHandler,
+		regHandlerV2)
+	m.Post("/1/account/loginV2",
+		binding.Json(loginFormV2{}),
+		ErrorHandler,
+		loginHandlerV2)
+	m.Get("/1/account/check",
+		binding.Form(accountCheckForm{}),
+		ErrorHandler,
+		accountCheckHandler)
+
 	m.Post("/1/account/register",
 		binding.Json(userRegForm{}),
 		ErrorHandler,
@@ -159,6 +172,125 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	)
 
 	m.Get("/1/user/isPreSportForm", testHandler)
+}
+
+type regFormV2 struct {
+	Id       string `json:"id" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Type     string `json:"type"`
+	Nickname string `json:"nickname" binding:"required"`
+	Profile  string `json:"profile" binding:"required"`
+	Gender   string `json:"gender"`
+	Birthday int64  `json:"birthday" binding:"required"`
+}
+
+func regHandlerV2(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, form regFormV2) {
+
+	exists, err := models.CheckUserExists(form.Id, form.Type)
+	if err != nil {
+		writeResponse(request.RequestURI, resp,
+			nil, errors.NewError(errors.DbError))
+		return
+	}
+	if exists {
+		writeResponse(request.RequestURI, resp,
+			nil, errors.NewError(errors.UserExistError))
+		return
+	}
+
+	dbw, err := getNewWallet()
+	if err != nil {
+		writeResponse(request.RequestURI, resp,
+			nil, errors.NewError(errors.DbError, "创建钱包失败"))
+		return
+	}
+
+	user := &models.Account{
+		Role:     form.Type,
+		Password: Md5(form.Password),
+		Nickname: form.Nickname,
+		Profile:  form.Profile,
+		Gender:   form.Gender,
+		Birth:    form.Birthday,
+		Wallet:   *dbw,
+		RegTime:  time.Now(),
+	}
+
+	switch form.Type {
+	case "phone":
+		user.Phone = form.Id
+	case "weibo":
+		user.Weibo = form.Id
+	case "email":
+		fallthrough
+	default:
+		user.Email = form.Id
+	}
+
+	if err := user.Save(); err != nil {
+		writeResponse(request.RequestURI, resp, nil, err)
+		return
+	}
+
+	token := Uuid() + "-" + strconv.FormatInt(time.Now().AddDate(0, 0, 30).Unix(), 10)
+	data := map[string]string{"access_token": token, "userid": user.Id}
+	writeResponse(request.RequestURI, resp, data, nil)
+
+	redis.LogRegister(user.Id)
+	redis.SetOnlineUser(token, user.Id)
+
+	// ws push
+	//regNotice(user.Id, redis)
+}
+
+type loginFormV2 struct {
+	Id       string `json:"id" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Type     string `json:"type"`
+}
+
+func loginHandlerV2(request *http.Request, resp http.ResponseWriter,
+	redis *models.RedisLogger, form loginFormV2) {
+	user := &models.Account{}
+	user.FindPass(form.Id, form.Type, form.Password)
+	if len(user.Id) == 0 {
+		writeResponse(request.RequestURI, resp,
+			nil, errors.NewError(errors.AuthError))
+		return
+	}
+
+	if user.TimeLimit < 0 {
+		writeResponse(request.RequestURI, resp,
+			nil, errors.NewError(errors.AuthError, "账户已禁用"))
+		return
+	}
+
+	token := Uuid() + "-" + strconv.FormatInt(time.Now().AddDate(0, 0, 30).Unix(), 10)
+	redis.SetOnlineUser(token, user.Id)
+
+	data := map[string]interface{}{
+		"access_token": token,
+		"userid":       user.Id,
+		//"last_login_time": user.LastLogin.Unix(),
+	}
+	writeResponse(request.RequestURI, resp, data, nil)
+}
+
+type accountCheckForm struct {
+	Id   string `form:"id" binding:"required"`
+	Type string `form:"type"`
+}
+
+func accountCheckHandler(request *http.Request, resp http.ResponseWriter,
+	form accountCheckForm) {
+	user := &models.Account{}
+	user.Find(form.Id, form.Type)
+
+	data := map[string]string{
+		"userid": user.Id,
+	}
+	writeResponse(request.RequestURI, resp, data, nil)
 }
 
 // user register parameter

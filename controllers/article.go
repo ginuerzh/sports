@@ -65,24 +65,26 @@ func BindArticleApi(m *martini.ClassicMartini) {
 }
 
 type articleJsonStruct struct {
-	Id         string           `json:"article_id"`
-	Parent     string           `json:"parent_article_id"`
-	Author     string           `json:"author"`
-	AuthorInfo *userJsonStruct  `json:"authorInfo"`
-	Title      string           `json:"cover_text"`
-	Image      string           `json:"cover_image"`
-	PubTime    int64            `json:"time"`
-	Thumbed    bool             `json:"isThumbed"`
-	Thumbs     int              `json:"thumb_count"`
-	ThumbUsers []string         `json:"thumb_users"`
-	NewThumbs  int              `json:"new_thumb_count"`
-	Reviews    int              `json:"sub_article_count"`
-	NewReviews int              `json:"new_sub_article_count"`
-	Contents   []models.Segment `json:"article_segments,omitempty"`
+	Id         string          `json:"article_id"`
+	Parent     string          `json:"parent_article_id"`
+	Author     string          `json:"author"`
+	AuthorInfo *userJsonStruct `json:"authorInfo"`
+	Title      string          `json:"cover_text"`
+	Image      string          `json:"cover_image"`
+	PubTime    int64           `json:"time"`
+	Thumbed    bool            `json:"isThumbed"`
+	Thumbs     int             `json:"thumb_count"`
+	ThumbUsers []string        `json:"thumb_users"`
+	//NewThumbs  int              `json:"new_thumb_count"`
+	Reviews int    `json:"sub_article_count"`
+	Type    string `json:"type"`
+	//NewReviews int              `json:"new_sub_article_count"`
+	Contents []models.Segment `json:"article_segments,omitempty"`
 	//Images     []string         `json:"images"`
-	Content  string `json:"content,omitempty"`
-	Rewards  int64  `json:"reward_total"`
-	Relation string `json:"relation"`
+	Content  string  `json:"content,omitempty"`
+	Record   *record `json:"record,omitempty"`
+	Rewards  int64   `json:"reward_total"`
+	Relation string  `json:"relation"`
 	models.Location
 }
 
@@ -137,7 +139,7 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 		}
 	}
 
-	jsonStruct.Reviews = len(article.Reviews)
+	jsonStruct.Reviews = article.ReviewCount
 	jsonStruct.Rewards = article.TotalReward
 
 	jsonStruct.Title = article.Title

@@ -21,15 +21,18 @@ type Segment struct {
 }
 
 type Article struct {
-	Id       bson.ObjectId `bson:"_id,omitempty"`
-	Parent   string        `bson:",omitempty"`
-	Author   string
-	Title    string   `bson:",omitempty"`
-	Image    string   `bson:",omitempty"`
-	Images   []string `bson:",omitempty"`
-	Contents []Segment
-	Content  string
-	PubTime  time.Time `bson:"pub_time"`
+	Id        bson.ObjectId `bson:"_id,omitempty"`
+	Type      string        // run - running record, default is post
+	Privilege int           // 0 - public, 1 - private
+	Record    bson.ObjectId
+	Parent    string `bson:",omitempty"`
+	Author    string
+	Title     string   `bson:",omitempty"`
+	Image     string   `bson:",omitempty"`
+	Images    []string `bson:",omitempty"`
+	Contents  []Segment
+	Content   string
+	PubTime   time.Time `bson:"pub_time"`
 
 	Views       []string `bson:",omitempty"`
 	Thumbs      []string `bson:",omitempty"`
