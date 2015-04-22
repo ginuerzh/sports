@@ -22,6 +22,7 @@ const (
 	EventUnsub   = "unsubscribe"
 	EventThumb   = "thumb"
 	EventComment = "comment"
+	EventCoach   = "coach"
 	EventTx      = "tx"
 	EventReward  = "reward"
 	EventBan     = "ban"
@@ -93,13 +94,21 @@ func (this *Event) Delete() int {
 }
 
 func (this *Event) Clear() int {
-	info, err := removeAll(eventColl,
-		bson.M{
-			"push.type": this.Data.Type,
-			"push.pid":  this.Data.Id,
-			"push.to":   this.Data.To,
-		},
-		true)
+	docs := bson.M{}
+
+	if len(this.Data.Type) > 0 {
+		docs["push.type"] = this.Data.Type
+	}
+	if len(this.Data.Id) > 0 {
+		docs["push.pid"] = this.Data.Id
+	}
+	if len(this.Data.From) > 0 {
+		docs["push.from"] = this.Data.From
+	}
+	if len(this.Data.To) > 0 {
+		docs["push.to"] = this.Data.To
+	}
+	info, err := removeAll(eventColl, docs, true)
 
 	if err != nil {
 		return 0

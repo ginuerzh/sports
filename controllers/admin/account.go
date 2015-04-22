@@ -38,6 +38,8 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/admin/user/friendship", binding.Form(getUserFriendsForm{}), adminErrorHandler, getUserFriendsHandler)
 	m.Post("/admin/user/ban", binding.Json(banUserForm{}), adminErrorHandler, banUserHandler)
 	m.Get("/admin/setpriv", binding.Form(setPrivilegeForm{}), setPrivilegeHandler)
+	m.Get("/admin/user/auth/list", binding.Form(userAuthListForm{}), userAuthListHandler)
+	m.Post("/admin/user/auth", binding.Json(userAuthForm{}), userAuthHandler)
 	//m.Post("/admin/user/update", updateUserInfoHandler)
 	//m.Get("/admin/user/balance", binding.Form(userBalanceForm{}), userBalanceHandler)
 	//m.Post("/admin/user/update", binding.Json(userInfoForm{}), adminErrorHandler, updateUserInfoHandler)
@@ -95,7 +97,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	if user.Privilege < 10 {
+	if user.Actor != models.ActorAdmin && user.Privilege < 10 {
 		writeResponse(resp, errors.NewError(errors.AuthError, "未授权登录用户"))
 		return
 	}
@@ -188,30 +190,32 @@ type userInfoJsonStruct struct {
 	//Equips models.Equip `json:"user_equipInfo"`
 	Equip equips `json:"equips"`
 
-	Wallet     string `json:"wallet"`
-	LastLog    int64  `json:"last_login_time"`
-	BanTime    int64  `json:"ban_time"`
-	BanTimeStr string `json:"ban_time_str"`
-	RegTimeStr string `json:"reg_time_str"`
-	LastLogStr string `json:"last_login_time_str"`
-	BanStatus  string `json:"ban_status"`
+	Wallet  string `json:"wallet"`
+	LastLog int64  `json:"last_login_time"`
+	BanTime int64  `json:"ban_time"`
+	//BanTimeStr string `json:"ban_time_str"`
+	//RegTimeStr string `json:"reg_time_str"`
+	//LastLogStr string `json:"last_login_time_str"`
+	BanStatus string `json:"ban_status"`
+
+	Auth *models.UserAuth `json:"auth"`
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonStruct {
 	info := &userInfoJsonStruct{
-		Userid:     user.Id,
-		Nickname:   user.Nickname,
-		Email:      user.Email,
-		Phone:      user.Phone,
-		Type:       user.Role,
-		About:      user.About,
-		Profile:    user.Profile,
-		RegTime:    user.RegTime.Unix(),
-		RegTimeStr: user.RegTime.Format("2006-01-02 15:04:05"),
-		Hobby:      user.Hobby,
-		Height:     user.Height,
-		Weight:     user.Weight,
-		Birth:      user.Birth,
+		Userid:   user.Id,
+		Nickname: user.Nickname,
+		Email:    user.Email,
+		Phone:    user.Phone,
+		Type:     user.Role,
+		About:    user.About,
+		Profile:  user.Profile,
+		RegTime:  user.RegTime.Unix(),
+		//RegTimeStr: user.RegTime.Format("2006-01-02 15:04:05"),
+		Hobby:  user.Hobby,
+		Height: user.Height,
+		Weight: user.Weight,
+		Birth:  user.Birth,
 
 		Lat:  user.Loc.Lat,
 		Lng:  user.Loc.Lng,
@@ -231,6 +235,8 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 
 		Wallet:  user.Wallet.Addr,
 		LastLog: user.LastLogin.Unix(),
+
+		Auth: user.Auth,
 	}
 
 	if len(info.Gender) == 0 {
@@ -864,4 +870,66 @@ func getBalance(addrs []string) (b *balanceAddrs, err error) {
 	b = ba
 
 	return
+}
+
+type userAuthListForm struct {
+	Sort  string `form:"sort"`
+	Count int    `form:"page_count"`
+	Page  int    `form:"page_index"`
+	Token string `form:"access_token" binding:"required"`
+}
+
+func userAuthListHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, form userAuthListForm) {
+	/*
+		if valid, err := checkToken(redis, form.Token); !valid {
+			writeResponse(w, err)
+			return
+		}
+	*/
+
+	count := form.Count
+	if count == 0 {
+		count = defaultCount
+	}
+
+	total, users, _ := models.GetAuthUserList(form.Page, count)
+
+	list := make([]*userInfoJsonStruct, len(users))
+	for i, _ := range users {
+		list[i] = convertUser(&users[i], redis)
+	}
+
+	totalPage := total / count
+	if total%count != 0 {
+		totalPage++
+	}
+
+	info := &userListJsonStruct{
+		Users:       list,
+		Page:        form.Page,
+		PageTotal:   totalPage,
+		TotalNumber: total,
+	}
+	writeResponse(w, info)
+}
+
+type userAuthForm struct {
+	Userid string `json:"userid" binding:"required"`
+	Type   string `json:"auth_type" binding:"required"`
+	Status string `json:"auth_status" binding:"required"`
+	Token  string `json:"access_token" binding:"required"`
+}
+
+func userAuthHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, form userAuthForm) {
+
+	if valid, err := checkToken(redis, form.Token); !valid {
+		writeResponse(w, err)
+		return
+	}
+
+	user := &models.Account{Id: form.Userid}
+	err := user.SetAuth(form.Type, form.Status)
+	writeResponse(w, err)
 }

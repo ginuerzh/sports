@@ -47,7 +47,7 @@ func eventNewsHandler(request *http.Request, resp http.ResponseWriter,
 	//counts := redis.EventCount(user.Id)
 	respData := map[string]int{
 		"new_chat_count":      user.EventCount(models.EventChat),
-		"new_comment_count":   user.EventCount(models.EventComment),
+		"new_comment_count":   user.EventCount(models.EventComment) + user.EventCount(models.EventCoach),
 		"new_thumb_count":     user.EventCount(models.EventThumb),
 		"new_reward_count":    user.EventCount(models.EventReward) + user.EventCount(models.EventTx),
 		"new_attention_count": user.EventCount(models.EventSub),

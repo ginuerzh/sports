@@ -24,6 +24,7 @@ type SportRecord struct {
 	Duration int64
 	Distance int
 	Weight   int
+	Mood     string
 	Speed    float64
 	Pics     []string
 	Review   string
@@ -64,6 +65,11 @@ func (this *Record) findOne(query interface{}) (bool, error) {
 
 	return len(records) > 0, nil
 }
+
+func (this *Record) Find() error {
+	return findOne(recordColl, bson.M{"_id": this.Id}, nil, this)
+}
+
 func (this *Record) FindByTask(tid int64) (bool, error) {
 	return this.findOne(bson.M{"uid": this.Uid, "task": tid})
 }

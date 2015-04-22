@@ -156,20 +156,38 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		loadUserHandler,
 		gameResultHandler)
+
+	m.Get("/1/user/leaderboard",
+		binding.Form(userlbForm{}),
+		userLeaderBoardHandler)
+
+	m.Post("/1/user/auth/request",
+		binding.Json(authRequestForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		userAuthRequestHandler)
+	m.Get("/1/user/auth/status",
+		binding.Form(authStatusForm{}),
+		userAuthStatusHandler)
+	m.Get("/1/user/auth/info",
+		binding.Form(authInfoForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		userAuthInfoHandler)
+
 	m.Post("/1/user/purchaseSuccess",
 		binding.Json(purchaseForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
 		loadUserHandler,
-		purchaseHandler,
-	)
+		purchaseHandler)
 
 	m.Get("/1/user/getPayHistory",
 		binding.Form(purchaseListForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
-		purchaseListHandler,
-	)
+		purchaseListHandler)
 
 	m.Get("/1/user/isPreSportForm", testHandler)
 }
@@ -253,7 +271,7 @@ type loginFormV2 struct {
 func loginHandlerV2(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, form loginFormV2) {
 	user := &models.Account{}
-	user.FindPass(form.Id, form.Type, form.Password)
+	user.FindPass(form.Id, form.Type, Md5(form.Password))
 	if len(user.Id) == 0 {
 		writeResponse(request.RequestURI, resp,
 			nil, errors.NewError(errors.AuthError))
@@ -334,7 +352,7 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	}
 	//user.Nickname = form.Nickname
 	user.Password = Md5(form.Password)
-	user.Role = "usrpass"
+	user.Role = t
 	user.RegTime = time.Now()
 	dbw, err := getNewWallet()
 	if err != nil {
@@ -574,7 +592,7 @@ type userJsonStruct struct {
 	OftenAppear string `json:"oftenAppear"`
 
 	Actor string `json:"actor"`
-	Rank  string `json:"rankName"`
+	//Rank  string `json:"rankName"`
 	//Followed bool   `json:"beFriend"`
 	Online bool `json:"beOnline"`
 
@@ -588,8 +606,9 @@ type userJsonStruct struct {
 	Followers int    `json:"fans_count"`
 	Posts     int    `json:"post_count"`
 
-	Photos []string     `json:"user_images"`
-	Equips models.Equip `json:"user_equipInfo"`
+	Photos     []string     `json:"user_images"`
+	CoverImage string       `json:"cover_image"`
+	Equips     models.Equip `json:"user_equipInfo"`
 
 	Wallet   string `json:"wallet"`
 	Relation string `json:"relation"`
@@ -611,7 +630,7 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 		Height:   user.Height,
 		Weight:   user.Weight,
 		Birth:    user.Birth,
-		Actor:    userActor(user.Actor),
+		Actor:    user.Actor,
 		Location: user.Loc,
 		Addr:     user.LocAddr,
 
@@ -639,7 +658,8 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 			Level: user.Level(),
 		},
 
-		Photos: user.Photos,
+		Photos:     user.Photos,
+		CoverImage: user.CoverImage,
 
 		Wallet:  user.Wallet.Addr,
 		LastLog: user.LastLogin.Unix(),
@@ -659,9 +679,15 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 	info.Follows, info.Followers, _, _ = redis.FriendCount(user.Id)
 
 	/*
-		if user.Addr != nil {
-			info.Addr = user.Addr.String()
+		if user.Privilege == 5 {
+			info.Actor = "coach"
+		} else if user.Privilege == 10 {
+			info.Actor = "admin"
 		}
+
+			if user.Addr != nil {
+				info.Addr = user.Addr.String()
+			}
 	*/
 
 	if user.Equips != nil {
@@ -746,6 +772,7 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 		Hobby:       form.UserInfo.Hobby,
 		Hometown:    form.UserInfo.Hometown,
 		OftenAppear: form.UserInfo.OftenAppear,
+		CoverImage:  form.UserInfo.CoverImage,
 
 		Setinfo: true,
 	}
@@ -1056,15 +1083,13 @@ type userArticlesForm struct {
 func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, form userArticlesForm) {
 
-	//user := &models.User{Id: form.Id}
-	user := &models.Account{Id: form.Id}
+	user := &models.Account{}
+	user.FindByUserid(form.Id)
+	author := convertUser(user, redis)
 	_, articles, err := user.Articles(form.Type, &form.Paging)
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
-		user := &models.Account{}
-		user.FindByUserid(form.Id)
-		author := &userJsonStruct{Userid: user.Id, Nickname: user.Nickname}
 		jsonStructs[i] = convertArticle(user, &articles[i], author)
 	}
 
@@ -1227,7 +1252,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 	redis.SetGameScore(gt, user.Id, respData.Score) // recover max score
 
 	n := redis.GameUserCount(gt) - 1
-	log.Println(ranks, n)
+	//log.Println(ranks, n)
 	if len(ranks) == 1 && n > 0 && form.Score > 0 {
 		respData.Percent = int(float64(n-ranks[0]) / float64(n) * 100.0)
 	}
@@ -1393,4 +1418,131 @@ func purchaseListHandler(r *http.Request, w http.ResponseWriter,
 
 func testHandler(r *http.Request, w http.ResponseWriter) {
 	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": true}, nil)
+}
+
+type userlbForm struct {
+	Type string `form:"type"`
+	models.Paging
+}
+
+func userLeaderBoardHandler(r *http.Request, w http.ResponseWriter, form userlbForm) {
+	users, _ := models.UserLeaderBoard(form.Type, &form.Paging)
+
+	start, _ := strconv.Atoi(form.Paging.First)
+	lb := make([]*leaderboardResp, len(users))
+	for i, _ := range users {
+		lb[i] = &leaderboardResp{
+			Userid: users[i].Id,
+			//Score:    users[i].Props,
+			Rank:     start + i + 1,
+			Level:    users[i].Level(),
+			Profile:  users[i].Profile,
+			Nickname: users[i].Nickname,
+			Gender:   users[i].Gender,
+			LastLog:  users[i].LastLogin.Unix(),
+			Birth:    users[i].Birth,
+			Location: users[i].Loc,
+			Phone:    users[i].Phone,
+		}
+		switch form.Type {
+		case "physique":
+			lb[i].Score = users[i].Props.Physical
+		case "literature":
+			lb[i].Score = users[i].Props.Literal
+		case "magic":
+			lb[i].Score = users[i].Props.Mental
+		}
+	}
+
+	respData := map[string]interface{}{
+		"members_list":  lb,
+		"page_frist_id": form.Paging.First,
+		"page_last_id":  form.Paging.Last,
+	}
+	writeResponse(r.RequestURI, w, respData, nil)
+}
+
+type authRequestForm struct {
+	Type   string   `json:"auth_type"`
+	Images []string `json:"auth_images"`
+	Desc   string   `json:"auth_desc"`
+	parameter
+}
+
+func userAuthRequestHandler(r *http.Request, w http.ResponseWriter,
+	user *models.Account, p Parameter) {
+
+	form := p.(authRequestForm)
+	err := user.SetAuthInfo(form.Type, form.Images, form.Desc)
+	writeResponse(r.RequestURI, w, nil, err)
+}
+
+type authStatusForm struct {
+	Userid string `form:"userid"`
+}
+
+func userAuthStatusHandler(r *http.Request, w http.ResponseWriter,
+	form authStatusForm) {
+
+	user := &models.Account{}
+	user.FindByUserid(form.Userid)
+
+	idcard := models.AuthUnverified
+	cert := models.AuthUnverified
+	record := models.AuthUnverified
+
+	if user.Auth != nil {
+		if user.Auth.IdCard != nil {
+			idcard = user.Auth.IdCard.Status
+		}
+		if user.Auth.Cert != nil {
+			cert = user.Auth.Cert.Status
+		}
+		if user.Auth.Record != nil {
+			record = user.Auth.Record.Status
+		}
+	}
+
+	respData := map[string]string{
+		"id_card": idcard,
+		"cert":    cert,
+		"record":  record,
+	}
+	writeResponse(r.RequestURI, w, respData, nil)
+}
+
+type authInfoForm struct {
+	Type string `form:"auth_type"`
+	parameter
+}
+
+func userAuthInfoHandler(r *http.Request, w http.ResponseWriter,
+	user *models.Account, p Parameter) {
+
+	info := &models.AuthInfo{
+		Status: models.AuthUnverified,
+	}
+
+	if user.Auth == nil {
+		writeResponse(r.RequestURI, w, info, nil)
+		return
+	}
+
+	form := p.(authInfoForm)
+	switch form.Type {
+	case models.AuthIdCard:
+		if user.Auth.IdCard != nil {
+			info = user.Auth.IdCard
+		}
+	case models.AuthCert:
+		if user.Auth.Cert != nil {
+			info = user.Auth.Cert
+		}
+	case models.AuthRecord:
+		if user.Auth.Record != nil {
+			info = user.Auth.Record
+		}
+	}
+
+	writeResponse(r.RequestURI, w, info, nil)
 }

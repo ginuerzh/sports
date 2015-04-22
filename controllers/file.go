@@ -23,8 +23,8 @@ var (
 func BindFileApi(m *martini.ClassicMartini) {
 	m.Post("/1/file/upload",
 		binding.Form(fileUploadForm{}, (*Parameter)(nil)),
-		ErrorHandler,
-		checkTokenHandler,
+		//ErrorHandler,
+		//checkTokenHandler,
 		fileUploadHandler)
 	m.Post("/1/file/delete",
 		binding.Json(fileDeleteForm{}, (*Parameter)(nil)),
@@ -52,7 +52,7 @@ func fileUploadHandler2(request *http.Request, resp http.ResponseWriter,
 }
 
 func fileUploadHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, user *models.Account) {
+	redis *models.RedisLogger /*, user *models.Account*/) {
 
 	filedata, header, err := request.FormFile("filedata")
 	if err != nil {
@@ -76,7 +76,7 @@ func fileUploadHandler(request *http.Request, resp http.ResponseWriter,
 	file.ContentType = header.Header.Get("Content-Type")
 	file.Length = length
 	file.Md5 = FileMd5(filedata)
-	file.Owner = user.Id
+	//file.Owner = user.Id
 	file.UploadDate = time.Now()
 	if err := file.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)

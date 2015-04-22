@@ -62,6 +62,11 @@ func BindArticleApi(m *martini.ClassicMartini) {
 	m.Get("/1/aritcle/thumbList",
 		binding.Form(thumbersForm{}),
 		thumbersHandler)
+	m.Get("/1/article/news",
+		binding.Form(articleNewsForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		articleNewsHandler)
 }
 
 type articleJsonStruct struct {
@@ -76,8 +81,10 @@ type articleJsonStruct struct {
 	Thumbs     int             `json:"thumb_count"`
 	ThumbUsers []string        `json:"thumb_users"`
 	//NewThumbs  int              `json:"new_thumb_count"`
-	Reviews int    `json:"sub_article_count"`
-	Type    string `json:"type"`
+	Reviews      int    `json:"sub_article_count"`
+	CoachReviews int    `json:"coach_review_count"`
+	Type         string `json:"type"`
+	Public       bool   `json:"isPublic"`
 	//NewReviews int              `json:"new_sub_article_count"`
 	Contents []models.Segment `json:"article_segments,omitempty"`
 	//Images     []string         `json:"images"`
@@ -88,6 +95,7 @@ type articleJsonStruct struct {
 	models.Location
 }
 
+/*
 var (
 	header = `<!DOCTYPE HTML>
 <html>
@@ -124,6 +132,7 @@ var (
 	</body>
 </html>`
 )
+*/
 
 func convertArticle(user *models.Account, article *models.Article, author *userJsonStruct) *articleJsonStruct {
 	jsonStruct := &articleJsonStruct{}
@@ -140,6 +149,7 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 	}
 
 	jsonStruct.Reviews = article.ReviewCount
+	jsonStruct.CoachReviews = article.CoachReviewCount
 	jsonStruct.Rewards = article.TotalReward
 
 	jsonStruct.Title = article.Title
@@ -147,13 +157,8 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 	//jsonStruct.Images = article.Images
 	jsonStruct.Content = article.Content
 	jsonStruct.Contents = article.Contents
-	jsonStruct.Location = article.Loc
-	if jsonStruct.Location.Lat == 0 {
-		jsonStruct.Location = author.Location
-	}
 
 	jsonStruct.Author = author.Userid
-	jsonStruct.AuthorInfo = author
 
 	thumbers := article.Thumbs
 	if len(article.Thumbs) > 6 {
@@ -170,6 +175,18 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 		}
 	}
 
+	jsonStruct.AuthorInfo = author
+	jsonStruct.Type = article.Type
+	jsonStruct.Public = (article.Privilege == models.PrivPublic)
+	jsonStruct.Location = article.Loc
+	if jsonStruct.Location.Lat == 0 {
+		jsonStruct.Location = author.Location
+	}
+	if bson.IsObjectIdHex(article.Record) {
+		rec := &models.Record{Id: bson.ObjectIdHex(article.Record)}
+		rec.Find()
+		jsonStruct.Record = convertRecord(rec)
+	}
 	return jsonStruct
 }
 
@@ -197,6 +214,7 @@ type newArticleForm struct {
 	Parent   string           `json:"parent_article_id"`
 	Contents []models.Segment `json:"article_segments" binding:"required"`
 	models.Location
+	Type string   `json:"type"`
 	Tags []string `json:"article_tag"`
 	parameter
 }
@@ -212,6 +230,7 @@ func articleCover(contents []models.Segment) (text string, images []string) {
 	}
 	return
 }
+
 func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(newArticleForm)
@@ -223,6 +242,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		Parent:   form.Parent,
 		Tags:     form.Tags,
 		Loc:      form.Location,
+		Type:     form.Type,
 	}
 	article.Title, article.Images = articleCover(form.Contents)
 	if len(article.Images) > 0 {
@@ -256,6 +276,56 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		awards = Awards{Literal: 10 + user.Level(), Wealth: 10 * models.Satoshi, Score: 10 + user.Level()}
 	}
 
+	if article.Type == models.ArticleRecord {
+		article.Coaches = []string{user.Id}
+	}
+
+	if article.Type == models.ArticleCoach {
+		if parent.Author != user.Id &&
+			user.Actor != models.ActorCoach && user.Actor != models.ActorAdmin {
+			writeResponse(request.RequestURI, resp, nil,
+				errors.NewError(errors.AccessError))
+			return
+		}
+
+		if err := article.Save(); err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, err)
+			return
+		}
+
+		// ws push
+		event := &models.Event{
+			Type: models.EventArticle,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventCoach,
+				Id:   parent.Id.Hex(),
+				From: user.Id,
+				//To:   parent.Author,
+				Body: []models.MsgBody{
+					{Type: "total_count", Content: strconv.Itoa(parent.CoachReviewCount + 1)},
+					{Type: "image", Content: user.Profile},
+				},
+			},
+		}
+
+		for _, coach := range parent.Coaches {
+			if coach == user.Id {
+				continue
+			}
+			event.Data.To = coach
+			event.Save()
+			redis.PubMsg(models.EventArticle, coach, event.Bytes())
+		}
+
+		respData := map[string]interface{}{
+			"ExpEffect": Awards{},
+		}
+		writeResponse(request.RequestURI, resp, respData, nil)
+		return
+	}
+
 	if err := article.Save(); err != nil {
 		log.Println(err)
 		writeResponse(request.RequestURI, resp, nil, err)
@@ -269,7 +339,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	// comment
-	if len(form.Parent) > 0 {
+	if len(form.Parent) > 0 && parent.Author != user.Id {
 		//u := &models.User{Id: parent.Author}
 		author := &models.Account{}
 		author.FindByUserid(parent.Author)
@@ -284,7 +354,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 				From: user.Id,
 				To:   parent.Author,
 				Body: []models.MsgBody{
-					{Type: "total_count", Content: strconv.Itoa(parent.CommentCount())},
+					{Type: "total_count", Content: strconv.Itoa(parent.ReviewCount + 1)},
 					{Type: "image", Content: parent.Image},
 				},
 			},
@@ -381,7 +451,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 			From: user.Id,
 			To:   author.Id,
 			Body: []models.MsgBody{
-				{Type: "total_count", Content: strconv.Itoa(len(article.Thumbs) + 1)},
+				{Type: "total_count", Content: strconv.Itoa(article.ThumbCount + 1)},
 				{Type: "image", Content: article.Image},
 			},
 		},
@@ -495,26 +565,18 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	if redis.OnlineUser(form.Token) == article.Author {
-		event := &models.Event{}
-		event.Data.Type = models.EventThumb
-		event.Data.Id = article.Id.Hex()
-		event.Data.To = article.Author
-		event.Clear()
-
-		event.Data.Type = models.EventComment
-		event.Clear()
-
-		event.Data.Type = models.EventReward
-		event.Clear()
-	}
+	event := &models.Event{}
+	//event.Data.Type = models.EventThumb
+	event.Data.Id = article.Id.Hex()
+	event.Data.To = user.Id
+	event.Clear() // clear all events about this article
 
 	u := &models.Account{}
 	u.FindByUserid(article.Author)
 	author := convertUser(u, redis)
 	jsonStruct := convertArticle(user, article, author)
 
-	jsonStruct.Relation = redis.Relationship(redis.OnlineUser(form.Token), article.Author)
+	jsonStruct.Relation = redis.Relationship(user.Id, article.Author)
 	switch jsonStruct.Relation {
 	case models.RelFriend:
 		jsonStruct.Relation = "FRIENDS"
@@ -532,6 +594,7 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
 type articleCommentsForm struct {
 	Id string `json:"article_id"  binding:"required"`
 	models.Paging
+	Type string `json:"type"`
 	parameter
 }
 
@@ -540,7 +603,16 @@ func articleCommentsHandler(request *http.Request, resp http.ResponseWriter,
 	form := p.(articleCommentsForm)
 
 	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
-	_, comments, err := article.Comments(&form.Paging, true)
+	withoutContent := true
+	if form.Type == models.ArticleCoach {
+		withoutContent = false
+
+		event := &models.Event{}
+		event.Data.Id = article.Id.Hex()
+		event.Data.To = user.Id
+		event.Clear() // clear all events about this article
+	}
+	_, comments, err := article.Comments(form.Type, &form.Paging, withoutContent)
 
 	jsonStructs := make([]*articleJsonStruct, len(comments))
 	for i, _ := range comments {
@@ -616,4 +688,21 @@ func thumbersHandler(r *http.Request, w http.ResponseWriter,
 	writeResponse(r.RequestURI, w, respData, nil)
 	return
 
+}
+
+type articleNewsForm struct {
+	Id string `form:"article_id"`
+	parameter
+}
+
+func articleNewsHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(articleNewsForm)
+
+	followings := redis.Friends(models.RelFollowing, user.Id)
+	//followings = append(followings, user.Id) // self included
+	//fmt.Println(followings)
+	count, err := models.NewArticles(followings, form.Id)
+
+	writeResponse(r.RequestURI, w, bson.M{"count": count}, err)
 }

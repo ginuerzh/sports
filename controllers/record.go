@@ -51,6 +51,8 @@ type record struct {
 	EndTime   int64    `json:"end_time"`
 	Duration  int64    `json:"duration"`
 	Distance  int      `json:"distance"`
+	Weight    int      `json:"weight"`
+	Mood      string   `json:"mood"`
 	Pics      []string `json:"sport_pics"`
 	GameType  string   `json:"game_type"`
 	GameScore int      `json:"game_score"`
@@ -60,9 +62,38 @@ type record struct {
 	Status    string   `json:"status"`
 }
 
+func convertRecord(r *models.Record) *record {
+	rec := &record{}
+
+	rec.Type = r.Type
+	rec.Status = r.Status
+	rec.Coins = r.Coin
+	rec.BeginTime = r.StartTime.Unix()
+	rec.EndTime = r.EndTime.Unix()
+
+	if r.Sport != nil {
+		rec.Source = r.Sport.Source
+		rec.Duration = r.Sport.Duration
+		rec.Distance = r.Sport.Distance
+		rec.Weight = r.Sport.Weight
+		rec.Mood = r.Sport.Mood
+		rec.Pics = r.Sport.Pics
+	}
+	if r.Game != nil {
+		rec.GameName = r.Game.Name
+		rec.GameScore = r.Game.Score
+		rec.Magic = r.Game.Magic
+		if r.Game.Coin > 0 {
+			rec.Coins = r.Game.Coin
+		}
+	}
+	return rec
+}
+
 type newRecordForm struct {
 	Record *record `json:"record_item" binding:"required"`
 	Task   int64   `json:"task_id"`
+	Public bool    `json:"isPublic"`
 	parameter
 }
 
@@ -136,8 +167,19 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			Source:   form.Record.Source,
 			Duration: form.Record.Duration,
 			Distance: form.Record.Distance,
+			Weight:   form.Record.Weight,
+			Mood:     form.Record.Mood,
 			Pics:     form.Record.Pics,
 		}
+
+		if rec.Sport.Weight == 0 {
+			rec.Sport.Weight = user.Weight
+		}
+		// update weight
+		if rec.Sport.Weight != user.Weight {
+			user.SetInfo(&models.SetInfo{Weight: rec.Sport.Weight})
+		}
+
 		if form.Record.Duration > 0 {
 			rec.Sport.Speed = float64(form.Record.Distance) / float64(form.Record.Duration)
 		}
@@ -158,6 +200,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 				rec.Status = models.StatusFinish
 			}
 		*/
+
 	default:
 		log.Println("Unknown record type:", form.Record.Type)
 	}
@@ -170,6 +213,23 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
+	if rec.Type == "run" {
+		article := &models.Article{
+			Author:  user.Id,
+			PubTime: time.Now(),
+			Loc:     user.Loc,
+			Record:  rec.Id.Hex(),
+			Type:    models.ArticleRecord,
+		}
+
+		if !form.Public {
+			article.Privilege = models.PrivPrivate
+		}
+
+		if err := article.Save(); err != nil {
+			log.Println(err)
+		}
+	}
 	respData := map[string]interface{}{
 		"ExpEffect": awards,
 	}
@@ -178,7 +238,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 
 type recTimelineForm struct {
 	Userid string `form:"userid" binding:"required"`
-	Class  string
+	Type   string `form:"type"`
 	models.Paging
 	parameter
 }
@@ -192,30 +252,11 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	u := &models.Account{Id: form.Userid}
-	_, records, err := u.Records(all, form.Class, &form.Paging)
+	_, records, err := u.Records(all, form.Type, &form.Paging)
 
-	recs := make([]record, len(records))
+	recs := make([]*record, len(records))
 	for i, _ := range records {
-		recs[i].Type = records[i].Type
-		recs[i].Status = records[i].Status
-		recs[i].Coins = records[i].Coin
-		recs[i].BeginTime = records[i].StartTime.Unix()
-		recs[i].EndTime = records[i].EndTime.Unix()
-
-		if records[i].Sport != nil {
-			recs[i].Source = records[i].Sport.Source
-			recs[i].Duration = records[i].Sport.Duration
-			recs[i].Distance = records[i].Sport.Distance
-			recs[i].Pics = records[i].Sport.Pics
-		}
-		if records[i].Game != nil {
-			recs[i].GameName = records[i].Game.Name
-			recs[i].GameScore = records[i].Game.Score
-			recs[i].Magic = records[i].Game.Magic
-			if records[i].Game.Coin > 0 {
-				recs[i].Coins = records[i].Game.Coin
-			}
-		}
+		recs[i] = convertRecord(&records[i])
 	}
 	respData := map[string]interface{}{
 		"record_list":   recs,

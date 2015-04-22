@@ -84,6 +84,7 @@ func InsureIndexes() {
 
 	ensureIndex(articleColl, "author")
 	ensureIndex(articleColl, "-pub_time")
+	ensureIndex(articleColl, "-pub_time", "-_id")
 
 	ensureIndex(eventColl, "-time")
 
@@ -99,6 +100,7 @@ func InsureIndexes() {
 	ensureIndex(recordColl, "-sport.time")
 	ensureIndex(recordColl, "-sport.distance")
 	ensureIndex(recordColl, "-pub_time")
+	ensureIndex(recordColl, "-pub_time", "-_id")
 
 	ensureIndex(actionColl, "userid")
 	ensureIndex(actionColl, "date")
@@ -238,6 +240,19 @@ func exists(collection string, query interface{}) (bool, error) {
 
 	err := withCollection(collection, nil, q)
 	return b, err
+}
+
+func query(collection string, qry, selector interface{},
+	sortFields []string, limit int) (*mgo.Query, error) {
+	session, err := getSession()
+	if session == nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	c := session.DB(databaseName).C(collection)
+
+	return c.Find(qry).Select(selector).Sort(sortFields...).Limit(limit), nil
 }
 
 // search with paging

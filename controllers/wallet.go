@@ -203,7 +203,7 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.DbError, "获取账户信息失败"))
 		return
 	}
-	log.Println("amount:", amount, "value:", form.Value)
+	//log.Println("amount:", amount, "value:", form.Value)
 
 	if form.Value > amount {
 		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError, "余额不足"))

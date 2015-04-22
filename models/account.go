@@ -15,8 +15,20 @@ import (
 	"time"
 )
 
-var (
-//dur time.Duration
+const (
+	ActorAdmin = "admin"
+	ActorCoach = "coach"
+)
+
+const (
+	AuthIdCard = "idcard"
+	AuthCert   = "cert"
+	AuthRecord = "record"
+
+	AuthUnverified = "unverified"
+	AuthVerifying  = "verifying"
+	AuthVerified   = "verified"
+	AuthRefused    = "refused"
 )
 
 func init() {
@@ -46,8 +58,10 @@ type UserInfo struct {
 	Hobby       string `json:"fond"`
 	Hometown    string `json:"hometown"`
 	OftenAppear string `json:"oftenAppear"`
+	CoverImage  string `json:"cover_image"`
 }
 
+// for mongodb json -> bson
 type SetInfo struct {
 	Phone    string   `json:"phone,omitempty"`
 	Nickname string   `json:"nickname,omitempty"`
@@ -63,6 +77,7 @@ type SetInfo struct {
 	Hobby       string `json:"hobby,omitempty"`
 	Hometown    string `json:"hometown,omitempty"`
 	OftenAppear string `json:"oftenappear,omitempty"`
+	CoverImage  string `json:"coverimage,omitempty"`
 
 	Setinfo bool `json:"setinfo,omitempty"`
 }
@@ -106,6 +121,18 @@ type GameTime struct {
 	Game05 time.Time
 }
 
+type UserAuth struct {
+	IdCard *AuthInfo `bson:",omitempty" json:"idcard"`
+	Cert   *AuthInfo `bson:",omitempty" json:"cert"`
+	Record *AuthInfo `bson:",omitempty" json:"record"`
+}
+
+type AuthInfo struct {
+	Images []string `bson:",omitempty" json:"auth_images"`
+	Desc   string   `bson:",omitempty" json:"auth_desc"`
+	Status string   `bson:",omitempty" json:"auth_status"`
+}
+
 type Account struct {
 	Id       string `bson:"_id,omitempty"`
 	Email    string
@@ -118,18 +145,19 @@ type Account struct {
 	RegTime  time.Time `bson:"reg_time,omitempty"`
 	Loc      Location  `bson:",omitempty"`
 
-	Password string   `bson:",omitempty"`
-	Role     string   `bson:",omitempty"`
-	Height   int      `bson:",omitempty"`
-	Weight   int      `bson:",omitempty"`
-	Actor    string   `bson:",omitempty"`
-	Url      string   `bson:",omitempty"`
-	About    string   `bson:",omitempty"`
-	Addr     *Address `bson:",omitempty"`
-	LocAddr  string   `bson:"locaddr"`
-	Photos   []string
-	Wallet   DbWallet
-	Chips    int64
+	Password   string   `bson:",omitempty"`
+	Role       string   `bson:",omitempty"`
+	Height     int      `bson:",omitempty"`
+	Weight     int      `bson:",omitempty"`
+	Actor      string   `bson:",omitempty"`
+	Url        string   `bson:",omitempty"`
+	About      string   `bson:",omitempty"`
+	Addr       *Address `bson:",omitempty"`
+	LocAddr    string   `bson:"locaddr"`
+	Photos     []string
+	CoverImage string
+	Wallet     DbWallet
+	Chips      int64
 
 	LastLogin   time.Time `bson:"lastlogin"`
 	LoginCount  int       `bson:"login_count"`
@@ -150,8 +178,10 @@ type Account struct {
 	Contacts []string `bson:",omitempty"`
 	Devs     []string `bson:",omitempty"` // apple device id
 
+	Auth *UserAuth `bson:",omitempty"`
+
 	TimeLimit int64 `bson:"timelimit"`
-	Privilege int
+	Privilege int   // 5-10: coach, 10+: admin
 	Setinfo   bool
 	Push      bool
 }
@@ -602,7 +632,7 @@ func (this *Account) Recommend(excludes []string) (users []Account, err error) {
 		"_id": bson.M{
 			"$nin": excludes,
 		},
-		"privilege": 10,
+		"actor": "coach",
 	}
 	err = search(accountColl, query, bson.M{"contacts": 0}, 0, 10, nil, nil, &list)
 	users = append(users, list...)
@@ -698,7 +728,42 @@ func UserList(sort string, pageIndex, pageCount int) (total int, users []Account
 	default:
 		sort = "-reg_time"
 	}
-	err = search(accountColl, query, bson.M{"contacts": 0}, pageIndex*pageCount, pageCount, []string{sort}, &total, &users)
+	err = search(accountColl, query, nil, pageIndex*pageCount, pageCount, []string{sort}, &total, &users)
+	return
+}
+
+func UserLeaderBoard(types string, paging *Paging) (users []Account, err error) {
+	var sort string
+	index := 0
+	limit := DefaultPageSize
+	if paging.Count > 0 {
+		limit = paging.Count
+	}
+
+	if len(paging.First) > 0 {
+		index, _ = strconv.Atoi(paging.First)
+		index -= DefaultPageSize
+		if index < 0 {
+			index = 0
+		}
+	} else if len(paging.Last) > 0 {
+		index, _ = strconv.Atoi(paging.Last)
+	}
+
+	switch types {
+	case "physique":
+		sort = "-props.physical"
+	case "literature":
+		sort = "-props.literal"
+	case "magic":
+		sort = "-props.mental"
+	}
+
+	err = search(accountColl, nil, nil, index, limit, []string{sort}, nil, &users)
+
+	paging.First = strconv.Itoa(index)
+	paging.Last = strconv.Itoa(index + len(users))
+
 	return
 }
 
@@ -1126,12 +1191,12 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 	return
 }
 
-func (this *Account) Records(all bool, class string, paging *Paging) (int, []Record, error) {
+func (this *Account) Records(all bool, types string, paging *Paging) (int, []Record, error) {
 	var records []Record
 	total := 0
 	var query bson.M
 
-	switch class {
+	switch types {
 	case "game":
 		query = bson.M{"uid": this.Id, "type": "game"}
 	case "run":
@@ -1946,4 +2011,70 @@ func (this *Account) Txs(paging *Paging) (int, []Tx, error) {
 	}
 
 	return total, txs, nil
+}
+
+func GetAuthUserList(index, count int) (total int, users []Account, err error) {
+	query := bson.M{
+		"auth": bson.M{"$ne": nil},
+	}
+	err = search(accountColl, query, nil, index*count, count, nil, &total, &users)
+	return
+}
+
+func (this *Account) SetAuthInfo(types string, images []string, desc string) error {
+	var change bson.M
+
+	authInfo := &AuthInfo{Images: images, Desc: desc, Status: AuthVerifying}
+
+	switch types {
+	case AuthIdCard:
+		change = bson.M{
+			"$set": bson.M{
+				"auth.idcard": authInfo,
+			},
+		}
+	case AuthCert:
+		change = bson.M{
+			"$set": bson.M{"auth.cert": authInfo},
+		}
+	case AuthRecord:
+		change = bson.M{
+			"$set": bson.M{"auth.record": authInfo},
+		}
+	default:
+		return nil
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+
+	return nil
+}
+
+func (this *Account) SetAuth(types string, status string) error {
+	var change bson.M
+
+	switch types {
+	case AuthIdCard:
+		change = bson.M{
+			"$set": bson.M{"auth.idcard.status": status},
+		}
+	case AuthCert:
+		change = bson.M{
+			"$set": bson.M{"auth.cert.status": status},
+		}
+	case AuthRecord:
+		change = bson.M{
+			"$set": bson.M{"auth.record.status": status},
+		}
+	default:
+		return nil
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+
+	return nil
 }

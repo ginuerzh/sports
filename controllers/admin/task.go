@@ -3,6 +3,7 @@ package admin
 
 import (
 	"github.com/ginuerzh/sports/controllers"
+	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
@@ -260,30 +261,37 @@ func taskAuthOptionsHandler(w http.ResponseWriter) {
 	writeResponse(w, nil)
 }
 
-func taskAuthHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form taskAuthForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+func taskAuthHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, form taskAuthForm) {
+	userid := redis.OnlineUser(form.Token)
+	if len(userid) == 0 {
+		writeResponse(w, errors.NewError(errors.AccessError))
+		return
+	}
 
 	//u := &models.User{Id: form.Userid}
 	user := &models.Account{}
 	user.FindByUserid(form.Userid)
-	/*
-		if err := user.SetTaskComplete(form.Id, form.Pass, form.Reason); err != nil {
-			writeResponse(w, err)
-			return
-		}
-	*/
+
 	record := &models.Record{Uid: user.Id, Task: form.Id}
 	record.FindByTask(form.Id)
 	awards := controllers.Awards{}
 
-	if form.Pass {
+	parent := &models.Article{}
+	parent.FindByRecord(record.Id.Hex())
+	if len(parent.Id) > 0 && len(form.Reason) > 0 {
+		review := &models.Article{
+			Parent:   parent.Id.Hex(),
+			Author:   userid,
+			Title:    form.Reason,
+			Type:     models.ArticleCoach,
+			Contents: []models.Segment{{ContentType: "TEXT", ContentText: form.Reason}},
+			PubTime:  time.Now(),
+		}
+		review.Save()
+	}
 
+	if form.Pass {
 		level := user.Level()
 		awards = controllers.Awards{
 			Physical: 30 + level,
@@ -301,8 +309,10 @@ func taskAuthHandler(r *http.Request, w http.ResponseWriter, redis *models.Redis
 		}
 
 		record.SetStatus(models.StatusFinish, form.Reason, awards.Wealth)
+
 	} else {
 		record.SetStatus(models.StatusUnFinish, form.Reason, 0)
+		parent.SetPrivilege(models.PrivPrivate)
 	}
 
 	// ws push
@@ -318,6 +328,23 @@ func taskAuthHandler(r *http.Request, w http.ResponseWriter, redis *models.Redis
 			},
 		},
 	}
+	redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+
+	event = &models.Event{
+		Type: models.EventArticle,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventCoach,
+			Id:   parent.Id.Hex(),
+			From: userid,
+			To:   parent.Author,
+			Body: []models.MsgBody{
+				{Type: "total_count", Content: strconv.Itoa(parent.CoachReviewCount + 1)},
+				{Type: "image", Content: ""},
+			},
+		},
+	}
+	event.Save()
 	redis.PubMsg(event.Type, event.Data.To, event.Bytes())
 
 	writeResponse(w, map[string]bool{"pass": form.Pass})

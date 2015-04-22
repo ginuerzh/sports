@@ -3,7 +3,7 @@ package controllers
 
 import (
 	"github.com/zhengying/apns"
-	"log"
+	//"log"
 )
 
 type ApnClient struct {
@@ -24,11 +24,11 @@ func (c *ApnClient) Send(token, alert string, badge int, sound string) error {
 	resp := c.Dev.Send(pn)
 	//log.Println("apns push", resp.AppleResponse)
 	if !resp.Success {
-		log.Println("apns dev:", resp.Error)
+		//log.Println("apns dev:", resp.Error)
 	}
 	resp = c.Release.Send(pn)
 	if !resp.Success {
-		log.Println("apns release:", resp.Error)
+		//log.Println("apns release:", resp.Error)
 	}
 	return resp.Error
 }

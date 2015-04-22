@@ -11,9 +11,16 @@ import (
 	"time"
 )
 
-func init() {
+const (
+	PrivPublic = iota
+	_
+	PrivPrivate
+)
 
-}
+const (
+	ArticleCoach  = "coach"
+	ArticleRecord = "record"
+)
 
 type Segment struct {
 	ContentType string `bson:"seg_type" json:"seg_type"`
@@ -22,28 +29,30 @@ type Segment struct {
 
 type Article struct {
 	Id        bson.ObjectId `bson:"_id,omitempty"`
-	Type      string        // run - running record, default is post
-	Privilege int           // 0 - public, 1 - private
-	Record    bson.ObjectId
-	Parent    string `bson:",omitempty"`
+	Type      string        // record: running record, coach: coach review, default is post
+	Privilege int           // 0 - public, 2 - private
+	Parent    string        `bson:",omitempty"`
 	Author    string
 	Title     string   `bson:",omitempty"`
 	Image     string   `bson:",omitempty"`
 	Images    []string `bson:",omitempty"`
 	Contents  []Segment
 	Content   string
+	Record    string
 	PubTime   time.Time `bson:"pub_time"`
 
-	Views       []string `bson:",omitempty"`
-	Thumbs      []string `bson:",omitempty"`
-	ThumbCount  int      `bson:"thumb_count"`
-	Reviews     []string `bson:",omitempty"`
-	ReviewCount int      `bson:"review_count"`
-	Rewards     []string `bson:",omitempty"`
-	RewardCount int      `bson:"reward_count"`
-	TotalReward int64    `bson:"total_reward"`
-	Tags        []string `bson:",omitempty"`
-	Loc         Location `bson:",omitempty"`
+	Views            []string `bson:",omitempty"`
+	Thumbs           []string `bson:",omitempty"`
+	ThumbCount       int      `bson:"thumb_count"`
+	Reviews          []string `bson:",omitempty"`
+	ReviewCount      int      `bson:"review_count"`
+	CoachReviewCount int      `bson:"coach_review_count"`
+	Coaches          []string
+	Rewards          []string `bson:",omitempty"`
+	RewardCount      int      `bson:"reward_count"`
+	TotalReward      int64    `bson:"total_reward"`
+	Tags             []string `bson:",omitempty"`
+	Loc              Location `bson:",omitempty"`
 }
 
 func (this *Article) Exists() (bool, error) {
@@ -100,6 +109,25 @@ func (this *Article) Save() error {
 		return errors.NewError(errors.InvalidMsgError)
 	}
 
+	update := bson.M{
+		"$push": bson.M{
+			"reviews": this.Id.Hex(),
+		},
+		"$inc": bson.M{
+			"review_count": 1,
+		},
+	}
+	if this.Type == ArticleCoach {
+		update = bson.M{
+			"$addToSet": bson.M{
+				"coaches": this.Author,
+			},
+			"$inc": bson.M{
+				"coach_review_count": 1,
+			},
+		}
+	}
+
 	f := func(c *mgo.Collection) error {
 		runner := txn.NewRunner(c)
 		ops := []txn.Op{
@@ -113,14 +141,7 @@ func (this *Article) Save() error {
 				C:      articleColl,
 				Id:     bson.ObjectIdHex(this.Parent),
 				Assert: txn.DocExists,
-				Update: bson.M{
-					"$addToSet": bson.M{
-						"reviews": this.Id.Hex(),
-					},
-					"$inc": bson.M{
-						"review_count": 1,
-					},
-				},
+				Update: update,
 			},
 		}
 
@@ -158,6 +179,22 @@ func (this *Article) Remove() error {
 		return nil
 	}
 
+	update := bson.M{
+		"$pull": bson.M{
+			"reviews": this.Id.Hex(),
+		},
+		"$inc": bson.M{
+			"review_count": -1,
+		},
+	}
+	if this.Type == ArticleCoach {
+		update = bson.M{
+			"$inc": bson.M{
+				"coach_review_count": -1,
+			},
+		}
+	}
+
 	f := func(c *mgo.Collection) error {
 		runner := txn.NewRunner(c)
 		ops := []txn.Op{
@@ -167,16 +204,9 @@ func (this *Article) Remove() error {
 				Remove: true,
 			},
 			{
-				C:  articleColl,
-				Id: bson.ObjectIdHex(this.Parent),
-				Update: bson.M{
-					"$pull": bson.M{
-						"reviews": this.Id.Hex(),
-					},
-					"$inc": bson.M{
-						"review_count": -1,
-					},
-				},
+				C:      articleColl,
+				Id:     bson.ObjectIdHex(this.Parent),
+				Update: update,
 			},
 		}
 
@@ -281,13 +311,42 @@ func articlePagingFunc(c *mgo.Collection, first, last string, args ...interface{
 	return
 }
 
+func NewArticles(ids []string, last string) (int, error) {
+	total := 0
+
+	query := bson.M{
+		"parent":    nil,
+		"privilege": bson.M{"$ne": 2},
+		"author":    bson.M{"$in": ids},
+	}
+	if bson.IsObjectIdHex(last) {
+		article := &Article{}
+		findOne(articleColl, bson.M{"_id": bson.ObjectIdHex(last)}, nil, article)
+		if len(article.Id) == 0 {
+			return 0, nil
+		}
+
+		query["pub_time"] = bson.M{
+			"$gte": article.PubTime,
+		}
+		query["_id"] = bson.M{
+			"$ne": article.Id,
+		}
+	}
+	sortFields := []string{"-pub_time", "-_id"}
+	err := search(articleColl, query, nil, 0, 0, sortFields, &total, nil)
+
+	return total, err
+}
+
 func GetUserArticles(ids []string, paging *Paging) (int, []Article, error) {
 	var articles []Article
 	total := 0
 
 	query := bson.M{
-		"parent": nil,
-		"author": bson.M{"$in": ids},
+		"parent":    nil,
+		"privilege": bson.M{"$ne": 2},
+		"author":    bson.M{"$in": ids},
 	}
 
 	sortFields := []string{"-pub_time", "-_id"}
@@ -389,11 +448,11 @@ func (this *Article) CommentCount() (count int) {
 	return
 }
 
-func (this *Article) Comments(paging *Paging, withoutContent bool) (int, []Article, error) {
+func (this *Article) Comments(typ string, paging *Paging, withoutContent bool) (int, []Article, error) {
 	var articles []Article
 	total := 0
 
-	sortFields := []string{"-pub_time", "-_id"}
+	sortFields := []string{"-pub_time"}
 
 	var selector bson.M
 
@@ -401,7 +460,19 @@ func (this *Article) Comments(paging *Paging, withoutContent bool) (int, []Artic
 		selector = bson.M{"content": 0, "contents": 0}
 	}
 
-	if err := psearch(articleColl, bson.M{"parent": this.Id.Hex()}, selector,
+	query := bson.M{
+		"parent": this.Id.Hex(),
+	}
+	switch typ {
+	case ArticleCoach:
+		query["type"] = typ
+	default:
+		query["type"] = bson.M{
+			"$ne": ArticleCoach,
+		}
+	}
+
+	if err := psearch(articleColl, query, selector,
 		sortFields, &total, &articles, articlePagingFunc, paging); err != nil {
 		e := errors.NewError(errors.DbError, err.Error())
 		if err == mgo.ErrNotFound {
@@ -553,4 +624,17 @@ func ArticleList(sort string, pageIndex, pageCount int) (total int, articles []A
 	err = search(articleColl, bson.M{"parent": nil}, bson.M{"content": 0, "contents": 0},
 		pageIndex*pageCount, pageCount, []string{sort}, &total, &articles)
 	return
+}
+
+func (this *Article) FindByRecord(id string) error {
+	return findOne(articleColl, bson.M{"record": id}, nil, this)
+}
+
+func (this *Article) SetPrivilege(priv int) error {
+	change := bson.M{
+		"$set": bson.M{
+			"privilege": priv,
+		},
+	}
+	return updateId(articleColl, this.Id, change, true)
 }
