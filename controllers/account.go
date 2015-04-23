@@ -135,6 +135,22 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		loadUserHandler,
 		gameResultHandler)
+	m.Post("/1/user/purchaseSuccess",
+		binding.Json(purchaseForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		purchaseHandler,
+	)
+
+	m.Get("/1/user/getPayHistory",
+		binding.Form(purchaseListForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		purchaseListHandler,
+	)
+
+	m.Get("/1/user/isPreSportForm", testHandler)
 }
 
 // user register parameter
@@ -1016,7 +1032,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 
 	n := redis.GameUserCount(gt) - 1
 	log.Println(ranks, n)
-	if len(ranks) == 1 && form.Score > 0 {
+	if len(ranks) == 1 && n > 0 && form.Score > 0 {
 		respData.Percent = int(float64(n-ranks[0]) / float64(n) * 100.0)
 	}
 
@@ -1065,6 +1081,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		}
 
 		sort.Sort(sort.Reverse(models.KVSlice(kvs)))
+		lb := kvs
 		if len(kvs) > 3 {
 			kvs = kvs[0:3]
 		}
@@ -1076,7 +1093,14 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		index := 0
 		rank := 0
 
-		for j, kv := range kvs {
+		for i, _ := range lb {
+			if lb[i].K == user.Id {
+				rank = i
+				break
+			}
+		}
+
+		for _, kv := range kvs {
 			for i, _ := range users {
 				if users[i].Id == kv.K {
 					respData.Friends = append(respData.Friends, &leaderboardResp{
@@ -1097,13 +1121,80 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 					break
 				}
 			}
-			if kv.K == user.Id {
-				rank = j
-			}
 		}
 
-		respData.PerFriend = int(float64(total-rank) / float64(total) * 100.0)
+		if total > 0 {
+			respData.PerFriend = int(float64(total-rank) / float64(total) * 100.0)
+		}
 	}
 
 	writeResponse(r.RequestURI, w, respData, nil)
+}
+
+type purchaseForm struct {
+	Coins int64 `json:"coin_value"`
+	Value int   `json:"value"`
+	Time  int64 `json:"time"`
+	parameter
+}
+
+func purchaseHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(purchaseForm)
+
+	awards := Awards{Wealth: form.Coins}
+	if err := GiveAwards(user, awards, redis); err != nil {
+		writeResponse(r.RequestURI, w, nil, err)
+		return
+	}
+
+	tx := &models.Tx{
+		Uid:   user.Id,
+		Coins: form.Coins,
+		Value: form.Value,
+		Time:  time.Unix(form.Time, 0),
+	}
+
+	err := tx.Save()
+
+	respData := map[string]interface{}{"ExpEffect": awards}
+	writeResponse(r.RequestURI, w, respData, err)
+}
+
+type purchaseListForm struct {
+	models.Paging
+	parameter
+}
+
+type purchaseStruct struct {
+	Coins int64 `json:"coin_value"`
+	Value int   `json:"value"`
+	Time  int64 `json:"time"`
+}
+
+func purchaseListHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(purchaseListForm)
+
+	_, txs, _ := user.Txs(&form.Paging)
+
+	list := []*purchaseStruct{}
+	for _, tx := range txs {
+		list = append(list, &purchaseStruct{
+			Coins: tx.Coins,
+			Value: tx.Value,
+			Time:  tx.Time.Unix(),
+		})
+	}
+
+	respData := map[string]interface{}{
+		"payCoinList":   list,
+		"page_frist_id": form.Paging.First,
+		"page_last_id":  form.Paging.Last,
+	}
+	writeResponse(r.RequestURI, w, respData, nil)
+}
+
+func testHandler(r *http.Request, w http.ResponseWriter) {
+	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": true}, nil)
 }

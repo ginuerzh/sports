@@ -54,6 +54,7 @@ var (
 	groupColl  = "groups"
 	eventColl  = "events"
 	ruleColl   = "rules"
+	txColl     = "txs"
 	//rateColl     = "rates"
 )
 
@@ -102,6 +103,9 @@ func InsureIndexes() {
 	ensureIndex(actionColl, "userid")
 	ensureIndex(actionColl, "date")
 	ensureIndex(actionColl, "userid", "date")
+
+	ensureIndex(txColl, "-time")
+	ensureIndex(txColl, "uid")
 }
 
 func scoreOfUpgrade(n int) int64 {
