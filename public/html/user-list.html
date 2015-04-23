@@ -79,6 +79,7 @@
             <th ng-click="sort('regtime')">注册时间<img ng-src="{{sortImg[sortState.regtime]}}" style="float:right;"></th>
             <th ng-click="sort('logintime')">登陆时间<img ng-src="{{sortImg[sortState.logintime]}}" style="float:right;"></th>
             <th ng-click="sort('ban')">状态<img ng-src="{{sortImg[sortState.ban]}}" style="float:right;"></th>
+            <th>认证</th>
         </tr>
         </thead>
         <tbody>
@@ -93,6 +94,11 @@
             <td>{{user.reg_time}}</td>
             <td>{{user.last_login_time}}</td>
             <td><div class="banstate" ng-style="user.banStyle">{{user.ban_statusTmp}}</div></td>
+            <td><a href="{{'#/authdetail/'+user.userid}}">
+                <span class="label" ng-style="user.auth.idcard.auth_status|authclass">身份证</span>
+                <span class="label" ng-style="user.auth.cert.auth_status|authclass">资格证</span>
+                <span class="label" ng-style="user.auth.record.auth_status|authclass">运动成绩</span>
+            </a></td>
         </tr>
 
         </tbody>

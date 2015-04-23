@@ -1,0 +1,18 @@
+<div  class="main-bg" ng-controller="authenticationController">
+    <div class="row"><h2 class="col-md-12">认证管理</h2></div>
+    <div class="row">
+        <div class="col-md-2" ng-repeat="item in authList">
+            <div class="thumbnail">
+                <a href="{{'#/authdetail/'+item.userid}}" align="center">
+                    <img ng-src="{{item.profile|profilefilter}}" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'" style="width: 155px; height: 150px">
+                </a>
+                <p>
+                    <a href="{{'#/detail/'+item.userid}}">{{item.userid}}</a>
+                </p>
+                <p>{{item.nickname}}</p>
+            </div>
+        </div>
+    </div>
+    <div gen-pagination="pagination"></div>
+
+</div>

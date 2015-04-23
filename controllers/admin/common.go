@@ -42,6 +42,10 @@ func writeResponse(w http.ResponseWriter, data interface{}) []byte {
 	return b
 }
 
+func optionsHandler(w http.ResponseWriter) {
+	writeResponse(w, nil)
+}
+
 func adminErrorHandler(err binding.Errors, w http.ResponseWriter) {
 	if err.Len() > 0 {
 		e := err[0]

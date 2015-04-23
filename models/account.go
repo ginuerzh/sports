@@ -2029,9 +2029,7 @@ func (this *Account) SetAuthInfo(types string, images []string, desc string) err
 	switch types {
 	case AuthIdCard:
 		change = bson.M{
-			"$set": bson.M{
-				"auth.idcard": authInfo,
-			},
+			"$set": bson.M{"auth.idcard": authInfo},
 		}
 	case AuthCert:
 		change = bson.M{

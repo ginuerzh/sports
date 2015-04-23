@@ -40,6 +40,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/admin/setpriv", binding.Form(setPrivilegeForm{}), setPrivilegeHandler)
 	m.Get("/admin/user/auth/list", binding.Form(userAuthListForm{}), userAuthListHandler)
 	m.Post("/admin/user/auth", binding.Json(userAuthForm{}), userAuthHandler)
+	m.Options("/admin/user/auth", optionsHandler)
 	//m.Post("/admin/user/update", updateUserInfoHandler)
 	//m.Get("/admin/user/balance", binding.Form(userBalanceForm{}), userBalanceHandler)
 	//m.Post("/admin/user/update", binding.Json(userInfoForm{}), adminErrorHandler, updateUserInfoHandler)

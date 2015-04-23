@@ -32,6 +32,14 @@
                           <td><div class="banstate" id="detailBan" ng-style="userDetail.banStyle">{{userDetail.ban_statusTmp}}</div></td>
                         </tr>
                         <tr>
+                          <td>认证：</td>
+                          <td><a href="{{'#/authdetail/'+userDetail.userid}}">
+                            <span class="label" ng-style="userDetail.auth.idcard.auth_status|authclass">身份证</span>
+                            <span class="label" ng-style="userDetail.auth.cert.auth_status|authclass">资格证</span>
+                            <span class="label" ng-style="userDetail.auth.record.auth_status|authclass">运动成绩</span>
+                          </a></td>
+                        </tr>
+                        <tr>
                           <td>邮箱：</td>
                           <td>{{userDetail.email}}</td>
                         </tr>

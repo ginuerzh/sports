@@ -92,6 +92,7 @@ func main() {
 	//jsgen.BindArticleApi(m)
 
 	models.InsureIndexes()
+
 	gracehttp.Serve(&http.Server{Addr: listenAddr, Handler: m})
 	//log.Fatal(http.ListenAndServe(listenAddr, m))
 }
