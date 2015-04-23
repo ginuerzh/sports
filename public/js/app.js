@@ -256,6 +256,7 @@ User = (function() {
     this.friends_count = data.friends_count;
     this.blacklist_count = data.blacklist_count;
     this.email = data.email;
+    this.auth = data.auth;
     this.ban_time = "";
     this.ban_status = "normal";
     if (data.ban_time != null) {
@@ -703,7 +704,7 @@ urlPath = function(url) {
 };
 
 app.config(function($routeProvider) {
-  var aricledetail, ariclelist, articleimport, login, tasklist, userdetail, userlist;
+  var aricledetail, ariclelist, articleimport, authdetail, authenticationlist, login, tasklist, userdetail, userlist;
   login = {
     templateUrl: 'html/user-login.html',
     controller: 'loginController'
@@ -732,7 +733,15 @@ app.config(function($routeProvider) {
     templateUrl: 'html/article-import.html',
     controller: 'articleimportController'
   };
-  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
+  authenticationlist = {
+    templateUrl: 'html/authentication-list.html',
+    controller: 'authenticationController'
+  };
+  authdetail = {
+    templateUrl: 'html/authentication-detail.html',
+    controller: 'authenticationController'
+  };
+  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/5', authenticationlist).when('/authdetail/:authid', authdetail).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
 });
 
 app.run([
@@ -837,7 +846,7 @@ app.run([
       };
       return $rootScope.showDialog(dialogInfo);
     };
-    $rootScope.navBarItems = ["首页", "用户管理", "博文管理", "任务管理", "文章导入"];
+    $rootScope.navBarItems = ["首页", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理"];
     return app.rootScope = $rootScope;
   }
 ]);
@@ -1001,6 +1010,50 @@ app.filter("statusname", function() {
       }
     }
     return taskSource;
+  };
+}).filter("authstatus", function() {
+  return function(data) {
+    var authstr;
+    authstr = "未认证";
+    if (angular.isString(data)) {
+      switch (data) {
+        case "verifying":
+          authstr = "认证中";
+          break;
+        case "verified":
+          authstr = "已认证";
+          break;
+        case "refused":
+          authstr = "认证拒绝";
+      }
+    }
+    return authstr;
+  };
+}).filter("authclass", function() {
+  return function(data) {
+    var authclass;
+    authclass = {
+      "background-color": "#999999"
+    };
+    if (angular.isString(data)) {
+      switch (data) {
+        case "verifying":
+          authclass = {
+            "background-color": "#f0ad4e"
+          };
+          break;
+        case "verified":
+          authclass = {
+            "background-color": "#5cb85c"
+          };
+          break;
+        case "refused":
+          authclass = {
+            "background-color": "#d9534f"
+          };
+      }
+    }
+    return authclass;
   };
 });
 
@@ -1293,6 +1346,66 @@ articleimportController = app.controller('articleimportController', [
         return refreshinput();
       }
     };
+  }
+]);
+
+var authenticationController;
+
+authenticationController = app.controller('authenticationController', [
+  'app', '$scope', '$routeParams', '$rootScope', 'authService', function(app, $scope, $routeParams, $rootScope, authService) {
+    var authPost, authid, getAuthList, pageIndex, refreshmain;
+    if (!app.getCookie("isLogin")) {
+      window.location.href = "#/";
+      return;
+    }
+    pageIndex = 0;
+    authid = "";
+    refreshmain = function() {
+      if (window.location.href.indexOf('authdetail') > 0) {
+        authid = $routeParams.authid;
+        return authService.authinfo(authid).success(function(response) {
+          if (checkRequest(response)) {
+            return $scope.userinfo = response;
+          }
+        });
+      } else {
+        return getAuthList();
+      }
+    };
+    getAuthList = function() {
+      var authlistInfo;
+      authlistInfo = authService.getauthlist('', pageIndex, 50);
+      $scope.pagination = authlistInfo.pagination;
+      return $scope.authList = authlistInfo.authlist;
+    };
+    $scope.$on('genPagination', function(event, p) {
+      event.stopPropagation();
+      pageIndex = p;
+      return refreshmain();
+    });
+    authPost = function(status, type) {
+      var authStatus, authType;
+      authType = "idcard";
+      authStatus = status;
+      switch (type) {
+        case 1:
+          authType = "cert";
+          break;
+        case 2:
+          authType = "record";
+      }
+      return authService.authpost(authid, authType, authStatus).then(refreshmain);
+    };
+    $scope.approve = function(type) {
+      return authPost("verified", type);
+    };
+    $scope.cancel = function(type) {
+      return authPost("unverified", type);
+    };
+    $scope.reject = function(type) {
+      return authPost("refused", type);
+    };
+    return refreshmain();
   }
 ]);
 
@@ -1907,6 +2020,39 @@ userlistController = app.controller('userlistController', [
   }
 ]);
 
+app.factory('authq', [
+  '$http', function($http) {
+    return {
+      getauthlist: function(sort, page_index, page_count) {
+        return $http.get(Util.host + "/admin/user/auth/list", {
+          params: {
+            sort: sort,
+            page_index: page_index,
+            page_count: page_count,
+            access_token: userToken
+          }
+        });
+      },
+      authactionpost: function(userid, auth_type, auth_status) {
+        return $http.post(Util.host + "/admin/user/auth", {
+          userid: userid,
+          auth_type: auth_type,
+          auth_status: auth_status,
+          access_token: userToken
+        });
+      },
+      authinfo: function(userid) {
+        return $http.get(Util.host + "/admin/user/info", {
+          params: {
+            userid: userid,
+            access_token: userToken
+          }
+        });
+      }
+    };
+  }
+]);
+
 app.factory('taskService', [
   '$q', 'taskq', function($q, $taskq) {
     return {
@@ -2036,6 +2182,52 @@ app.factory('taskService', [
           }
         });
         return tasklistInfo;
+      }
+    };
+  }
+]);
+
+app.factory('authService', [
+  '$q', 'authq', function($q, $authq) {
+    return {
+      getauthlist: function(sort, page_index, page_count) {
+        var authlistinfo;
+        authlistinfo = {
+          'authlist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $authq.getauthlist(sort, page_index, page_count).success(function(response) {
+          var item, _i, _j, _len, _ref, _ref1, _results;
+          if (checkRequest(response)) {
+            _ref = response.users;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              authlistinfo.authlist.push(item);
+            }
+            authlistinfo.pagination.pageIndex = response.page_index;
+            authlistinfo.pagination.total = response.total_number;
+            authlistinfo.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return authlistinfo.pagination.pagetotal = response.page_total;
+          }
+        });
+        return authlistinfo;
+      },
+      authpost: function(userid, auth_type, auth_status) {
+        return $authq.authactionpost(userid, auth_type, auth_status).success(function(response) {
+          return console.log(response);
+        });
+      },
+      authinfo: function(userid) {
+        return $authq.authinfo(userid);
       }
     };
   }

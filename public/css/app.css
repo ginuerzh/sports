@@ -1785,6 +1785,11 @@ body{
 .filter{
 	display:table;
 	}
+
+.authimage{
+    width: 160px;
+    height: 150px;
+}
 	
 	
 	
