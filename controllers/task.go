@@ -74,6 +74,8 @@ func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Accoun
 	count, _ := user.TaskRecordCount(models.StatusFinish)
 	week := count / 7
 
+	var target, actual int
+
 	last, _ := user.LastTaskRecord()
 	// all weekly tasks are completed
 	if week > 0 && count%7 == 0 && last.PubTime.After(now.BeginningOfWeek()) {
@@ -97,12 +99,20 @@ func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Accoun
 			tasks[i].Result = fmt.Sprintf("你在%s游戏中得了%d分",
 				record.Game.Name, record.Game.Score)
 		}
+		if task.Type == models.TaskRunning {
+			target += task.Distance
+			if tasks[i].Status == models.StatusFinish && record.Sport != nil {
+				actual += record.Sport.Distance
+			}
+		}
 	}
 	//log.Println(tasks)
 	//random := rand.New(rand.NewSource(time.Now().Unix()))
 	respData := map[string]interface{}{
-		"week_id":   week + 1,
-		"task_list": tasks,
+		"week_id":              week + 1,
+		"task_list":            tasks,
+		"task_target_distance": target,
+		"task_actual_distance": actual,
 		//"week_desc": tips[random.Int()%len(tips)],
 	}
 

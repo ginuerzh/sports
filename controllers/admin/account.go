@@ -98,7 +98,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	if user.Actor != models.ActorAdmin && user.Privilege < 10 {
+	if user.Actor != models.ActorAdmin {
 		writeResponse(resp, errors.NewError(errors.AuthError, "未授权登录用户"))
 		return
 	}
@@ -276,6 +276,17 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		info.Lat = user.Loc.Lat
 		info.Lng = user.Loc.Lng
 	*/
+	if info.Auth != nil {
+		if info.Auth.IdCardTmp != nil {
+			info.Auth.IdCard = info.Auth.IdCardTmp
+		}
+		if info.Auth.CertTmp != nil {
+			info.Auth.Cert = info.Auth.CertTmp
+		}
+		if info.Auth.RecordTmp != nil {
+			info.Auth.Record = info.Auth.RecordTmp
+		}
+	}
 
 	return info
 }
@@ -406,6 +417,7 @@ func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *
 type getSearchListForm struct {
 	Userid    string `form:"userid"`
 	NickName  string `form:"nickname"`
+	Role      string `form:"role"`
 	Gender    string `form:"gender"`
 	Age       string `form:"age"`
 	BanStatus string `form:"ban_status"`
@@ -930,7 +942,8 @@ func userAuthHandler(r *http.Request, w http.ResponseWriter,
 		return
 	}
 
-	user := &models.Account{Id: form.Userid}
+	user := &models.Account{}
+	user.FindByUserid(form.Userid)
 	err := user.SetAuth(form.Type, form.Status)
 	writeResponse(w, err)
 }

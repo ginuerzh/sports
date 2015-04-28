@@ -610,11 +610,12 @@ type userJsonStruct struct {
 	CoverImage string       `json:"cover_image"`
 	Equips     models.Equip `json:"user_equipInfo"`
 
-	Wallet   string `json:"wallet"`
-	Relation string `json:"relation"`
-	LastLog  int64  `json:"last_login_time"`
-	Setinfo  bool   `json:"setinfo"`
-	Ban      int64  `json:"ban_time"`
+	Wallet   string           `json:"wallet"`
+	Relation string           `json:"relation"`
+	LastLog  int64            `json:"last_login_time"`
+	Setinfo  bool             `json:"setinfo"`
+	Ban      int64            `json:"ban_time"`
+	Auth     *models.UserAuth `json:"auth_info"`
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruct {
@@ -665,6 +666,7 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 		LastLog: user.LastLogin.Unix(),
 		Setinfo: user.Setinfo,
 		Ban:     user.TimeLimit,
+		//Auth:    user.Auth,
 	}
 
 	balance, _ := getBalance(user.Wallet.Addrs)
@@ -692,6 +694,18 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 
 	if user.Equips != nil {
 		info.Equips = *user.Equips
+	}
+
+	if info.Auth != nil {
+		if info.Auth.IdCard == nil {
+			info.Auth.IdCard = info.Auth.IdCardTmp
+		}
+		if info.Auth.Cert == nil {
+			info.Auth.Cert = info.Auth.CertTmp
+		}
+		if info.Auth.Record == nil {
+			info.Auth.Record = info.Auth.RecordTmp
+		}
 	}
 
 	return info
@@ -952,8 +966,10 @@ func getPropsHandler(r *http.Request, w http.ResponseWriter,
 	//user.Props.Wealth = redis.GetCoins(form.Uid)
 	balance, _ := getBalance(user.Wallet.Addrs)
 	var wealth int64
-	for _, b := range balance.Addrs {
-		wealth += (b.Confirmed + b.Unconfirmed)
+	if balance != nil {
+		for _, b := range balance.Addrs {
+			wealth += (b.Confirmed + b.Unconfirmed)
+		}
 	}
 	user.Props.Wealth = wealth
 	user.Props.Level = user.Level()
@@ -1492,11 +1508,22 @@ func userAuthStatusHandler(r *http.Request, w http.ResponseWriter,
 	record := models.AuthUnverified
 
 	if user.Auth != nil {
+		if user.Auth.IdCardTmp != nil {
+			idcard = user.Auth.IdCardTmp.Status
+		}
 		if user.Auth.IdCard != nil {
 			idcard = user.Auth.IdCard.Status
 		}
+
+		if user.Auth.CertTmp != nil {
+			cert = user.Auth.CertTmp.Status
+		}
 		if user.Auth.Cert != nil {
 			cert = user.Auth.Cert.Status
+		}
+
+		if user.Auth.RecordTmp != nil {
+			record = user.Auth.RecordTmp.Status
 		}
 		if user.Auth.Record != nil {
 			record = user.Auth.Record.Status
@@ -1534,13 +1561,22 @@ func userAuthInfoHandler(r *http.Request, w http.ResponseWriter,
 		if user.Auth.IdCard != nil {
 			info = user.Auth.IdCard
 		}
+		if user.Auth.IdCardTmp != nil {
+			info = user.Auth.IdCardTmp
+		}
 	case models.AuthCert:
 		if user.Auth.Cert != nil {
 			info = user.Auth.Cert
 		}
+		if user.Auth.CertTmp != nil {
+			info = user.Auth.CertTmp
+		}
 	case models.AuthRecord:
 		if user.Auth.Record != nil {
 			info = user.Auth.Record
+		}
+		if user.Auth.RecordTmp != nil {
+			info = user.Auth.RecordTmp
 		}
 	}
 

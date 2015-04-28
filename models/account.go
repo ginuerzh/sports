@@ -122,9 +122,12 @@ type GameTime struct {
 }
 
 type UserAuth struct {
-	IdCard *AuthInfo `bson:",omitempty" json:"idcard"`
-	Cert   *AuthInfo `bson:",omitempty" json:"cert"`
-	Record *AuthInfo `bson:",omitempty" json:"record"`
+	IdCard    *AuthInfo `bson:",omitempty" json:"idcard"`
+	IdCardTmp *AuthInfo `bson:",omitempty" json:"-"`
+	Cert      *AuthInfo `bson:",omitempty" json:"cert"`
+	CertTmp   *AuthInfo `bson:",omitempty" json:"-"`
+	Record    *AuthInfo `bson:",omitempty" json:"record"`
+	RecordTmp *AuthInfo `bson:",omitempty" json:"-"`
 }
 
 type AuthInfo struct {
@@ -2015,7 +2018,11 @@ func (this *Account) Txs(paging *Paging) (int, []Tx, error) {
 
 func GetAuthUserList(index, count int) (total int, users []Account, err error) {
 	query := bson.M{
-		"auth": bson.M{"$ne": nil},
+		"$or": []bson.M{
+			{"auth.idcardtmp": bson.M{"$ne": nil}},
+			{"auth.certtmp": bson.M{"$ne": nil}},
+			{"auth.recordtmp": bson.M{"$ne": nil}},
+		},
 	}
 	err = search(accountColl, query, nil, index*count, count, nil, &total, &users)
 	return
@@ -2029,15 +2036,15 @@ func (this *Account) SetAuthInfo(types string, images []string, desc string) err
 	switch types {
 	case AuthIdCard:
 		change = bson.M{
-			"$set": bson.M{"auth.idcard": authInfo},
+			"$set": bson.M{"auth.idcardtmp": authInfo},
 		}
 	case AuthCert:
 		change = bson.M{
-			"$set": bson.M{"auth.cert": authInfo},
+			"$set": bson.M{"auth.certtmp": authInfo},
 		}
 	case AuthRecord:
 		change = bson.M{
-			"$set": bson.M{"auth.record": authInfo},
+			"$set": bson.M{"auth.recordtmp": authInfo},
 		}
 	default:
 		return nil
@@ -2055,16 +2062,74 @@ func (this *Account) SetAuth(types string, status string) error {
 
 	switch types {
 	case AuthIdCard:
+		if this.Auth.IdCardTmp == nil {
+			return nil
+		}
 		change = bson.M{
-			"$set": bson.M{"auth.idcard.status": status},
+			"$set": bson.M{"auth.idcardtmp.status": status},
+		}
+		if status == AuthVerified && this.Auth.IdCardTmp != nil {
+			this.Auth.IdCardTmp.Status = AuthVerified
+			change = bson.M{
+				"$set":   bson.M{"auth.idcard": this.Auth.IdCardTmp},
+				"$unset": bson.M{"auth.idcardtmp": 1},
+			}
+			if this.Actor != ActorAdmin &&
+				(this.Auth.Cert.Status == AuthVerified || this.Auth.Record.Status == AuthVerified) {
+				change = bson.M{
+					"$set": bson.M{
+						"auth.idcard": this.Auth.IdCardTmp,
+						"actor":       ActorCoach,
+					},
+					"$unset": bson.M{"auth.idcardtmp": 1},
+				}
+			}
 		}
 	case AuthCert:
+		if this.Auth.CertTmp == nil {
+			return nil
+		}
 		change = bson.M{
-			"$set": bson.M{"auth.cert.status": status},
+			"$set": bson.M{"auth.certtmp.status": status},
+		}
+		if status == AuthVerified && this.Auth.CertTmp != nil {
+			this.Auth.CertTmp.Status = AuthVerified
+			change = bson.M{
+				"$set":   bson.M{"auth.cert": this.Auth.CertTmp},
+				"$unset": bson.M{"auth.certtmp": 1},
+			}
+			if this.Actor != ActorAdmin && this.Auth.IdCard.Status == AuthVerified {
+				change = bson.M{
+					"$set": bson.M{
+						"auth.cert": this.Auth.CertTmp,
+						"actor":     ActorCoach,
+					},
+					"$unset": bson.M{"auth.certtmp": 1},
+				}
+			}
 		}
 	case AuthRecord:
+		if this.Auth.RecordTmp == nil {
+			return nil
+		}
 		change = bson.M{
-			"$set": bson.M{"auth.record.status": status},
+			"$set": bson.M{"auth.recordtmp.status": status},
+		}
+		if status == AuthVerified && this.Auth.RecordTmp != nil {
+			this.Auth.RecordTmp.Status = AuthVerified
+			change = bson.M{
+				"$set":   bson.M{"auth.record": this.Auth.RecordTmp},
+				"$unset": bson.M{"auth.recordtmp": 1},
+			}
+			if this.Actor != ActorAdmin && this.Auth.IdCard.Status == AuthVerified {
+				change = bson.M{
+					"$set": bson.M{
+						"auth.record": this.Auth.RecordTmp,
+						"actor":       ActorCoach,
+					},
+					"$unset": bson.M{"auth.recordtmp": 1},
+				}
+			}
 		}
 	default:
 		return nil
