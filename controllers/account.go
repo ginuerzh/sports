@@ -666,7 +666,7 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 		LastLog: user.LastLogin.Unix(),
 		Setinfo: user.Setinfo,
 		Ban:     user.TimeLimit,
-		//Auth:    user.Auth,
+		Auth:    user.Auth,
 	}
 
 	balance, _ := getBalance(user.Wallet.Addrs)
