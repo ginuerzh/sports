@@ -152,7 +152,7 @@ type Account struct {
 	Role       string   `bson:",omitempty"`
 	Height     int      `bson:",omitempty"`
 	Weight     int      `bson:",omitempty"`
-	Actor      string   `bson:",omitempty"`
+	Actor      string   `bson:",omitempty"` // admin, coach
 	Url        string   `bson:",omitempty"`
 	About      string   `bson:",omitempty"`
 	Addr       *Address `bson:",omitempty"`
@@ -184,7 +184,7 @@ type Account struct {
 	Auth *UserAuth `bson:",omitempty"`
 
 	TimeLimit int64 `bson:"timelimit"`
-	Privilege int   // 5-10: coach, 10+: admin
+	Privilege int
 	Setinfo   bool
 	Push      bool
 }
@@ -1947,10 +1947,10 @@ func (this *Account) SetGameTime(typ int, t time.Time) error {
 	return nil
 }
 
-func (this *Account) SetPrivilege(privilege int) error {
+func (this *Account) SetActor(actor string) error {
 	change := bson.M{
 		"$set": bson.M{
-			"privilege": privilege,
+			"actor": actor,
 		},
 	}
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
@@ -2075,7 +2075,8 @@ func (this *Account) SetAuth(types string, status string) error {
 				"$unset": bson.M{"auth.idcardtmp": 1},
 			}
 			if this.Actor != ActorAdmin &&
-				(this.Auth.Cert.Status == AuthVerified || this.Auth.Record.Status == AuthVerified) {
+				((this.Auth.Cert != nil && this.Auth.Cert.Status == AuthVerified) ||
+					(this.Auth.Record != nil && this.Auth.Record.Status == AuthVerified)) {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.idcard": this.Auth.IdCardTmp,
@@ -2098,7 +2099,8 @@ func (this *Account) SetAuth(types string, status string) error {
 				"$set":   bson.M{"auth.cert": this.Auth.CertTmp},
 				"$unset": bson.M{"auth.certtmp": 1},
 			}
-			if this.Actor != ActorAdmin && this.Auth.IdCard.Status == AuthVerified {
+			if this.Actor != ActorAdmin &&
+				(this.Auth.IdCard != nil && this.Auth.IdCard.Status == AuthVerified) {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.cert": this.Auth.CertTmp,
@@ -2121,7 +2123,8 @@ func (this *Account) SetAuth(types string, status string) error {
 				"$set":   bson.M{"auth.record": this.Auth.RecordTmp},
 				"$unset": bson.M{"auth.recordtmp": 1},
 			}
-			if this.Actor != ActorAdmin && this.Auth.IdCard.Status == AuthVerified {
+			if this.Actor != ActorAdmin &&
+				(this.Auth.IdCard != nil && this.Auth.IdCard.Status == AuthVerified) {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.record": this.Auth.RecordTmp,

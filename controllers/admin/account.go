@@ -37,7 +37,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/admin/user/search", binding.Form(getSearchListForm{}), adminErrorHandler, getSearchListHandler)
 	m.Get("/admin/user/friendship", binding.Form(getUserFriendsForm{}), adminErrorHandler, getUserFriendsHandler)
 	m.Post("/admin/user/ban", binding.Json(banUserForm{}), adminErrorHandler, banUserHandler)
-	m.Get("/admin/setpriv", binding.Form(setPrivilegeForm{}), setPrivilegeHandler)
+	m.Get("/admin/user/set_actor", binding.Form(setActorForm{}), setActorHandler)
 	m.Get("/admin/user/auth/list", binding.Form(userAuthListForm{}), userAuthListHandler)
 	m.Post("/admin/user/auth", binding.Json(userAuthForm{}), userAuthHandler)
 	m.Options("/admin/user/auth", optionsHandler)
@@ -46,23 +46,19 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	//m.Post("/admin/user/update", binding.Json(userInfoForm{}), adminErrorHandler, updateUserInfoHandler)
 }
 
-type setPrivilegeForm struct {
+type setActorForm struct {
 	Id    string `form:"id"`
-	Priv  int    `form:"p"`
+	Actor string `form:"actor"`
 	Token string `form:"access_token"`
 }
 
-func setPrivilegeHandler(w http.ResponseWriter, form setPrivilegeForm) {
-	if len(form.Token) == 0 || form.Token != "1234567890" {
-		writeResponse(w, errors.NewError(errors.AuthError, "未授权访问"))
-		return
-	}
+func setActorHandler(w http.ResponseWriter, form setActorForm) {
 	user := &models.Account{Id: form.Id}
-	err := user.SetPrivilege(form.Priv)
+	err := user.SetActor(form.Actor)
 	if err != nil {
 		writeResponse(w, err)
 	}
-	writeResponse(w, map[string]interface{}{"id": user.Id, "privilege": form.Priv})
+	writeResponse(w, map[string]interface{}{"id": user.Id, "actor": form.Actor})
 }
 
 // admin login parameter
