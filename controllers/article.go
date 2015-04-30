@@ -331,6 +331,11 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
 	}
+	t := ""
+	if len(form.Parent) > 0 {
+		t = models.ArticleComment
+	}
+	redis.AddPost(user.Id, t, 1)
 
 	if err := GiveAwards(user, awards, redis); err != nil {
 		log.Println(err)
@@ -524,6 +529,7 @@ func articleListHandler(request *http.Request, resp http.ResponseWriter,
 	} else {
 		excludes := redis.Friends(models.RelFollowing, user.Id)
 		excludes = append(excludes, redis.Friends(models.RelBlacklist, user.Id)...)
+		excludes = append(excludes, user.Id)
 		recommends, _ := user.Recommend(excludes)
 		ids := []string{}
 		for i, _ := range recommends {

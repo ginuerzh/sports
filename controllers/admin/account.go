@@ -47,7 +47,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 }
 
 type setActorForm struct {
-	Id    string `form:"id"`
+	Id    string `form:"userid"`
 	Actor string `form:"actor"`
 	Token string `form:"access_token"`
 }
@@ -58,7 +58,7 @@ func setActorHandler(w http.ResponseWriter, form setActorForm) {
 	if err != nil {
 		writeResponse(w, err)
 	}
-	writeResponse(w, map[string]interface{}{"id": user.Id, "actor": form.Actor})
+	writeResponse(w, map[string]interface{}{"userid": user.Id, "actor": form.Actor})
 }
 
 // admin login parameter

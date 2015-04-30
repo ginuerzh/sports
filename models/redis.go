@@ -14,15 +14,35 @@ import (
 
 const (
 	redisPrefix             = "sports"
-	redisStatVisitorPrefix  = redisPrefix + ":stat:visitors:"  // set per day
-	redisStatPvPrefix       = redisPrefix + ":stat:pv:"        // sorted set per day
-	redisStatRegisterPrefix = redisPrefix + ":stat:registers:" // set per day, register users per day
-	redisStatLoginPrefix    = redisPrefix + ":stat:logins:"    // set per day, login users per day
+	redisStatVisitorPrefix  = redisPrefix + ":stat:visitors:"       // set per day
+	redisStatPvPrefix       = redisPrefix + ":stat:pv:"             // sorted set per day
+	redisStatRegisterPrefix = redisPrefix + ":stat:registers:"      // set per day, register users per day
+	redisStatRegPhonePrefix = redisPrefix + ":stat:register:phone:" // set per day, phone register users per day
+	redisStatRegEmailPrefix = redisPrefix + ":stat:register:email:" // set per day, email register users per day
+	redisStatRegWeiboPrefix = redisPrefix + ":stat:register:weibo:" // set per day, weibo register users per day
+	redisStatLoginPrefix    = redisPrefix + ":stat:logins:"         // set per day, login users per day
+	//redisStatOnlinesPrefix      = redisPrefix + ":stat:onlines:"        // set per day, online users per day
+	redisStatOnlines            = redisPrefix + ":stat:onlines"      // set, current online users
+	redisStatUserArticlesPrefix = redisPrefix + ":stat:articles:"    // sorted set per day, user articles per day, user:articless
+	redisStatUserCommentsPrefix = redisPrefix + ":stat:comments:"    // sorted set per day, user comments per day, user:comments
+	redisStatUserPostsPrefix    = redisPrefix + ":stat:posts:"       // sorted set per day, user posts per day, user:posts
+	redisStatPosts              = redisPrefix + ":stat:posts"        // sorted set, total posts per day
+	redisStatUserTotalArticles  = redisPrefix + ":stat:articles"     // sorted set, total user articles
+	redisStatUserTotalComments  = redisPrefix + ":stat:comments"     // sorted set, total user comments
+	redisStatUserTotalPosts     = redisPrefix + ":stat:posts"        // sorted set, total user posts (articles + comments)
+	redisStatGamersPrefix       = redisPrefix + ":stat:gamers:"      // sorted set per day, game time per day (gamer:time)
+	redisStatTotalGamers        = redisPrefix + ":stat:gamers"       // sorted set, total game time
+	redisStatGameTime           = redisPrefix + ":stat:gametime"     // sorted set, total game time per day
+	redisStatUserRecordsPrefix  = redisPrefix + ":stat:records:"     // sorted set per day, user records per day
+	redisStatUserTotalRecords   = redisPrefix + ":stat:records"      // sorted set total user records
+	redisStatAuthCoachesPrefix  = redisPrefix + ":stat:authcoaches:" // set per day, auth coaches per day
+	redisStatUserCoinsPrefix    = redisPrefix + ":stat:coins:"       // sorted set per day, coins send by system per day
+	redisStatCoins              = redisPrefix + ":stat:coins"        // sorted set, total coins sended per day
 
-	redisUserOnlinesPrefix = redisPrefix + ":user:onlines:" // set per half an hour, current online users
-	redisUserTokens        = redisPrefix + ":user:tokens"   // hash, online user token <->userid
-	RedisUserInfoPrefix    = redisPrefix + ":user:info:"    // hashs per user, user's event box at now
-	RedisUserCoins         = redisPrefix + ":user:coins"    // sorted set
+	//redisUserOnlinesPrefix = redisPrefix + ":user:onlines:" // set per half an hour, current online users
+	redisUserTokens     = redisPrefix + ":user:tokens" // hash, online user token <->userid
+	RedisUserInfoPrefix = redisPrefix + ":user:info:"  // hashs per user, user's event box at now
+	RedisUserCoins      = redisPrefix + ":user:coins"  // sorted set
 	//redisUserGuest            = redisPrefix + ":user:guest"    // hashes for all guests
 	//redisUserMessagePrefix    = redisPrefix + ":user:msgs:"         // list per user
 	redisUserFollowPrefix    = redisPrefix + ":user:follow:"       // set per user
@@ -127,45 +147,6 @@ func (logger *RedisLogger) PubMsg(typ string, to string, msg []byte) {
 	}
 }
 
-/*
-func (logger *RedisLogger) Users() int {
-	count, _ := redis.Int(logger.conn.Do("HLEN", redisUserGuest))
-	return count
-}
-*/
-// log register users per day
-func (logger *RedisLogger) LogRegister(userid string) {
-	logger.conn.Do("SADD", redisStatRegisterPrefix+DateString(time.Now()), userid)
-}
-func (logger *RedisLogger) LogLogin(userid string) {
-	logger.conn.Do("SADD", redisStatLoginPrefix+DateString(time.Now()), userid)
-}
-
-func (logger *RedisLogger) RegisterCount(days int) []int64 {
-	return logger.setsCount(redisStatRegisterPrefix, days)
-}
-
-func (logger *RedisLogger) LoginCount(days int) []int64 {
-	return logger.setsCount(redisStatLoginPrefix, days)
-}
-
-func (logger *RedisLogger) Retention(date time.Time) []int {
-	conn := logger.conn
-
-	counts := make([]int, 8)
-
-	counts[0], _ = redis.Int(conn.Do("SCARD", redisStatRegisterPrefix+DateString(date)))
-	d := date.AddDate(0, 0, 1)
-	for i := 0; i < 7; i++ {
-		s, _ := redis.Strings(conn.Do("SINTER", redisStatRegisterPrefix+DateString(date),
-			redisStatLoginPrefix+DateString(d)))
-		counts[i+1] = len(s)
-		d = d.AddDate(0, 0, 1)
-	}
-
-	return counts
-}
-
 func onlineTimeString() string {
 	now := time.Now()
 	min := now.Minute()
@@ -176,30 +157,6 @@ func onlineTimeString() string {
 	}
 	return now.Format("200601021504")
 }
-
-/*
-type redisUser struct {
-	Userid    string  `redis:"userid"`
-	Nickname  string  `redis:"nickname"`
-	Profile   string  `redis:"profile"`
-	RegTime   int64   `redis:"reg_time"`
-	Role      string  `redis:"role"`
-	Lng       float64 `redis:"lng"`
-	Lat       float64 `redis:"lat"`
-	SetInfo   bool    `redis:"setinfo"`
-	WalletId  string  `redis:"wallet_id"`
-	Sharedkey string  `redis:"shared_key"`
-	Addr      string  `redis:"recv_addr"`
-	Addrs     string  `redis:"addrs"`
-	Physical  int64   `redis:"physical"`
-	Literal   int64   `redis:"literal"`
-	Mental    int64   `redis:"mental"`
-	Wealth    int64   `redis:"wealth"`
-	Score     int64   `redis:"score"`
-	Level     int64   `redis:"level"`
-	TimeLimit int64   `redis:"timelimit"`
-}
-*/
 
 func (logger *RedisLogger) OnlineUser(token string) (id string) {
 	conn := logger.conn
@@ -214,15 +171,6 @@ func (logger *RedisLogger) SetOnlineUser(token string, userid string) {
 	}
 
 	logger.conn.Do("HSET", redisUserTokens, token, userid)
-}
-
-func (logger *RedisLogger) SetOnline(userid string) {
-	conn := logger.conn
-	t := onlineTimeString()
-	conn.Send("MULTI")
-	conn.Send("SADD", redisUserOnlinesPrefix+t, userid)
-	conn.Send("EXPIRE", redisUserOnlinesPrefix+t, onlinesExpire)
-	conn.Do("EXEC")
 }
 
 func (logger *RedisLogger) Relationship(userid, peer string) string {
@@ -368,22 +316,23 @@ func (logger *RedisLogger) DelOnlineUser(token string) {
 	userid, _ := redis.String(conn.Do("HGET", redisUserTokens, token))
 	conn.Send("MULTI")
 	conn.Send("HDEL", redisUserTokens, token)
-	conn.Send("SREM", redisUserOnlinesPrefix+onlineTimeString(), userid)
+	//conn.Send("SREM", redisUserOnlinesPrefix+onlineTimeString(), userid)
+	conn.Send("SREM", redisStatOnlines, userid)
 	conn.Do("EXEC")
 }
 
 func (logger *RedisLogger) IsOnline(userid string) bool {
 	conn := logger.conn
-	online, _ := redis.Bool(conn.Do("SISMEMBER", redisUserOnlinesPrefix+onlineTimeString(), userid))
+	online, _ := redis.Bool(conn.Do("SISMEMBER", redisStatOnlines, userid))
 	return online
 }
 
 func (logger *RedisLogger) Onlines() int {
-	count, _ := redis.Int(logger.conn.Do("SCARD", redisUserOnlinesPrefix+onlineTimeString()))
+	count, _ := redis.Int(logger.conn.Do("SCARD", redisStatOnlines))
 	return count
 }
 
-func (logger *RedisLogger) setsCount(key string, days int) []int64 {
+func (logger *RedisLogger) scards(key string, days int) []int64 {
 	if days <= 0 {
 		days = 1
 	}
@@ -398,6 +347,36 @@ func (logger *RedisLogger) setsCount(key string, days int) []int64 {
 	for i := 1; i < days; i++ {
 		t = t.Add(d)
 		conn.Send("SCARD", key+DateString(t))
+	}
+	values, err := redis.Values(conn.Do("EXEC"))
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	counts := make([]int64, len(values))
+	for i, v := range values {
+		counts[i], _ = v.(int64)
+	}
+
+	return counts
+}
+
+func (logger *RedisLogger) zcards(key string, days int) []int64 {
+	if days <= 0 {
+		days = 1
+	}
+
+	t := time.Now()
+	d, _ := time.ParseDuration("-24h")
+
+	conn := logger.conn
+
+	conn.Send("MULTI")
+	conn.Send("ZCARD", key+DateString(t))
+	for i := 1; i < days; i++ {
+		t = t.Add(d)
+		conn.Send("ZCARD", key+DateString(t))
 	}
 	values, err := redis.Values(conn.Do("EXEC"))
 	if err != nil {
@@ -466,7 +445,7 @@ func (logger *RedisLogger) LogVisitor(user string) {
 }
 
 func (logger *RedisLogger) VisitorsCount(days int) []int64 {
-	return logger.setsCount(redisStatVisitorPrefix, days)
+	return logger.scards(redisStatVisitorPrefix, days)
 }
 
 // log pv per day
@@ -812,11 +791,18 @@ func (logger *RedisLogger) GetCoins(userid string) int64 {
 	return coins
 }
 
-func (logger *RedisLogger) AddCoins(userid string, value int64) {
-	if value == 0 {
+func (logger *RedisLogger) SendCoins(userid string, coins int64) {
+	if coins <= 0 {
 		return
 	}
-	logger.conn.Do("ZINCRBY", RedisUserCoins, value, userid)
+	sdate := DateString(time.Now())
+
+	conn := logger.conn
+	conn.Send("MULTI")
+	conn.Send("ZINCRBY", RedisUserCoins, coins, userid)
+	conn.Send("ZINCRBY", redisStatUserCoinsPrefix+sdate, coins, userid)
+	conn.Send("ZINCRBY", redisStatCoins, coins, sdate)
+	conn.Send("EXEC")
 }
 
 func (logger *RedisLogger) Transaction(from, to string, amount int64) {
@@ -874,7 +860,7 @@ func (logger *RedisLogger) GameScores(typ int, skip, limit int) []KV {
 	return logger.zrange(lbGameKey(typ), skip, skip+limit-1, true)
 }
 
-func (logger *RedisLogger) UserGameScores(typ int, userids ...string) []int {
+func (logger *RedisLogger) UserGameScores(typ int, userids ...string) []int64 {
 	return logger.zscores(lbGameKey(typ), userids...)
 }
 
@@ -886,7 +872,7 @@ func (logger *RedisLogger) GameUserCount(typ int) int {
 	return logger.zcard(lbGameKey(typ))
 }
 
-func (logger *RedisLogger) zscores(key string, members ...string) (scores []int) {
+func (logger *RedisLogger) zscores(key string, members ...string) (scores []int64) {
 	conn := logger.conn
 
 	if len(members) == 0 {
@@ -954,4 +940,185 @@ func (logger *RedisLogger) zrevrank(key string, members ...string) (ranks []int)
 func (logger *RedisLogger) zcard(key string) int {
 	n, _ := redis.Int(logger.conn.Do("ZCARD", key))
 	return n
+}
+
+func (logger *RedisLogger) SetOnline(userid string, add bool) {
+	conn := logger.conn
+	//t := onlineTimeString()
+	conn.Send("MULTI")
+	//conn.Send("SADD", redisUserOnlinesPrefix+t, userid)
+	//conn.Send("EXPIRE", redisUserOnlinesPrefix+t, onlinesExpire)
+	if add {
+		//conn.Send("SADD", redisStatOnlinesPrefix+DateString(time.Now()), userid)
+		conn.Send("SADD", redisStatOnlines, userid)
+	} else {
+		conn.Send("SREM", redisStatOnlines, userid)
+	}
+	conn.Do("EXEC")
+}
+
+/*
+func (logger *RedisLogger) OnlineUsersCount(days int) []int64 {
+	t := time.Now()
+	d, _ := time.ParseDuration("-24h")
+
+	members := []string{DateString(t)}
+	for i := 1; i < days; i++ {
+		t = t.Add(d)
+		members = append(members, DateString(t))
+	}
+	return logger.zscores(redisStatOnlinesPrefix, members...)
+}
+*/
+// stats
+// log register users per day
+func (logger *RedisLogger) LogRegister(userid, types string) {
+	sdate := DateString(time.Now())
+
+	conn := logger.conn
+	conn.Send("MULTI")
+	switch types {
+	case AccountEmail:
+		conn.Send("SADD", redisStatRegEmailPrefix+sdate, userid)
+	case AccountPhone:
+		conn.Send("SADD", redisStatRegPhonePrefix+sdate, userid)
+	case AccountWeibo:
+		conn.Send("SADD", redisStatRegWeiboPrefix+sdate, userid)
+	}
+	conn.Send("SADD", redisStatRegisterPrefix+sdate, userid)
+	conn.Do("EXEC")
+}
+
+func (logger *RedisLogger) RegisterCount(days int, types string) []int64 {
+	key := redisStatRegisterPrefix
+
+	switch types {
+	case AccountEmail:
+		key = redisStatRegEmailPrefix
+	case AccountPhone:
+		key = redisStatRegPhonePrefix
+	case AccountWeibo:
+		key = redisStatRegWeiboPrefix
+	}
+	return logger.scards(key, days)
+}
+
+func (logger *RedisLogger) LogLogin(userid string) {
+	logger.conn.Do("SADD", redisStatLoginPrefix+DateString(time.Now()), userid)
+}
+
+func (logger *RedisLogger) LoginCount(days int) []int64 {
+	return logger.scards(redisStatLoginPrefix, days)
+}
+
+func (logger *RedisLogger) AddPost(userid, types string, count int) {
+	sdate := DateString(time.Now())
+
+	conn := logger.conn
+	conn.Send("MULTI")
+
+	switch types {
+	case "comment":
+		conn.Send("ZINCRBY", redisStatUserCommentsPrefix+sdate, count, userid)
+		conn.Send("ZINCRBY", redisStatUserTotalComments, count, userid)
+	case "article":
+		fallthrough
+	default:
+		conn.Send("ZINCRBY", redisStatUserArticlesPrefix+sdate, count, userid)
+		conn.Send("ZINCRBY", redisStatUserTotalArticles, count, userid)
+	}
+	conn.Send("ZINCRBY", redisStatUserPostsPrefix+sdate, count, userid)
+	conn.Send("ZINCRBY", redisStatUserTotalPosts, count, userid)
+	conn.Send("ZINCRBY", redisStatPosts, count, sdate)
+
+	conn.Send("EXEC")
+}
+func (logger *RedisLogger) PostUserCount(days int) []int64 {
+	return logger.zcards(redisStatUserPostsPrefix, days)
+}
+func (logger *RedisLogger) PostsCount(days int) []int64 {
+	t := time.Now()
+	d, _ := time.ParseDuration("-24h")
+
+	members := []string{DateString(t)}
+	for i := 1; i < days; i++ {
+		t = t.Add(d)
+		members = append(members, DateString(t))
+	}
+	return logger.zscores(redisStatPosts, members...)
+}
+
+func (logger *RedisLogger) AddGameTime(userid string, seconds int) {
+	sdate := DateString(time.Now())
+	conn := logger.conn
+	conn.Send("MULTI")
+
+	conn.Send("ZINCRBY", redisStatGamersPrefix+sdate, seconds, userid)
+	conn.Send("ZINCRBY", redisStatGameTime, seconds, sdate)
+	conn.Send("ZINCRBY", redisStatTotalGamers, seconds, userid)
+	conn.Send("EXEC")
+}
+func (logger *RedisLogger) GamersCount(days int) []int64 {
+	return logger.zcards(redisStatGamersPrefix, days)
+}
+func (logger *RedisLogger) GameTime(days int) []int64 {
+	t := time.Now()
+	d, _ := time.ParseDuration("-24h")
+
+	members := []string{DateString(t)}
+	for i := 1; i < days; i++ {
+		t = t.Add(d)
+		members = append(members, DateString(t))
+	}
+	return logger.zscores(redisStatGameTime, members...)
+}
+
+func (logger *RedisLogger) AddRecord(userid string, count int) {
+	sdate := DateString(time.Now())
+
+	conn := logger.conn
+	conn.Send("MULTI")
+
+	conn.Send("ZINCRBY", redisStatUserRecordsPrefix+sdate, count, userid)
+	conn.Send("ZINCRBY", redisStatUserTotalRecords, count, userid)
+	conn.Send("EXEC")
+}
+func (logger *RedisLogger) RecordUsersCount(days int) []int64 {
+	return logger.zcards(redisStatUserRecordsPrefix, days)
+}
+
+func (logger *RedisLogger) AddAuthCoach(userid string) {
+	logger.conn.Do("SADD", redisStatAuthCoachesPrefix+DateString(time.Now()), userid)
+}
+func (logger *RedisLogger) AuthCoachesCount(days int) []int64 {
+	return logger.scards(redisStatAuthCoachesPrefix, days)
+}
+
+func (logger *RedisLogger) CoinsCount(days int) []int64 {
+	t := time.Now()
+	d, _ := time.ParseDuration("-24h")
+
+	members := []string{DateString(t)}
+	for i := 1; i < days; i++ {
+		t = t.Add(d)
+		members = append(members, DateString(t))
+	}
+	return logger.zscores(redisStatCoins, members...)
+}
+
+func (logger *RedisLogger) Retention(date time.Time) []int {
+	conn := logger.conn
+
+	counts := make([]int, 8)
+
+	counts[0], _ = redis.Int(conn.Do("SCARD", redisStatRegisterPrefix+DateString(date)))
+	d := date.AddDate(0, 0, 1)
+	for i := 0; i < 7; i++ {
+		s, _ := redis.Strings(conn.Do("SINTER", redisStatRegisterPrefix+DateString(date),
+			redisStatLoginPrefix+DateString(d)))
+		counts[i+1] = len(s)
+		d = d.AddDate(0, 0, 1)
+	}
+
+	return counts
 }

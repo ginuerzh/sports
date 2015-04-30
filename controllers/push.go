@@ -111,7 +111,9 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		return
 	}
 
-	redisLogger.SetOnline(user.Id)
+	redisLogger.SetOnline(user.Id, true)
+	defer redisLogger.SetOnline(user.Id, false)
+
 	redisLogger.LogVisitor(user.Id)
 
 	psc := redisLogger.PubSub(user.Id)

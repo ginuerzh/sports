@@ -186,7 +186,7 @@ func GiveAwards(user *models.Account, awards Awards, redis *models.RedisLogger) 
 	if _, err := sendCoin(user.Wallet.Addr, awards.Wealth); err != nil {
 		return err
 	}
-	redis.AddCoins(user.Id, awards.Wealth)
+	redis.SendCoins(user.Id, awards.Wealth)
 
 	return user.UpdateProps(models.Props{
 		Physical: awards.Physical,

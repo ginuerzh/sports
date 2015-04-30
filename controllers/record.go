@@ -149,13 +149,15 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		GiveAwards(user, awards, redis)
 
 		rec.Game = &models.GameRecord{
-			Type:  form.Record.GameType,
-			Name:  form.Record.GameName,
-			Score: form.Record.GameScore,
-			Magic: int(awards.Mental),
+			Type:     form.Record.GameType,
+			Name:     form.Record.GameName,
+			Duration: form.Record.Duration,
+			Score:    form.Record.GameScore,
+			Magic:    int(awards.Mental),
 		}
 		rec.Coin = awards.Wealth
 
+		redis.AddGameTime(user.Id, int(form.Record.Duration))
 		redis.SetGameMaxScore(gameType(rec.Game.Type), user.Id, rec.Game.Score)
 		user.SetGameTime(gameType(rec.Game.Type), time.Now())
 
@@ -184,6 +186,8 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			rec.Sport.Speed = float64(form.Record.Distance) / float64(form.Record.Duration)
 		}
 		rec.Status = models.StatusAuth
+
+		redis.AddRecord(user.Id, 1)
 		/*
 			if len(form.Record.Source) > 0 {
 				level := user.Level()
@@ -275,6 +279,7 @@ type leaderboardResp struct {
 	Level    int64  `json:"rankLevel"`
 	Gender   string `json:"sex_type"`
 	Birth    int64  `json:"birthday"`
+	Actor    string `json:"actor"`
 	models.Location
 	LastLog  int64  `json:"recent_login_time"`
 	Addr     string `json:"locaddr"`
@@ -341,6 +346,7 @@ func leaderboardHandler(request *http.Request, resp http.ResponseWriter,
 			lb[i].Profile = friends[i].Profile
 			lb[i].Nickname = friends[i].Nickname
 			lb[i].Gender = friends[i].Gender
+			lb[i].Actor = friends[i].Actor
 			lb[i].LastLog = friends[i].LastLogin.Unix()
 			lb[i].Birth = friends[i].Birth
 			lb[i].Location = friends[i].Loc
@@ -529,13 +535,13 @@ func gamelbHandler(r *http.Request, w http.ResponseWriter,
 
 		scores := redis.UserGameScores(gt, ids...)
 		if len(scores) != len(ids) {
-			scores = make([]int, len(ids))
+			scores = make([]int64, len(ids))
 		}
 
 		kvs = make([]models.KV, len(ids))
 		for i, _ := range kvs {
 			kvs[i].K = ids[i]
-			kvs[i].V = int64(scores[i])
+			kvs[i].V = scores[i]
 			if ids[i] == user.Id {
 				kvs[i].V = int64(form.Score)
 			}
@@ -552,7 +558,7 @@ func gamelbHandler(r *http.Request, w http.ResponseWriter,
 	default:
 		maxScore := 0
 		if scores := redis.UserGameScores(gt, user.Id); len(scores) == 1 {
-			maxScore = scores[0]
+			maxScore = int(scores[0])
 		}
 		redis.SetGameScore(gt, user.Id, form.Score) // current score
 		kvs = redis.GameScores(gt, form.Index*form.Count, form.Count)
@@ -581,6 +587,7 @@ func gamelbHandler(r *http.Request, w http.ResponseWriter,
 					Level:    users[i].Level(),
 					Profile:  users[i].Profile,
 					Nickname: users[i].Nickname,
+					Actor:    users[i].Actor,
 					Gender:   users[i].Gender,
 					LastLog:  users[i].LastGameTime(gt).Unix(),
 					Birth:    users[i].Birth,

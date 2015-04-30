@@ -18,8 +18,9 @@ const (
 )
 
 const (
-	ArticleCoach  = "coach"
-	ArticleRecord = "record"
+	ArticleCoach   = "coach"
+	ArticleRecord  = "record"
+	ArticleComment = "comment"
 )
 
 type Segment struct {

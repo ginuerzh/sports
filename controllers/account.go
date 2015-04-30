@@ -127,8 +127,9 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		loadUserHandler,
 		searchHandler)
 	m.Get("/1/user/articles",
-		binding.Form(userArticlesForm{}),
+		binding.Form(userArticlesForm{}, (*Parameter)(nil)),
 		ErrorHandler,
+		checkTokenHandler,
 		userArticlesHandler)
 	m.Post("/1/user/importContacts",
 		binding.Json(importContactsForm{}, (*Parameter)(nil)),
@@ -236,11 +237,11 @@ func regHandlerV2(request *http.Request, resp http.ResponseWriter,
 	}
 
 	switch form.Type {
-	case "phone":
+	case models.AccountPhone:
 		user.Phone = form.Id
-	case "weibo":
+	case models.AccountWeibo:
 		user.Weibo = form.Id
-	case "email":
+	case models.AccountEmail:
 		fallthrough
 	default:
 		user.Email = form.Id
@@ -255,7 +256,7 @@ func regHandlerV2(request *http.Request, resp http.ResponseWriter,
 	data := map[string]string{"access_token": token, "userid": user.Id}
 	writeResponse(request.RequestURI, resp, data, nil)
 
-	redis.LogRegister(user.Id)
+	redis.LogRegister(user.Id, form.Type)
 	redis.SetOnlineUser(token, user.Id)
 
 	// ws push
@@ -340,10 +341,10 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 	t := ""
 	if phone, _ := strconv.ParseUint(form.Email, 10, 64); phone > 0 {
 		user.Phone = form.Email
-		t = "phone"
+		t = models.AccountPhone
 	} else {
 		user.Email = strings.ToLower(form.Email)
-		t = "email"
+		t = models.AccountEmail
 	}
 
 	if exists, _ := user.Exists(t); exists {
@@ -368,7 +369,7 @@ func registerHandler(request *http.Request, resp http.ResponseWriter, redis *mod
 		data := map[string]string{"access_token": token, "userid": user.Id}
 		writeResponse(request.RequestURI, resp, data, nil)
 
-		redis.LogRegister(user.Id)
+		redis.LogRegister(user.Id, t)
 		redis.SetOnlineUser(token, user.Id)
 
 		// ws push
@@ -435,7 +436,7 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 	user.Profile = weiboUser.Avatar
 	//user.Addr = &models.Address{Desc: weiboUser.Location}
 	user.About = weiboUser.Description
-	user.Role = "weibo"
+	user.Role = models.AccountWeibo
 	user.RegTime = time.Now()
 
 	dbw, err := getNewWallet()
@@ -449,7 +450,7 @@ func weiboLogin(uid, password string, redis *models.RedisLogger) (bool, *models.
 			return true, nil, err
 		}
 	}
-	redis.LogRegister(user.Id)
+	redis.LogRegister(user.Id, user.Role)
 
 	// ws push
 	regNotice(user.Id, redis)
@@ -1090,19 +1091,20 @@ func importFriendsHandler(r *http.Request, w http.ResponseWriter,
 }
 */
 type userArticlesForm struct {
-	Id    string `form:"userid" binding:"required"`
-	Type  string `form:"article_type"`
-	Token string `form:"access_token"`
+	Id   string `form:"userid" binding:"required"`
+	Type string `form:"article_type"`
 	models.Paging
+	parameter
 }
 
 func userArticlesHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, form userArticlesForm) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(userArticlesForm)
 
-	user := &models.Account{}
-	user.FindByUserid(form.Id)
-	author := convertUser(user, redis)
-	_, articles, err := user.Articles(form.Type, &form.Paging)
+	u := &models.Account{}
+	u.FindByUserid(form.Id)
+	author := convertUser(u, redis)
+	_, articles, err := u.Articles(form.Type, &form.Paging)
 
 	jsonStructs := make([]*articleJsonStruct, len(articles))
 	for i, _ := range articles {
@@ -1254,7 +1256,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 
 	gt := gameType(form.Type)
 	if scores := redis.UserGameScores(gt, user.Id); len(scores) == 1 {
-		respData.Score = scores[0]
+		respData.Score = int(scores[0])
 	}
 	redis.SetGameScore(gt, user.Id, form.Score) // current score
 
@@ -1306,12 +1308,12 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 		scores := redis.UserGameScores(gt, ids...)
 
 		if len(scores) != len(ids) {
-			scores = make([]int, total)
+			scores = make([]int64, total)
 		}
 		kvs = make([]models.KV, total+1)
 		for i, _ := range ids {
 			kvs[i].K = ids[i]
-			kvs[i].V = int64(scores[i])
+			kvs[i].V = scores[i]
 			if ids[i] == user.Id {
 				kvs[i].V = int64(form.Score)
 			}
@@ -1486,10 +1488,12 @@ type authRequestForm struct {
 }
 
 func userAuthRequestHandler(r *http.Request, w http.ResponseWriter,
-	user *models.Account, p Parameter) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 
 	form := p.(authRequestForm)
 	err := user.SetAuthInfo(form.Type, form.Images, form.Desc)
+	redis.AddAuthCoach(user.Id)
+
 	writeResponse(r.RequestURI, w, nil, err)
 }
 

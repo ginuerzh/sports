@@ -78,7 +78,7 @@ func getTasksHandler(r *http.Request, w http.ResponseWriter, user *models.Accoun
 
 	last, _ := user.LastTaskRecord()
 	// all weekly tasks are completed
-	if week > 0 && count%7 == 0 && last.PubTime.After(now.BeginningOfWeek()) {
+	if week > 0 && count%7 == 0 && last.AuthTime.After(now.BeginningOfWeek()) {
 		week -= 1
 	}
 	//log.Println("week", week)

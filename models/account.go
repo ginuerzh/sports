@@ -21,6 +21,12 @@ const (
 )
 
 const (
+	AccountEmail = "email"
+	AccountPhone = "phone"
+	AccountWeibo = "weibo"
+)
+
+const (
 	AuthIdCard = "idcard"
 	AuthCert   = "cert"
 	AuthRecord = "record"
@@ -214,11 +220,11 @@ func (this *Account) Exists(t string) (bool, error) {
 	var query bson.M
 
 	switch t {
-	case "weibo":
+	case AccountWeibo:
 		query = bson.M{"weibo": this.Weibo}
-	case "email":
+	case AccountEmail:
 		query = bson.M{"email": this.Email}
-	case "phone":
+	case AccountPhone:
 		query = bson.M{"phone": this.Phone}
 	case "nickname":
 		query = bson.M{"nickname": this.Nickname}
@@ -234,11 +240,11 @@ func CheckUserExists(id, types string) (bool, error) {
 	var query bson.M
 
 	switch types {
-	case "weibo":
+	case AccountWeibo:
 		query = bson.M{"weibo": id}
-	case "email":
+	case AccountEmail:
 		query = bson.M{"email": id}
-	case "phone":
+	case AccountPhone:
 		query = bson.M{"phone": id}
 	case "nickname":
 		query = bson.M{"nickname": id}
@@ -254,13 +260,13 @@ func (this *Account) Find(id, types string) (bool, error) {
 	var query bson.M
 
 	switch types {
-	case "email":
+	case AccountEmail:
 		query = bson.M{"email": id}
-	case "phone":
+	case AccountPhone:
 		query = bson.M{"phone": id}
 	case "nickname":
 		query = bson.M{"nickname": id}
-	case "weibo":
+	case AccountWeibo:
 		query = bson.M{"weibo": id}
 	default:
 		query = bson.M{"_id": id}
@@ -276,13 +282,13 @@ func (this *Account) FindPass(id, types, password string) (bool, error) {
 	query := bson.M{"password": password}
 
 	switch types {
-	case "email":
+	case AccountEmail:
 		query["email"] = id
-	case "phone":
+	case AccountPhone:
 		query["phone"] = id
 	case "nickname":
 		query["nickname"] = id
-	case "weibo":
+	case AccountWeibo:
 		query["weibo"] = id
 	default:
 		query["_id"] = id
@@ -1263,7 +1269,7 @@ func (this *Account) LastTaskRecord() (*Record, error) {
 		},
 	}
 	record := &Record{}
-	err := findOne(recordColl, query, []string{"-pub_time"}, record)
+	err := findOne(recordColl, query, []string{"-auth_time"}, record)
 
 	return record, err
 }

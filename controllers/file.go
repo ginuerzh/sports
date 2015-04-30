@@ -5,11 +5,18 @@ import (
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
+	"github.com/nfnt/resize"
 	weedo "gopkg.in/ginuerzh/weedo.v0"
 	"gopkg.in/go-martini/martini.v1"
 	//"io"
 	"time"
 	//"labix.org/v2/mgo/bson"
+	"bytes"
+	"golang.org/x/image/bmp"
+	"image"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -20,9 +27,16 @@ var (
 	//weedfs = weedo.NewClient("localhost:9334")
 )
 
+func init() {
+	image.RegisterFormat("jpeg", "\xff\xd8", jpeg.Decode, jpeg.DecodeConfig)
+	image.RegisterFormat("png", "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A", png.Decode, png.DecodeConfig)
+	image.RegisterFormat("gif", "\x47\x49\x46\x38\x39\x61", gif.Decode, gif.DecodeConfig)
+	image.RegisterFormat("bmp", "\x42\x4D", bmp.Decode, bmp.DecodeConfig)
+}
+
 func BindFileApi(m *martini.ClassicMartini) {
 	m.Post("/1/file/upload",
-		binding.Form(fileUploadForm{}, (*Parameter)(nil)),
+		binding.Form(fileUploadForm{}),
 		//ErrorHandler,
 		//checkTokenHandler,
 		fileUploadHandler)
@@ -36,6 +50,8 @@ func BindFileApi(m *martini.ClassicMartini) {
 }
 
 type fileUploadForm struct {
+	Width  int `form:"width"`
+	Height int `form:"height"`
 	parameter
 }
 
@@ -52,7 +68,18 @@ func fileUploadHandler2(request *http.Request, resp http.ResponseWriter,
 }
 
 func fileUploadHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger /*, user *models.Account*/) {
+	redis *models.RedisLogger /*, user *models.Account*/, form fileUploadForm) {
+	user := &models.Account{}
+
+	if len(form.Token) > 0 {
+		id := redis.OnlineUser(form.Token)
+		if find, _ := user.FindByUserid(id); !find {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.NotFoundError))
+			return
+		}
+	}
+
+	var file models.File
 
 	filedata, header, err := request.FormFile("filedata")
 	if err != nil {
@@ -61,30 +88,77 @@ func fileUploadHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 
-	fid, length, err := Weedfs.Master().Submit(header.Filename, header.Header.Get("Content-Type"), filedata)
-	if err != nil {
-		writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
-		return
+	if form.Width > 0 || form.Height > 0 {
+		img, _, err := image.Decode(filedata)
+		if err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.InvalidFileError))
+			return
+		}
+
+		fid, err := Weedfs.Master().AssignN(2)
+		if err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
+			return
+		}
+		file.Fid = fid
+
+		thumbnail := resize.Thumbnail(uint(form.Width), uint(form.Height), img, resize.MitchellNetravali)
+		vol, err := Weedfs.Volume(fid, "")
+		if err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		if err := jpeg.Encode(buf, thumbnail, nil); err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
+			return
+		}
+
+		length, err := vol.Upload(fid, 0, header.Filename, "image/jpeg", buf)
+		if err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
+			return
+		}
+		file.Length = length
+
+		filedata.Seek(0, 0)
+		if _, err := vol.Upload(fid, 1, header.Filename, header.Header.Get("Content-Type"), filedata); err != nil {
+			log.Println(err)
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
+			return
+		}
+	} else {
+		fid, length, err := Weedfs.Master().Submit(header.Filename, header.Header.Get("Content-Type"), filedata)
+		if err != nil {
+			writeResponse(request.RequestURI, resp, nil, errors.NewError(errors.FileUploadError))
+			return
+		}
+		//log.Println(fid, length, header.Filename, header.Header.Get("Content-Type"))
+
+		file.Fid = fid
+		file.Length = length
 	}
-	//log.Println(fid, length, header.Filename, header.Header.Get("Content-Type"))
 
 	filedata.Seek(0, 0)
 
-	var file models.File
-	file.Fid = fid
 	file.Name = header.Filename
 	file.ContentType = header.Header.Get("Content-Type")
-	file.Length = length
 	file.Md5 = FileMd5(filedata)
-	//file.Owner = user.Id
+	file.Owner = user.Id
 	file.UploadDate = time.Now()
 	if err := file.Save(); err != nil {
 		writeResponse(request.RequestURI, resp, nil, err)
 		return
 	}
 
-	url, _, _ := Weedfs.GetUrl(fid)
-	respData := map[string]interface{}{"fileid": fid, "fileurl": url}
+	url, _, _ := Weedfs.GetUrl(file.Fid)
+	respData := map[string]interface{}{"fileid": file.Fid, "fileurl": url}
 
 	writeResponse(request.RequestURI, resp, respData, nil)
 }

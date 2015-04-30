@@ -31,11 +31,12 @@ type SportRecord struct {
 }
 
 type GameRecord struct {
-	Type  string
-	Name  string
-	Score int
-	Magic int
-	Coin  int64
+	Type     string
+	Name     string
+	Duration int64
+	Score    int
+	Magic    int
+	Coin     int64
 }
 
 type Record struct {
@@ -50,6 +51,7 @@ type Record struct {
 	Game      *GameRecord  `bson:",omitempty"`
 	Coin      int64
 	PubTime   time.Time `bson:"pub_time"`
+	AuthTime  time.Time `bson:"auth_time,omitempty"`
 }
 
 func (this *Record) findOne(query interface{}) (bool, error) {
@@ -81,6 +83,7 @@ func (this *Record) SetStatus(status string, review string, coin int64) error {
 			"status":       status,
 			"sport.review": review,
 			"coin":         coin,
+			"auth_time":    time.Now(),
 		},
 	}
 	if err := update(recordColl, query, change, true); err != nil {
