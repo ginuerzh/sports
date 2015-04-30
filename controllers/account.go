@@ -655,9 +655,9 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 			Physical: user.Props.Physical,
 			Literal:  user.Props.Literal,
 			Mental:   user.Props.Mental,
-			//Wealth:   redis.GetCoins(user.Id),
-			Score: user.Props.Score,
-			Level: user.Level(),
+			Wealth:   redis.GetCoins(user.Id),
+			Score:    user.Props.Score,
+			Level:    user.Level(),
 		},
 
 		Photos:     user.Photos,
