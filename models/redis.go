@@ -243,9 +243,9 @@ func (logger *RedisLogger) ImportFriend(userid, friend string) {
 	conn.Do("SREM", redisUserWBImportPrefix+friend, userid)
 }
 */
-func (logger *RedisLogger) Friends(typ string, userid string) (users []string) {
+func (logger *RedisLogger) Friends(types string, userid string) (users []string) {
 	var key string
-	switch typ {
+	switch types {
 	case RelFollowing:
 		key = redisUserFollowPrefix + userid
 	case RelFollower:

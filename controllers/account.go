@@ -558,6 +558,7 @@ func recommendHandler(r *http.Request, w http.ResponseWriter,
 			Location: users[i].Loc,
 			Addr:     users[i].LocAddr,
 			Phone:    users[i].Phone,
+			Actor:    users[i].Actor,
 		}
 		lb.Distance, _ = redis.RecStats(users[i].Id)
 		lb.Status = users[i].LatestArticle().Title
@@ -1026,6 +1027,7 @@ func searchHandler(r *http.Request, w http.ResponseWriter,
 			Birth:    users[i].Birth,
 			Location: users[i].Loc,
 			Phone:    users[i].Phone,
+			Actor:    users[i].Actor,
 		}
 		list = append(list, lb)
 	}
@@ -1293,6 +1295,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 					Birth:    users[i].Birth,
 					Location: users[i].Loc,
 					Phone:    users[i].Phone,
+					Actor:    users[i].Actor,
 				})
 				index++
 
@@ -1354,6 +1357,7 @@ func gameResultHandler(r *http.Request, w http.ResponseWriter,
 						Birth:    users[i].Birth,
 						Location: users[i].Loc,
 						Phone:    users[i].Phone,
+						Actor:    users[i].Actor,
 					})
 					index++
 
@@ -1461,6 +1465,7 @@ func userLeaderBoardHandler(r *http.Request, w http.ResponseWriter, form userlbF
 			Birth:    users[i].Birth,
 			Location: users[i].Loc,
 			Phone:    users[i].Phone,
+			Actor:    users[i].Actor,
 		}
 		switch form.Type {
 		case "physique":

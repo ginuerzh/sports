@@ -244,6 +244,7 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter,
 		lb[i].Birth = users[i].Birth
 		lb[i].Location = users[i].Loc
 		lb[i].Phone = users[i].Phone
+		lb[i].Actor = users[i].Actor
 	}
 
 	respData := map[string]interface{}{

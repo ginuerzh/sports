@@ -1343,40 +1343,60 @@ func UserCount() (n int) {
 	return
 }
 
-func Users(ids []string, paging *Paging) ([]Account, error) {
-	var users []Account
-	total := 0
+func Users(ids []string, paging *Paging) (users []Account, err error) {
+	//total := 0
+	index := 0
+	limit := DefaultPageSize
+	if paging.Count > 0 {
+		limit = paging.Count
+	}
 
+	if len(paging.First) > 0 {
+		index, _ = strconv.Atoi(paging.First)
+		index -= DefaultPageSize
+		if index < 0 {
+			index = 0
+		}
+	} else if len(paging.Last) > 0 {
+		index, _ = strconv.Atoi(paging.Last)
+	}
+
+	query := bson.M{"_id": bson.M{"$in": ids}}
 	sortFields := []string{"-props.score", "-_id"}
+	err = search(accountColl, query, nil, index, limit, sortFields, nil, &users)
 
-	if err := psearch(accountColl, nil, bson.M{"contacts": 0}, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
-		e := errors.NewError(errors.DbError, err.Error())
-		if err == mgo.ErrNotFound {
-			e = errors.NewError(errors.NotFoundError, err.Error())
+	paging.First = strconv.Itoa(index)
+	paging.Last = strconv.Itoa(index + len(users))
+	/*
+		if err := psearch(accountColl, nil, bson.M{"contacts": 0}, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
+			e := errors.NewError(errors.DbError, err.Error())
+			if err == mgo.ErrNotFound {
+				e = errors.NewError(errors.NotFoundError, err.Error())
+			}
+			return nil, e
 		}
-		return nil, e
-	}
 
-	for i := 0; i < len(users); i++ {
-		if users[i].Id == paging.First {
-			users = users[:i]
-			break
-		} else if users[i].Id == paging.Last {
-			users = users[i+1:]
-			break
+		for i := 0; i < len(users); i++ {
+			if users[i].Id == paging.First {
+				users = users[:i]
+				break
+			} else if users[i].Id == paging.Last {
+				users = users[i+1:]
+				break
+			}
 		}
-	}
 
-	paging.First = ""
-	paging.Last = ""
-	paging.Count = 0
-	if len(users) > 0 {
-		paging.First = users[0].Id
-		paging.Last = users[len(users)-1].Id
-		paging.Count = total
-	}
+		paging.First = ""
+		paging.Last = ""
+		paging.Count = 0
+		if len(users) > 0 {
+			paging.First = users[0].Id
+			paging.Last = users[len(users)-1].Id
+			paging.Count = total
+		}
+	*/
 
-	return users, nil
+	return
 }
 
 func (this *Account) ArticleCount() (count int) {
