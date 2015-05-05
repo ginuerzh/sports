@@ -154,7 +154,8 @@ type userInfoJsonStruct struct {
 
 	Email   string `json:"email"`
 	Phone   string `json:"phone"`
-	Type    string `json:"role"`
+	Actor   string `json:"actor"`
+	Role    string `json:"role"`
 	About   string `json:"about"`
 	Profile string `json:"profile"`
 	RegTime int64  `json:"reg_time"`
@@ -204,7 +205,8 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		Nickname: user.Nickname,
 		Email:    user.Email,
 		Phone:    user.Phone,
-		Type:     user.Role,
+		Role:     user.Role,
+		Actor:    user.Actor,
 		About:    user.About,
 		Profile:  user.Profile,
 		RegTime:  user.RegTime.Unix(),
@@ -329,85 +331,87 @@ type userListJsonStruct struct {
 	TotalNumber int `json:"total_number"`
 }
 
-func getUserListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserListForm) {
+func getUserListHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form getUserListForm) {
 	valid, errT := checkToken(redis, form.Token)
 	if !valid {
-		writeResponse(resp, errT)
+		writeResponse(w, errT)
 		return
 	}
 
-	getCount := form.Count
-	if getCount == 0 {
-		getCount = defaultCount
+	count := form.Count
+	if count == 0 {
+		count = defaultCount
 	}
-	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
-	//count, users, err := models.GetUserListBySort(0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
 
-	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
-	count, users, err := models.GetUserListBySort(form.Page*getCount, getCount, form.Sort, "", "")
-	if err != nil {
-		writeResponse(resp, err)
-		return
+	total, users, _ := models.GetUserListBySort(form.Page*count, count, form.Sort)
+
+	list := make([]*userInfoJsonStruct, len(users))
+	for i, _ := range users {
+		list[i] = convertUser(&users[i], redis)
 	}
-	countvalid := len(users)
-	//log.Println("countvalid is :", countvalid)
+
+	totalPage := total / count
+	if total%count != 0 {
+		totalPage++
+	}
+
+	info := &userListJsonStruct{
+		Users:       list,
+		Page:        form.Page,
+		PageTotal:   totalPage,
+		TotalNumber: total,
+	}
+
+	writeResponse(w, info)
+
 	/*
-		if countvalid == 0 {
+		getCount := form.Count
+		if getCount == 0 {
+			getCount = defaultCount
+		}
+		//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
+		//count, users, err := models.GetUserListBySort(0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
+
+		//log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
+		count, users, err := models.GetUserListBySort(form.Page*getCount, getCount, form.Sort, "", "")
+		if err != nil {
 			writeResponse(resp, err)
 			return
 		}
-	*/
-	list := make([]*userInfoJsonStruct, countvalid)
-	for i, user := range users {
-		list[i] = convertUser(&user, redis)
-	}
-	/*
-		var pc, nc string
-		switch form.Sort {
-		case "logintime":
-			pc = strconv.FormatInt(list[0].LastLog, 10)
-			nc = strconv.FormatInt(list[count-1].LastLog, 10)
-		case "userid":
-			pc = list[0].Userid
-			nc = list[count-1].Userid
-		case "nickname":
-			pc = list[0].Nickname
-			nc = list[count-1].Nickname
-		case "score":
-			pc = strconv.FormatInt(list[0].Score, 10)
-			nc = strconv.FormatInt(list[count-1].Score, 10)
-		case "regtime":
-			fallthrough
-		default:
-			pc = strconv.FormatInt(list[0].RegTime, 10)
-			nc = strconv.FormatInt(list[count-1].RegTime, 10)
+		countvalid := len(users)
+		//log.Println("countvalid is :", countvalid)
+
+		list := make([]*userInfoJsonStruct, countvalid)
+		for i, user := range users {
+			list[i] = convertUser(&user, redis)
+		}
+
+		totalPage := count / getCount
+		if count%getCount != 0 {
+			totalPage++
+		}
+		if countvalid == 0 {
+			info := &userListJsonStruct{
+				Users:     list,
+				Page:      form.Page,
+				PageTotal: totalPage,
+				//NextCursor:  "",
+				//PrevCursor:  "",
+				TotalNumber: count,
+			}
+			writeResponse(resp, info)
+		} else {
+			info := &userListJsonStruct{
+				Users:     list,
+				Page:      form.Page,
+				PageTotal: totalPage,
+				//NextCursor:  list[countvalid-1].Userid,
+				//PrevCursor:  list[0].Userid,
+				TotalNumber: count,
+			}
+			writeResponse(resp, info)
 		}
 	*/
-	totalPage := count / getCount
-	if count%getCount != 0 {
-		totalPage++
-	}
-	if countvalid == 0 {
-		info := &userListJsonStruct{
-			Users:     list,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//NextCursor:  "",
-			//PrevCursor:  "",
-			TotalNumber: count,
-		}
-		writeResponse(resp, info)
-	} else {
-		info := &userListJsonStruct{
-			Users:     list,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//NextCursor:  list[countvalid-1].Userid,
-			//PrevCursor:  list[0].Userid,
-			TotalNumber: count,
-		}
-		writeResponse(resp, info)
-	}
 }
 
 type getSearchListForm struct {

@@ -23,6 +23,7 @@ const (
 	redisStatLoginPrefix    = redisPrefix + ":stat:logins:"         // set per day, login users per day
 	//redisStatOnlinesPrefix      = redisPrefix + ":stat:onlines:"        // set per day, online users per day
 	redisStatOnlines            = redisPrefix + ":stat:onlines"      // set, current online users
+	redisStatOnlineTime         = redisPrefix + ":stat:onlinetime"   // sorted set, users total online time
 	redisStatUserArticlesPrefix = redisPrefix + ":stat:articles:"    // sorted set per day, user articles per day, user:articless
 	redisStatUserCommentsPrefix = redisPrefix + ":stat:comments:"    // sorted set per day, user comments per day, user:comments
 	redisStatUserPostsPrefix    = redisPrefix + ":stat:posts:"       // sorted set per day, user posts per day, user:posts
@@ -942,7 +943,7 @@ func (logger *RedisLogger) zcard(key string) int {
 	return n
 }
 
-func (logger *RedisLogger) SetOnline(userid string, add bool) {
+func (logger *RedisLogger) SetOnline(userid string, add bool, duration int64) {
 	conn := logger.conn
 	//t := onlineTimeString()
 	conn.Send("MULTI")
@@ -953,8 +954,13 @@ func (logger *RedisLogger) SetOnline(userid string, add bool) {
 		conn.Send("SADD", redisStatOnlines, userid)
 	} else {
 		conn.Send("SREM", redisStatOnlines, userid)
+		conn.Send("ZINCRBY", redisStatOnlineTime, duration, userid)
 	}
 	conn.Do("EXEC")
+}
+
+func (logger *RedisLogger) UserTotalOnlineTime(skip, limit int, desc bool) (kv []KV) {
+	return logger.zrange(redisStatOnlineTime, skip, skip+limit-1, desc)
 }
 
 /*
@@ -1047,6 +1053,9 @@ func (logger *RedisLogger) PostsCount(days int) []int64 {
 	}
 	return logger.zscores(redisStatPosts, members...)
 }
+func (logger *RedisLogger) UserTotalPosts(skip, limit int, desc bool) (kv []KV) {
+	return logger.zrange(redisStatUserTotalPosts, skip, skip+limit-1, desc)
+}
 
 func (logger *RedisLogger) AddGameTime(userid string, seconds int) {
 	sdate := DateString(time.Now())
@@ -1072,6 +1081,9 @@ func (logger *RedisLogger) GameTime(days int) []int64 {
 	}
 	return logger.zscores(redisStatGameTime, members...)
 }
+func (logger *RedisLogger) UserTotalGameTime(skip, limit int, desc bool) (kv []KV) {
+	return logger.zrange(redisStatTotalGamers, skip, skip+limit-1, desc)
+}
 
 func (logger *RedisLogger) AddRecord(userid string, count int) {
 	sdate := DateString(time.Now())
@@ -1085,6 +1097,9 @@ func (logger *RedisLogger) AddRecord(userid string, count int) {
 }
 func (logger *RedisLogger) RecordUsersCount(days int) []int64 {
 	return logger.zcards(redisStatUserRecordsPrefix, days)
+}
+func (logger *RedisLogger) UserTotalRecords(skip, limit int, desc bool) (kv []KV) {
+	return logger.zrange(redisStatUserTotalRecords, skip, skip+limit-1, desc)
 }
 
 func (logger *RedisLogger) AddAuthCoach(userid string) {

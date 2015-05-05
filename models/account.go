@@ -37,6 +37,15 @@ const (
 	AuthRefused    = "refused"
 )
 
+const (
+	StatOnlineTime = "onlinetime"
+	StatRecords    = "records"
+	StatArticles   = "articles"
+	StatComments   = "comments"
+	StatPosts      = "posts"
+	StatGameTime   = "gametime"
+)
+
 func init() {
 	//dur, _ = time.ParseDuration("-30h") // auto logout after 15 minutes since last access
 
@@ -142,6 +151,15 @@ type AuthInfo struct {
 	Status string   `bson:",omitempty" json:"auth_status"`
 }
 
+type UserStat struct {
+	OnlineTime int
+	Records    int
+	Articles   int
+	Comments   int
+	Posts      int
+	GameTime   int
+}
+
 type Account struct {
 	Id       string `bson:"_id,omitempty"`
 	Email    string
@@ -193,6 +211,8 @@ type Account struct {
 	Privilege int
 	Setinfo   bool
 	Push      bool
+
+	Stat *UserStat `bson:",omitempty"`
 }
 
 func (this *Account) Level() int64 {
@@ -777,11 +797,11 @@ func UserLeaderBoard(types string, paging *Paging) (users []Account, err error) 
 }
 
 // This function returns users after preCursor or nextCursor sorted by sortOrder. The return count total should not be more than limit.
-func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
+func GetUserListBySort(skip, limit int, sort string) (total int, users []Account, err error) {
 
 	var sortby string
 
-	switch sortOrder {
+	switch sort {
 	case "logintime":
 		sortby = "lastlogin"
 	case "-logintime":
@@ -814,6 +834,22 @@ func GetUserListBySort(skip, limit int, sortOrder, preCursor, nextCursor string)
 		sortby = "timelimit"
 	case "-ban":
 		sortby = "-timelimit"
+	case "-onlinetime":
+		sortby = "-stat.onlinetime"
+	case "onlinetime":
+		sortby = "stat.onlinetime"
+	case "-record":
+		sortby = "-stat.records"
+	case "record":
+		sortby = "stat.records"
+	case "-post":
+		sortby = "-stat.posts"
+	case "post":
+		sortby = "stat.posts"
+	case "-gametime":
+		sortby = "-stat.gametime"
+	case "gametime":
+		sortby = "stat.gametime"
 	default:
 		sortby = "-reg_time"
 	}
@@ -2159,6 +2195,39 @@ func (this *Account) SetAuth(types string, status string) error {
 					"$unset": bson.M{"auth.recordtmp": 1},
 				}
 			}
+		}
+	default:
+		return nil
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+
+	return nil
+}
+
+func (this *Account) UpdateStat(types string, count int64) error {
+	var change bson.M
+
+	switch types {
+	case StatOnlineTime:
+		change = bson.M{"$inc": bson.M{"stat.onlinetime": count}}
+	case StatArticles:
+		change = bson.M{
+			"$inc": bson.M{"stat.articles": count, "stat.posts": count},
+		}
+	case StatComments:
+		change = bson.M{
+			"$inc": bson.M{"stat.comments": count, "stat.posts": count},
+		}
+	case StatRecords:
+		change = bson.M{
+			"$inc": bson.M{"stat.records": count},
+		}
+	case StatGameTime:
+		change = bson.M{
+			"$inc": bson.M{"stat.gametime": count},
 		}
 	default:
 		return nil

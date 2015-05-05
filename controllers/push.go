@@ -111,9 +111,8 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		return
 	}
 
-	redisLogger.SetOnline(user.Id, true)
-	defer redisLogger.SetOnline(user.Id, false)
-
+	redisLogger.SetOnline(user.Id, true, 0)
+	start := time.Now()
 	redisLogger.LogVisitor(user.Id)
 
 	psc := redisLogger.PubSub(user.Id)
@@ -223,4 +222,8 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 			return
 		}
 	}
+
+	dur := int64(time.Since(start) * time.Second)
+	redisLogger.SetOnline(user.Id, false, dur)
+	user.UpdateStat(models.StatOnlineTime, dur)
 }

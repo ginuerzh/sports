@@ -332,10 +332,13 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		return
 	}
 	t := ""
+	stat := models.StatArticles
 	if len(form.Parent) > 0 {
 		t = models.ArticleComment
+		stat = models.StatComments
 	}
 	redis.AddPost(user.Id, t, 1)
+	user.UpdateStat(stat, 1)
 
 	if err := GiveAwards(user, awards, redis); err != nil {
 		log.Println(err)

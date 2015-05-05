@@ -158,6 +158,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		rec.Coin = awards.Wealth
 
 		redis.AddGameTime(user.Id, int(form.Record.Duration))
+		user.UpdateStat(models.StatGameTime, form.Record.Duration)
 		redis.SetGameMaxScore(gameType(rec.Game.Type), user.Id, rec.Game.Score)
 		user.SetGameTime(gameType(rec.Game.Type), time.Now())
 
@@ -188,6 +189,7 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		rec.Status = models.StatusAuth
 
 		redis.AddRecord(user.Id, 1)
+		user.UpdateStat(models.StatRecords, 1)
 		/*
 			if len(form.Record.Source) > 0 {
 				level := user.Level()
