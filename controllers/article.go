@@ -223,6 +223,9 @@ func articleCover(contents []models.Segment) (text string, images []string) {
 	for _, seg := range contents {
 		if len(text) == 0 && strings.ToUpper(seg.ContentType) == "TEXT" {
 			text = seg.ContentText
+			if a := strings.Split(text, "\n"); len(a[0]) > 0 {
+				text = a[0]
+			}
 		}
 		if strings.ToUpper(seg.ContentType) == "IMAGE" {
 			images = append(images, seg.ContentText)
@@ -240,18 +243,19 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		Contents: form.Contents,
 		PubTime:  time.Now(),
 		Parent:   form.Parent,
-		Tags:     form.Tags,
-		Loc:      form.Location,
-		Type:     form.Type,
+		//Tags:     form.Tags,
+		Loc:  form.Location,
+		Type: form.Type,
 	}
 	article.Title, article.Images = articleCover(form.Contents)
 	if len(article.Images) > 0 {
 		article.Image = article.Images[0]
 	}
-
-	if len(article.Tags) == 0 {
-		article.Tags = []string{"SPORT_LOG"}
-	}
+	/*
+		if len(article.Tags) == 0 {
+			article.Tags = []string{"SPORT_LOG"}
+		}
+	*/
 
 	awards := Awards{}
 	parent := &models.Article{}

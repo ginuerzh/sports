@@ -152,12 +152,12 @@ type AuthInfo struct {
 }
 
 type UserStat struct {
-	OnlineTime int
-	Records    int
-	Articles   int
-	Comments   int
-	Posts      int
-	GameTime   int
+	OnlineTime int `json:"onlinetime"`
+	Records    int `json:"records"`
+	Articles   int `json:"articles"`
+	Comments   int `json:"comments"`
+	Posts      int `json:"posts"`
+	GameTime   int `json:"gametime"`
 }
 
 type Account struct {

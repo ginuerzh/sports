@@ -197,6 +197,8 @@ type userInfoJsonStruct struct {
 	BanStatus string `json:"ban_status"`
 
 	Auth *models.UserAuth `json:"auth"`
+
+	Stat *models.UserStat `json:"stat"`
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonStruct {
@@ -236,6 +238,8 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		LastLog: user.LastLogin.Unix(),
 
 		Auth: user.Auth,
+
+		Stat: user.Stat,
 	}
 
 	if len(info.Gender) == 0 {
@@ -317,9 +321,9 @@ type getUserListForm struct {
 	Sort string `form:"sort"`
 	//NextCursor string `form:"next_cursor"`
 	//PrevCursor string `form:"prev_cursor"`
-	Token string `form:"access_token" binding:"required"`
-	Count int    `form:"page_count"`
-	Page  int    `form:"page_index"`
+	//Token string `form:"access_token" binding:"required"`
+	Count int `form:"page_count"`
+	Page  int `form:"page_index"`
 }
 
 type userListJsonStruct struct {
@@ -332,12 +336,13 @@ type userListJsonStruct struct {
 }
 
 func getUserListHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form getUserListForm) {
-	valid, errT := checkToken(redis, form.Token)
-	if !valid {
-		writeResponse(w, errT)
-		return
-	}
-
+	/*
+		valid, errT := checkToken(redis, form.Token)
+		if !valid {
+			writeResponse(w, errT)
+			return
+		}
+	*/
 	count := form.Count
 	if count == 0 {
 		count = defaultCount

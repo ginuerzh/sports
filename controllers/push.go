@@ -111,16 +111,16 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		return
 	}
 
-	redisLogger.SetOnline(user.Id, true, 0)
-	start := time.Now()
 	redisLogger.LogVisitor(user.Id)
-
 	psc := redisLogger.PubSub(user.Id)
 
 	go func(conn *websocket.Conn) {
 		//wg.Add(1)
 		//defer log.Println("ws thread closed")
 		//defer wg.Done()
+		redisLogger.SetOnline(user.Id, true, 0)
+		start := time.Now()
+
 		defer psc.Close()
 
 		for {
@@ -128,6 +128,10 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 			err := conn.ReadJSON(event)
 			if err != nil {
 				//log.Println(err)
+
+				dur := int64(time.Since(start) / time.Second)
+				redisLogger.SetOnline(user.Id, false, dur)
+				user.UpdateStat(models.StatOnlineTime, dur)
 				return
 			}
 			//log.Println("recv msg:", event.Type)
@@ -222,8 +226,4 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 			return
 		}
 	}
-
-	dur := int64(time.Since(start) * time.Second)
-	redisLogger.SetOnline(user.Id, false, dur)
-	user.UpdateStat(models.StatOnlineTime, dur)
 }
