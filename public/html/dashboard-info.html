@@ -1,0 +1,187 @@
+<div class="main-bg" ng-controller="dashboardController">
+    <div class="row"><h2 class="col-md-12">统计管理</h2></div>
+    <div class="row">
+        <div class="col-md-6">
+            <table >
+                <tr>
+                    <td >
+                        <p id="page-text">统计天数:&nbsp&nbsp</p>
+                    </td>
+                    <td >
+                        <div class="dropdown">
+                            <button class="btn btn-default dropdown-toggle" type="button" id="dropdownMenu1" data-toggle="dropdown">
+                                {{dropdowmItems[selectindex]}}
+                                <span class="caret"></span>
+                            </button>
+                            <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+                                <li role="presentation" ng-repeat="item in dropdowmItems"><a role="menuitem" tabindex="-1" href="#/0" ng-click="countPageChange($index)" target="_self">{{item}}</a></li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <p>用户人数：{{summary.users}}&nbsp&nbsp&nbsp在线用户人数：{{summary.onlines}}&nbsp&nbsp&nbsp在线教练人数：{{summary.online_coaches}}</p>
+
+    <div class="row">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>新邮箱注册用户数</th>
+                    <th>微博注册用户数</th>
+                    <th>手机用户注册数</th>
+                    <th>发帖人数</th>
+                    <th>在线用户人数</th>
+                    <th>在线教练人数</th>
+                    <th>玩游戏人数</th>
+                    <th>玩游戏总时长</th>
+                    <th>提交运动纪录人数</th>
+                    <th>申请认证教练人数</th>
+                    <th>发放贝币总数</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr ng-repeat="user in summary.summarylist">
+                    <td>{{user.dateTime |date : 'yyyy-MM-dd'}}</td>
+                    <td>{{user.reg_email}}</a></td>
+                    <td>{{user.reg_weibo}}</td>
+                    <td>{{user.reg_phone}}</td>
+                    <td>{{user.post_users}}</td>
+                    <td>{{user.logins}}</td>
+                    <td>{{user.coach_logins}}</td>
+                    <td>{{user.gamers}}</td>
+                    <td>{{user.game_time}}</td>
+                    <td>{{user.record_users}}</td>
+                    <td>{{user.auth_coaches}}</td>
+                    <td>{{user.coins/100000000}}</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="dashboard-rightSide">
+        <div class="">
+            <ul role="tablist" class="nav nav-tabs" id="dashboardTab">
+                <li class="active" role="presentation"><a aria-expanded="true" aria-controls="user" data-toggle="tab" role="tab" id="user-tab"  href="#user" target="_self">用户在线排行榜</a></li>
+                <li role="presentation" class=""><a aria-controls="report" data-toggle="tab" id="report-tab"  role="tab" href="#report" aria-expanded="false" target="_self">提交运动纪录排行榜</a></li>
+                <li role="presentation" class=""><a aria-controls="article" data-toggle="tab" id="article-tab"  role="tab" href="#article" aria-expanded="false" target="_self">发文章和评论用户排行榜</a></li>
+                <li role="presentation" class=""><a aria-controls="game" data-toggle="tab" id="game-tab"  role="tab" href="#game" aria-expanded="false" target="_self">游戏用户排行榜</a></li>
+
+            </ul>
+            <div class="tab-content" id="dashboardTabContent">
+                <div aria-labelledby="user-tab" id="user" class="tab-pane fade active in" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                            <tr>
+                                <th>头像</th>
+                                <th>昵称</th>
+                                <th>性别</th>
+                                <th>年龄</th>
+                                <th>在线时间(S)</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr ng-repeat="user in onlinelist">
+                                <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
+                                <td>{{user.nickname}}</td>
+                                <td>{{user.gender|gender}}</td>
+                                <td>{{user.birthday|age}}</td>
+                                <td>{{user.onlinetime}}</td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                        <div gen-pagination="pagination" id="onlinepage"></div>
+                    </div>
+                </div>
+                <div aria-labelledby="report-tab" id="report" class="tab-pane fade" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                            <tr>
+                                <th>头像</th>
+                                <th>昵称</th>
+                                <th>性别</th>
+                                <th>年龄</th>
+                                <th>运动纪录数</th>
+
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr ng-repeat="user in reportlist">
+                                <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
+                                <td>{{user.nickname}}</td>
+                                <td>{{user.gender|gender}}</td>
+                                <td>{{user.birthday|age}}</td>
+                                <td>{{user.report}}</td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                        <div gen-pagination="reportpagination" id="reportpage"></div>
+                    </div>
+                </div>
+                <div aria-labelledby="article-tab" id="article" class="tab-pane fade" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                            <tr>
+                                <th>头像</th>
+                                <th>昵称</th>
+                                <th>性别</th>
+                                <th>年龄</th>
+                                <th>文章＋评论数</th>
+
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr ng-repeat="user in articlelist">
+                                <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
+                                <td>{{user.nickname}}</td>
+                                <td>{{user.gender|gender}}</td>
+                                <td>{{user.birthday|age}}</td>
+                                <td>{{user.article}}</td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                        <div gen-pagination="articlepagination" id="articlepage"></div>
+                    </div>
+                </div>
+                <div aria-labelledby="game-tab" id="game" class="tab-pane fade" role="tabpanel">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                            <tr>
+                                <th>头像</th>
+                                <th>昵称</th>
+                                <th>性别</th>
+                                <th>年龄</th>
+                                <th>玩游戏总时长(S)</th>
+
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr ng-repeat="user in gamelist">
+                                <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
+                                <td>{{user.nickname}}</td>
+                                <td>{{user.gender|gender}}</td>
+                                <td>{{user.birthday|age}}</td>
+                                <td>{{user.game}}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                        <div gen-pagination="gamepagination" id="gamepage"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+</div>

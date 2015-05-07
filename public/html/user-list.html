@@ -64,6 +64,7 @@
         <input type="text" class="searchBox form-control" placeholder="搜索用户名或昵称" ng-model="searchData.data" ng-change="searchChange()"/>
     </div>
 </div>
+<p>共{{total_num}} 条纪录</p>
 <p>已选中: {{sel.nCount}} 条纪录</p>
 <div class="table-responsive">
     <table class="table table-bordered table-hover">
@@ -71,13 +72,14 @@
         <tr>
             <th><input type="checkbox" ng-checked="checkAllBool" ng-click="selectAll()">&nbsp&nbsp全选</th>
             <th>头像</th>
-            <th ng-click="sort('userid')">账户<img ng-src="{{sortImg[sortState.userid]}}" style="float:right;"></th>
             <th ng-click="sort('nickname')">昵称<img ng-src="{{sortImg[sortState.nickname]}}" style="float:right;"></th>
-            <th ng-click="sort('email')">邮箱<img ng-src="{{sortImg[sortState.email]}}" style="float:right;"></th>
+            <th>注册账号类型</th>
             <th ng-click="sort('gender')">性别<img ng-src="{{sortImg[sortState.gender]}}" style="float:right;"></th>
             <th ng-click="sort('age')">年龄<img ng-src="{{sortImg[sortState.age]}}" style="float:right;"></th>
             <th ng-click="sort('regtime')">注册时间<img ng-src="{{sortImg[sortState.regtime]}}" style="float:right;"></th>
             <th ng-click="sort('logintime')">登陆时间<img ng-src="{{sortImg[sortState.logintime]}}" style="float:right;"></th>
+            <th>最近登录地址</th>
+
             <th ng-click="sort('ban')">状态<img ng-src="{{sortImg[sortState.ban]}}" style="float:right;"></th>
             <th>认证</th>
         </tr>
@@ -85,14 +87,14 @@
         <tbody>
         <tr ng-repeat="user in userlist">
             <td><input type="checkbox" ng-click="selected($index)" ng-checked="selectedList[$index]"></td>
-            <td><a href="{{'#/detail/'+user.userid}}"><img ng-src="{{user.profile}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
-            <td>{{user.userid}}</td>
+            <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
             <td>{{user.nickname}}</td>
-            <td>{{user.email}}</td>
+            <td>{{user.role|rolefilter}}</td>
             <td>{{user.gender}}</td>
             <td>{{user.age}}</td>
             <td>{{user.reg_time}}</td>
             <td>{{user.last_login_time}}</td>
+            <td>{{user.address}}</td>
             <td><div class="banstate" ng-style="user.banStyle">{{user.ban_statusTmp}}</div></td>
             <td><a href="{{'#/authdetail/'+user.userid}}">
                 <span class="label" ng-style="user.auth.idcard.auth_status|authclass">身份证</span>

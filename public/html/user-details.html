@@ -12,6 +12,10 @@
             <ul role="tablist" class="nav nav-tabs" id="myTab">
               <li class="active" role="presentation"><a aria-expanded="true" aria-controls="home" data-toggle="tab" role="tab" id="home-tab"  href="#home" target="_self">基本信息</a></li>
               <li role="presentation" class=""><a aria-controls="profile" data-toggle="tab" id="profile-tab"  role="tab" href="#profile" aria-expanded="false" target="_self">生活照</a></li>
+              <li role="presentation" class=""><a aria-controls="article" data-toggle="tab" id="article-tab"  role="tab" href="#article" aria-expanded="false" target="_self">TA的博文 ({{articlesList.length}})</a></li>
+              <li role="presentation" class=""><a aria-controls="sport" data-toggle="tab" id="sport-tab"  role="tab" href="#sport" aria-expanded="false" target="_self">TA的运动纪录 ({{sportList.length}})</a></li>
+              <li role="presentation" class=""><a aria-controls="followers" data-toggle="tab" id="followers-tab"  role="tab" href="#followers" aria-expanded="false" target="_self">TA的粉丝 ({{followerslist.length}})</a></li>
+              <li role="presentation" class=""><a aria-controls="follows" data-toggle="tab" id="follows-tab"  role="tab" href="#follows" aria-expanded="false" target="_self">TA的关注 ({{followslist.length}})</a></li>
 
             </ul>
             <div class="tab-content" id="myTabContent">
@@ -26,6 +30,10 @@
                         <tr>
                           <td>账户名称：</td>
                           <td>{{userDetail.userid}}</td>
+                        </tr>
+                        <tr>
+                          <td>账号类型：</td>
+                          <td>{{userDetail.role|rolefilter}}</td>
                         </tr>
                         <tr>
                           <td>状态：</td>
@@ -140,17 +148,115 @@
                           <td>{{userDetail.blacklist_count}}</td>
                         </tr>
                         </tbody>
-                
                       </table>
                  </div>
               </div>
               <div aria-labelledby="profile-tab" id="profile" class="tab-pane fade" role="tabpanel">
+                <p class="inner" ng-show="userDetail.photos.length==0">暂无</p>
                  <img class="img-responsive life-photo" ng-repeat="image in userDetail.photos" ng-src="{{image}}"/>
+              </div>
+              <div aria-labelledby="article-tab" id="article" class="tab-pane fade" role="tabpanel">
+                <p class="inner" ng-show="articlesList.length==0">暂无</p>
+                <div class="panel" ng-show="articlesList.length>0">
+                  <div class="panel-heading">作者文章 ( 共 {{ articlesList.length }} 篇 )</div>
+                  <ul class="media-list comments" >
+                    <li ng-repeat="item in articlesList">
+                      <span class="label">{{item.time}}</span>&nbsp;<a ng-href="{{'#/articledetail/'+item.article_id}}" title="{{item.author+'发表'}}">{{item.cover_text|articletitle}}</a>
+                    </li>
+                  </ul>
+                  <div gen-pagination="pagination" id="articlepage"></div>
+                </div>
+              </div>
+              <div aria-labelledby="sport-tab" id="sport" class="tab-pane fade" role="tabpanel">
+                <div class="table-responsive">
+                  <p class="inner" ng-show="sportList.length==0">暂无</p>
+                  <table class="table table-bordered table-hover" ng-show="sportList.length>0">
+                    <thead>
+                    <tr>
+                      <th>记录时间</th>
+                      <th>纪录发布时间</th>
+                      <th>距离(m)</th>
+                      <th>运动图片</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr ng-repeat="item in sportList">
+                      <td>{{item.time|timeconvert}}</td>
+                      <td>{{item.pub_time|timeconvert}}</td>
+                      <td>{{item.distance}}</td>
+                      <td>
+                        <div align="center">
+                          <div ng-show="item.images.length>0">
+                            <a href="html/task-images.html" target="_blank" data-toggle="tooltip" title="请点击图片查看更多" ng-click="showImgs($index)"><img ng-src="{{item.images[0]}}" class="img-small"><br><p>共{{item.images.length}}张图片</p></a>
+                          </div>
+                          <p class="inner" ng-show="item.images.length==0">无图片</p>
+                        </div>
+                      </td>
+                    </tr>
+                    </tbody>
+                  </table>
+                  <div gen-pagination="sportpagination" ng-show="sportList.length>0" id="sportpage"></div>
+                </div>
+              </div>
+              <div aria-labelledby="followers-tab" id="followers" class="tab-pane fade" role="tabpanel">
+                <p class="inner" ng-show="followerslist.length==0">暂无</p>
+                <table class="table table-bordered table-hover" ng-show="followerslist.length>0">
+                  <thead>
+                  <tr>
+                    <th>头像</th>
+                    <th>昵称</th>
+                    <th>性别</th>
+                    <th>年龄</th>
+                    <th>注册时间</th>
+                    <th>登陆时间</th>
+                    <th>最近登录地址</th>
+                  </tr>
+                  </thead>
+                  <tbody>
+                  <tr ng-repeat="user in followerslist">
+                    <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
+                    <td>{{user.nickname}}</td>
+                    <td>{{user.gender|gender}}</td>
+                    <td>{{user.birthday|age}}</td>
+                    <td>{{user.reg_time}}</td>
+                    <td>{{user.last_login_time}}</td>
+                    <td>{{user.address}}</td>
+                  </tr>
+                  </tbody>
+                </table>
+                <div gen-pagination="followerspagination" ng-show="followerslist.length>0" id="followerspage"></div>
+              </div>
+
+              <div aria-labelledby="follows-tab" id="follows" class="tab-pane fade" role="tabpanel">
+                <p class="inner" ng-show="followslist.length==0">暂无</p>
+                <table class="table table-bordered table-hover" ng-show="followslist.length>0">
+                  <thead>
+                  <tr>
+                    <th>头像</th>
+                    <th>昵称</th>
+                    <th>性别</th>
+                    <th>年龄</th>
+                    <th>注册时间</th>
+                    <th>登陆时间</th>
+                    <th>最近登录地址</th>
+                  </tr>
+                  </thead>
+                  <tbody>
+                  <tr ng-repeat="user in followslist">
+                    <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
+                    <td>{{user.nickname}}</td>
+                    <td>{{user.gender|gender}}</td>
+                    <td>{{user.birthday|age}}</td>
+                    <td>{{user.reg_time}}</td>
+                    <td>{{user.last_login_time}}</td>
+                    <td>{{user.address}}</td>
+                  </tr>
+                  </tbody>
+                </table>
+                <div gen-pagination="followspagination" ng-show="followerslist.length>0" id="followspage"></div>
               </div>
             </div>
           </div>
-    
-  </div>
-
+    </div>
 </div>
 </div>
