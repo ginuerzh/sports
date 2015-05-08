@@ -27,6 +27,7 @@ func summaryHandler(w http.ResponseWriter, redis *models.RedisLogger, form summa
 		RegWeibo      []int64 `json:"reg_weibo"`
 		Registers     []int64 `json:"registers"`
 		Logins        []int64 `json:"logins"`
+		CoachLogins   []int64 `json:"coach_logins"`
 		Actives       []int64 `json:"actives"`
 		PostUsers     []int64 `json:"post_users"`
 		Posts         []int64 `json:"posts"`
@@ -51,6 +52,7 @@ func summaryHandler(w http.ResponseWriter, redis *models.RedisLogger, form summa
 	stats.RegWeibo = redis.RegisterCount(days, models.AccountWeibo)
 	stats.Registers = redis.RegisterCount(days, "")
 	stats.Logins = redis.LoginCount(days)
+	stats.CoachLogins = redis.CoachLoginCount(days)
 	actives := make([]int64, days)
 	for i := 0; i < days; i++ {
 		actives[i] = stats.Logins[i] - stats.Registers[i]

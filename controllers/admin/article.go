@@ -172,7 +172,7 @@ func articleTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, fo
 		}
 	*/
 	if form.PageCount == 0 {
-		form.PageCount = 50
+		form.PageCount = defaultCount
 	}
 	u := &models.Account{Id: form.Userid}
 	total, articles, _ := u.ArticleTimeline(form.PageIndex, form.PageCount)

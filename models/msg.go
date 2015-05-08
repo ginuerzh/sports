@@ -20,12 +20,13 @@ type MsgBody struct {
 }
 
 type Message struct {
-	Id   bson.ObjectId `bson:"_id,omitempty"`
-	From string
-	To   string
-	Type string
-	Body []MsgBody
-	Time time.Time
+	Id     bson.ObjectId `bson:"_id,omitempty"`
+	From   string
+	To     string
+	Type   string
+	Body   []MsgBody
+	Time   time.Time
+	Owners []string
 }
 
 func (this *Message) findOne(query interface{}) (bool, error) {
@@ -48,6 +49,7 @@ func (this *Message) Last(from, to string) error {
 			bson.M{"from": from, "to": to},
 			bson.M{"from": to, "to": from},
 		},
+		"owners": from,
 	}
 
 	return findOne(msgColl, query, []string{"-time"}, this)
@@ -82,9 +84,17 @@ func (this *Message) Delete(from, to string, start, end time.Time) (count int, e
 			"$gte": start,
 		},
 	}
-	info, err := removeAll(msgColl, selector, true)
+	change := bson.M{
+		"$pull": bson.M{
+			"owners": from,
+		},
+	}
+
+	//info, err := removeAll(msgColl, selector, true)
+	info, err := updateAll(msgColl, selector, change, true)
+
 	if info != nil {
-		count = info.Removed
+		count = info.Updated
 	}
 
 	return

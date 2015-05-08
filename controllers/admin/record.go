@@ -7,6 +7,7 @@ import (
 	"gopkg.in/go-martini/martini.v1"
 	//"log"
 	"net/http"
+	"time"
 )
 
 var defaultRecordsCount = 50
@@ -44,7 +45,7 @@ type record struct {
 }
 
 type recordsListJsonStruct struct {
-	Records []record `json:"records"`
+	Records []*record `json:"records"`
 	//NextCursor  string   `json:"next_cursor"`
 	//PrevCursor  string   `json:"prev_cursor"`
 	Page        int `json:"page_index"`
@@ -52,77 +53,53 @@ type recordsListJsonStruct struct {
 	TotalNumber int `json:"total_number"`
 }
 
-func getRecordsListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getRecordsForm) {
+func getRecordsListHandler(w http.ResponseWriter, redis *models.RedisLogger, form getRecordsForm) {
 	valid, errT := checkToken(redis, form.Token)
 	if !valid {
-		writeResponse(resp, errT)
+		writeResponse(w, errT)
 		return
 	}
 
-	getCount := form.Count
-	if getCount == 0 {
-		getCount = defaultRecordsCount
+	count := form.Count
+	if count == 0 {
+		count = defaultCount
 	}
 
+	fromTime := time.Unix(0, 0)
+	toTime := time.Now()
 	//tn, records, err := models.GetRecords(form.Userid, form.Type, form.NextCursor, form.PrevCursor, form.Count, form.FromTime, form.ToTime, 0, getCount)
-	tn, records, err := models.GetRecords(form.Userid, form.Type, "", "", form.Count, form.FromTime, form.ToTime, getCount*form.Page, getCount)
-	if err != nil {
-		writeResponse(resp, err)
-		return
-	}
-	/*
-		if tn == 0 {
-			writeResponse(resp, errors.NewError(errors.NotExistsError))
-			return
+	total, records, _ := models.GetRecords(form.Userid, form.Type, form.Count, fromTime, toTime, count*form.Page, count)
 
-		}
-	*/
-	tnvalid := len(records)
-	recs := make([]record, tnvalid)
+	list := make([]*record, len(records))
 	for i, _ := range records {
-		recs[i].ID = records[i].Uid
-		recs[i].Type = records[i].Type
-		recs[i].RecTime = records[i].PubTime.Unix()
-		recs[i].RecTimeStr = records[i].PubTime.Format("2006-01-02 15:04:05")
+		list[i].ID = records[i].Uid
+		list[i].Type = records[i].Type
+		list[i].RecTime = records[i].PubTime.Unix()
 		if records[i].Sport != nil {
-			recs[i].Duration = int(records[i].Sport.Duration)
-			recs[i].Distance = records[i].Sport.Distance
-			recs[i].Images = records[i].Sport.Pics
+			list[i].Duration = int(records[i].Sport.Duration)
+			list[i].Distance = records[i].Sport.Distance
+			list[i].Images = records[i].Sport.Pics
 		}
 		if records[i].Game != nil {
-			recs[i].GameName = records[i].Game.Name
-			recs[i].GameScore = records[i].Game.Score
+			list[i].GameName = records[i].Game.Name
+			list[i].GameScore = records[i].Game.Score
 		}
-		recs[i].PubTime = records[i].PubTime.Unix()
-		recs[i].PubTimeStr = records[i].PubTime.Format("2006-01-02 15:04:05")
+		list[i].PubTime = records[i].PubTime.Unix()
 	}
 
-	totalPage := tn / getCount
-	if tn%getCount != 0 {
+	totalPage := total / count
+	if total%count != 0 {
 		totalPage++
 	}
 
-	if tnvalid == 0 {
-		respData := &recordsListJsonStruct{
-			Records:   recs,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//NextCursor:  "",
-			//PrevCursor:  "",
-			TotalNumber: tn,
-		}
-		writeResponse(resp, respData)
-	} else {
-		respData := &recordsListJsonStruct{
-			Records:   recs,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//NextCursor:  records[tnvalid-1].Id.String(),
-			//PrevCursor:  records[0].Id.String(),
-			TotalNumber: tn,
-		}
-		writeResponse(resp, respData)
+	info := &recordsListJsonStruct{
+		Records:     list,
+		Page:        form.Page,
+		PageTotal:   totalPage,
+		TotalNumber: total,
 	}
+
+	writeResponse(w, info)
 }
 
 type deleteRecordsForm struct {

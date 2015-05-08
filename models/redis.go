@@ -13,32 +13,33 @@ import (
 )
 
 const (
-	redisPrefix             = "sports"
-	redisStatVisitorPrefix  = redisPrefix + ":stat:visitors:"       // set per day
-	redisStatPvPrefix       = redisPrefix + ":stat:pv:"             // sorted set per day
-	redisStatRegisterPrefix = redisPrefix + ":stat:registers:"      // set per day, register users per day
-	redisStatRegPhonePrefix = redisPrefix + ":stat:register:phone:" // set per day, phone register users per day
-	redisStatRegEmailPrefix = redisPrefix + ":stat:register:email:" // set per day, email register users per day
-	redisStatRegWeiboPrefix = redisPrefix + ":stat:register:weibo:" // set per day, weibo register users per day
-	redisStatLoginPrefix    = redisPrefix + ":stat:logins:"         // set per day, login users per day
-	//redisStatOnlinesPrefix      = redisPrefix + ":stat:onlines:"        // set per day, online users per day
-	redisStatOnlines            = redisPrefix + ":stat:onlines"      // set, current online users
-	redisStatOnlineTime         = redisPrefix + ":stat:onlinetime"   // sorted set, users total online time
-	redisStatUserArticlesPrefix = redisPrefix + ":stat:articles:"    // sorted set per day, user articles per day, user:articless
-	redisStatUserCommentsPrefix = redisPrefix + ":stat:comments:"    // sorted set per day, user comments per day, user:comments
-	redisStatUserPostsPrefix    = redisPrefix + ":stat:posts:"       // sorted set per day, user posts per day, user:posts
-	redisStatPosts              = redisPrefix + ":stat:posts"        // sorted set, total posts per day
-	redisStatUserTotalArticles  = redisPrefix + ":stat:articles"     // sorted set, total user articles
-	redisStatUserTotalComments  = redisPrefix + ":stat:comments"     // sorted set, total user comments
-	redisStatUserTotalPosts     = redisPrefix + ":stat:posts"        // sorted set, total user posts (articles + comments)
-	redisStatGamersPrefix       = redisPrefix + ":stat:gamers:"      // sorted set per day, game time per day (gamer:time)
-	redisStatTotalGamers        = redisPrefix + ":stat:gamers"       // sorted set, total game time
-	redisStatGameTime           = redisPrefix + ":stat:gametime"     // sorted set, total game time per day
-	redisStatUserRecordsPrefix  = redisPrefix + ":stat:records:"     // sorted set per day, user records per day
-	redisStatUserTotalRecords   = redisPrefix + ":stat:records"      // sorted set total user records
-	redisStatAuthCoachesPrefix  = redisPrefix + ":stat:authcoaches:" // set per day, auth coaches per day
-	redisStatUserCoinsPrefix    = redisPrefix + ":stat:coins:"       // sorted set per day, coins send by system per day
-	redisStatCoins              = redisPrefix + ":stat:coins"        // sorted set, total coins sended per day
+	redisPrefix                 = "sports"
+	redisStatVisitorPrefix      = redisPrefix + ":stat:visitors:"       // set per day
+	redisStatPvPrefix           = redisPrefix + ":stat:pv:"             // sorted set per day
+	redisStatRegisterPrefix     = redisPrefix + ":stat:registers:"      // set per day, register users per day
+	redisStatRegPhonePrefix     = redisPrefix + ":stat:register:phone:" // set per day, phone register users per day
+	redisStatRegEmailPrefix     = redisPrefix + ":stat:register:email:" // set per day, email register users per day
+	redisStatRegWeiboPrefix     = redisPrefix + ":stat:register:weibo:" // set per day, weibo register users per day
+	redisStatLoginPrefix        = redisPrefix + ":stat:logins:"         // set per day, login users per day
+	redisStatCoachLoginPrefix   = redisPrefix + ":stat:coach:logins:"   // set per day, login coaches per day
+	redisStatOnlines            = redisPrefix + ":stat:onlines"         // set, current online users
+	redisStatCoachOnlines       = redisPrefix + ":stat:coach:onlines"   // set, current online coaches
+	redisStatOnlineTime         = redisPrefix + ":stat:onlinetime"      // sorted set, users total online time
+	redisStatUserArticlesPrefix = redisPrefix + ":stat:articles:"       // sorted set per day, user articles per day, user:articless
+	redisStatUserCommentsPrefix = redisPrefix + ":stat:comments:"       // sorted set per day, user comments per day, user:comments
+	redisStatUserPostsPrefix    = redisPrefix + ":stat:posts:"          // sorted set per day, user posts per day, user:posts
+	redisStatPosts              = redisPrefix + ":stat:posts"           // sorted set, total posts per day
+	redisStatUserTotalArticles  = redisPrefix + ":stat:articles"        // sorted set, total user articles
+	redisStatUserTotalComments  = redisPrefix + ":stat:comments"        // sorted set, total user comments
+	redisStatUserTotalPosts     = redisPrefix + ":stat:posts"           // sorted set, total user posts (articles + comments)
+	redisStatGamersPrefix       = redisPrefix + ":stat:gamers:"         // sorted set per day, game time per day (gamer:time)
+	redisStatTotalGamers        = redisPrefix + ":stat:gamers"          // sorted set, total game time
+	redisStatGameTime           = redisPrefix + ":stat:gametime"        // sorted set, total game time per day
+	redisStatUserRecordsPrefix  = redisPrefix + ":stat:records:"        // sorted set per day, user records per day
+	redisStatUserTotalRecords   = redisPrefix + ":stat:records"         // sorted set total user records
+	redisStatAuthCoachesPrefix  = redisPrefix + ":stat:authcoaches:"    // set per day, auth coaches per day
+	redisStatUserCoinsPrefix    = redisPrefix + ":stat:coins:"          // sorted set per day, coins send by system per day
+	redisStatCoins              = redisPrefix + ":stat:coins"           // sorted set, total coins sended per day
 
 	//redisUserOnlinesPrefix = redisPrefix + ":user:onlines:" // set per half an hour, current online users
 	redisUserTokens     = redisPrefix + ":user:tokens" // hash, online user token <->userid
@@ -148,6 +149,7 @@ func (logger *RedisLogger) PubMsg(typ string, to string, msg []byte) {
 	}
 }
 
+/*
 func onlineTimeString() string {
 	now := time.Now()
 	min := now.Minute()
@@ -158,7 +160,7 @@ func onlineTimeString() string {
 	}
 	return now.Format("200601021504")
 }
-
+*/
 func (logger *RedisLogger) OnlineUser(token string) (id string) {
 	conn := logger.conn
 
@@ -943,8 +945,9 @@ func (logger *RedisLogger) zcard(key string) int {
 	return n
 }
 
-func (logger *RedisLogger) SetOnline(userid string, add bool, duration int64) {
+func (logger *RedisLogger) SetOnline(userid string, actor string, add bool, duration int64) {
 	conn := logger.conn
+	sdate := DateString(time.Now())
 	//t := onlineTimeString()
 	conn.Send("MULTI")
 	//conn.Send("SADD", redisUserOnlinesPrefix+t, userid)
@@ -952,11 +955,32 @@ func (logger *RedisLogger) SetOnline(userid string, add bool, duration int64) {
 	if add {
 		//conn.Send("SADD", redisStatOnlinesPrefix+DateString(time.Now()), userid)
 		conn.Send("SADD", redisStatOnlines, userid)
+		conn.Send("SADD", redisStatLoginPrefix+sdate, userid)
+		if actor == ActorCoach {
+			conn.Send("SADD", redisStatCoachOnlines, userid)
+			conn.Send("SADD", redisStatCoachLoginPrefix+sdate, userid)
+		}
 	} else {
 		conn.Send("SREM", redisStatOnlines, userid)
 		conn.Send("ZINCRBY", redisStatOnlineTime, duration, userid)
+		if actor == ActorCoach {
+			conn.Send("SREM", redisStatCoachOnlines, userid)
+		}
 	}
 	conn.Do("EXEC")
+}
+
+/*
+func (logger *RedisLogger) LogLogin(userid string) {
+	logger.conn.Do("SADD", redisStatLoginPrefix+DateString(time.Now()), userid)
+}
+*/
+
+func (logger *RedisLogger) LoginCount(days int) []int64 {
+	return logger.scards(redisStatLoginPrefix, days)
+}
+func (logger *RedisLogger) CoachLoginCount(days int) []int64 {
+	return logger.scards(redisStatCoachLoginPrefix, days)
 }
 
 func (logger *RedisLogger) UserTotalOnlineTime(skip, limit int, desc bool) (kv []KV) {
@@ -1007,14 +1031,6 @@ func (logger *RedisLogger) RegisterCount(days int, types string) []int64 {
 		key = redisStatRegWeiboPrefix
 	}
 	return logger.scards(key, days)
-}
-
-func (logger *RedisLogger) LogLogin(userid string) {
-	logger.conn.Do("SADD", redisStatLoginPrefix+DateString(time.Now()), userid)
-}
-
-func (logger *RedisLogger) LoginCount(days int) []int64 {
-	return logger.scards(redisStatLoginPrefix, days)
 }
 
 func (logger *RedisLogger) AddPost(userid, types string, count int) {

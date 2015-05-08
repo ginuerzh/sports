@@ -865,7 +865,7 @@ func GetUserListBySort(skip, limit int, sort string) (total int, users []Account
 
 // This function search users with userid or nickname after preCursor or nextCursor sorted by sortOrder. The return count total should not be more than limit.
 func GetSearchListBySort(id, nickname, keywords string,
-	gender, age, banStatus string, skip, limit int, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
+	gender, age, banStatus, role string, skip, limit int, sortOrder string) (total int, users []Account, err error) {
 
 	var sortby string
 
@@ -978,6 +978,9 @@ func GetSearchListBySort(id, nickname, keywords string,
 			and = append(and, bson.M{"timelimit": bson.M{"$lt": 0}})
 		}
 	}
+	if len(role) > 0 {
+		and = append(and, bson.M{"role": role})
+	}
 
 	query := bson.M{"$and": and}
 
@@ -992,220 +995,35 @@ func GetSearchListBySort(id, nickname, keywords string,
 
 // This function returns the friends list of the user. Return users after preCursor or nextCursor and sorted by sortOrder.
 // The return count total should not be more than limit
-func GetFriendsListBySort(skip, limit int, ids []string, sortOrder, preCursor, nextCursor string) (total int, users []Account, err error) {
-	user := &Account{}
-	var query bson.M
+func GetFriendsListBySort(ids []string, skip, limit int, sortOrder string) (users []Account, err error) {
 	var sortby string
-	var uids []string
-
-	if len(nextCursor) > 0 {
-		user.findOne(bson.M{"_id": nextCursor})
-	} else if len(preCursor) > 0 {
-		user.findOne(bson.M{"_id": preCursor})
-	} else {
-		user.Id = ""
-	}
-
-	for i := 0; i < len(ids); i++ {
-		if ids[i] != user.Id {
-			uids = append(uids, ids[i])
-		}
+	query := bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
 	}
 
 	switch sortOrder {
 	case "logintime":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$lte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-lastlogin"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"lastlogin": bson.M{
-					"$gte": user.LastLogin,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "lastlogin"
-		} else {
-			query = bson.M{
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "-lastlogin"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
+		sortby = "-lastlogin"
 
 	case "userid":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "_id"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-_id"
-		} else {
-			query = bson.M{
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "_id"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
+		sortby = "_id"
 
 	case "nickname":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"nickname": bson.M{
-					"$gte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "nickname"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"nickname": bson.M{
-					"$lte": user.Nickname,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-nickname"
-		} else {
-			query = bson.M{
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "nickname"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
+		sortby = "nickname"
 
 	case "score":
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"props.score": bson.M{
-					"$lte": user.Props.Score,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-props.score"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"props.score": bson.M{
-					"$gte": user.Props.Score,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "props.score"
-		} else {
-			query = bson.M{
-				"_id": bson.M{
-					"$in": ids,
-				},
-			}
-			sortby = "-props.score"
-		}
-		query["reg_time"] = bson.M{
-			"$gt": time.Unix(0, 0),
-		}
+		sortby = "-props.score"
 
 	case "regtime":
 		log.Println("regtime")
 		fallthrough
 	default:
-		log.Println("default")
-		if len(nextCursor) > 0 {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$lte": user.RegTime,
-					"$gt":  time.Unix(0, 0),
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "-reg_time"
-		} else if len(preCursor) > 0 {
-			query = bson.M{
-				"reg_time": bson.M{
-					"$gte": user.RegTime,
-				},
-				"_id": bson.M{
-					"$in": uids,
-				},
-			}
-			sortby = "reg_time"
-		} else {
-			query = bson.M{
-				"_id": bson.M{
-					"$in": ids,
-					"reg_time": bson.M{
-						"$gt": time.Unix(0, 0),
-					},
-				},
-			}
-			sortby = "-reg_time"
-		}
+		sortby = "-reg_time"
 	}
 
-	q := func(c *mgo.Collection) error {
-		pq := bson.M{
-			"reg_time": bson.M{
-				"$gt": time.Unix(0, 0),
-			},
-		}
-		qy := c.Find(pq)
-
-		if total, err = qy.Count(); err != nil {
-			return err
-		}
-		return err
-	}
-
-	if err = withCollection(accountColl, nil, q); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
-	}
-
-	if err := search(accountColl, query, bson.M{"contacts": 0}, skip, limit, []string{sortby}, nil, &users); err != nil {
-		return 0, nil, errors.NewError(errors.DbError, err.Error())
-	}
-
-	if len(preCursor) > 0 {
-		totalCount := len(users)
-		for i := 0; i < totalCount/2; i++ {
-			users[i], users[totalCount-1-i] = users[totalCount-1-i], users[i]
-		}
-	}
+	err = search(accountColl, query, nil, skip, limit, []string{sortby}, nil, &users)
 
 	return
 }
@@ -1403,34 +1221,6 @@ func Users(ids []string, paging *Paging) (users []Account, err error) {
 
 	paging.First = strconv.Itoa(index)
 	paging.Last = strconv.Itoa(index + len(users))
-	/*
-		if err := psearch(accountColl, nil, bson.M{"contacts": 0}, sortFields, nil, &users, friendsPagingFunc, paging, ids); err != nil {
-			e := errors.NewError(errors.DbError, err.Error())
-			if err == mgo.ErrNotFound {
-				e = errors.NewError(errors.NotFoundError, err.Error())
-			}
-			return nil, e
-		}
-
-		for i := 0; i < len(users); i++ {
-			if users[i].Id == paging.First {
-				users = users[:i]
-				break
-			} else if users[i].Id == paging.Last {
-				users = users[i+1:]
-				break
-			}
-		}
-
-		paging.First = ""
-		paging.Last = ""
-		paging.Count = 0
-		if len(users) > 0 {
-			paging.First = users[0].Id
-			paging.Last = users[len(users)-1].Id
-			paging.Count = total
-		}
-	*/
 
 	return
 }
@@ -1748,6 +1538,7 @@ func (this *Account) Messages(userid string, paging *Paging) (int, []Message, er
 			bson.M{"from": userid, "to": this.Id},
 			bson.M{"from": this.Id, "to": userid},
 		},
+		"owners": this.Id,
 	}
 
 	sortFields := []string{"-time", "-_id"}

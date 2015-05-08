@@ -84,7 +84,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		return
 	}
 
-	redisLogger.LogLogin(user.Id)
+	//redisLogger.LogLogin(user.Id)
 
 	days := user.LoginDays
 	loginCount := user.LoginCount + 1
@@ -118,7 +118,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 		//wg.Add(1)
 		//defer log.Println("ws thread closed")
 		//defer wg.Done()
-		redisLogger.SetOnline(user.Id, true, 0)
+		redisLogger.SetOnline(user.Id, user.Actor, true, 0)
 		start := time.Now()
 
 		defer psc.Close()
@@ -130,7 +130,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 				//log.Println(err)
 
 				dur := int64(time.Since(start) / time.Second)
-				redisLogger.SetOnline(user.Id, false, dur)
+				redisLogger.SetOnline(user.Id, user.Actor, false, dur)
 				user.UpdateStat(models.StatOnlineTime, dur)
 				return
 			}

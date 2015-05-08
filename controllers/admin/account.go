@@ -101,7 +101,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 
 	user.SetLastLogin(0, 0, time.Now())
 	redis.SetOnlineUser(token, user.Id)
-	redis.LogLogin(user.Id)
+	//redis.LogLogin(user.Id)
 
 	data := map[string]interface{}{
 		"userid":       user.Id,
@@ -368,55 +368,6 @@ func getUserListHandler(r *http.Request, w http.ResponseWriter, redis *models.Re
 	}
 
 	writeResponse(w, info)
-
-	/*
-		getCount := form.Count
-		if getCount == 0 {
-			getCount = defaultCount
-		}
-		//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
-		//count, users, err := models.GetUserListBySort(0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
-
-		//log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page)
-		count, users, err := models.GetUserListBySort(form.Page*getCount, getCount, form.Sort, "", "")
-		if err != nil {
-			writeResponse(resp, err)
-			return
-		}
-		countvalid := len(users)
-		//log.Println("countvalid is :", countvalid)
-
-		list := make([]*userInfoJsonStruct, countvalid)
-		for i, user := range users {
-			list[i] = convertUser(&user, redis)
-		}
-
-		totalPage := count / getCount
-		if count%getCount != 0 {
-			totalPage++
-		}
-		if countvalid == 0 {
-			info := &userListJsonStruct{
-				Users:     list,
-				Page:      form.Page,
-				PageTotal: totalPage,
-				//NextCursor:  "",
-				//PrevCursor:  "",
-				TotalNumber: count,
-			}
-			writeResponse(resp, info)
-		} else {
-			info := &userListJsonStruct{
-				Users:     list,
-				Page:      form.Page,
-				PageTotal: totalPage,
-				//NextCursor:  list[countvalid-1].Userid,
-				//PrevCursor:  list[0].Userid,
-				TotalNumber: count,
-			}
-			writeResponse(resp, info)
-		}
-	*/
 }
 
 type getSearchListForm struct {
@@ -431,71 +382,46 @@ type getSearchListForm struct {
 	Sort string `form:"sort"`
 	//	NextCursor string `form:"next_cursor"`
 	//	PrevCursor string `form:"prev_cursor"`
-	Count int    `form:"page_count"`
-	Page  int    `form:"page_index"`
-	Token string `form:"access_token" binding:"required"`
+	Count int `form:"page_count"`
+	Page  int `form:"page_index"`
+	//Token string `form:"access_token" binding:"required"`
 }
 
-func getSearchListHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getSearchListForm) {
-	valid, errT := checkToken(redis, form.Token)
-	if !valid {
-		writeResponse(resp, errT)
-		return
-	}
-
-	getCount := form.Count
-	if getCount == 0 {
-		getCount = defaultCount
-	}
-	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "pc is :", form.PrevCursor, "nc is :", form.NextCursor)
-	//count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, 0, getCount, form.Sort, form.PrevCursor, form.NextCursor)
-
-	//log.Println("getCount is :", getCount, "sort is :", form.Sort, "page is :", form.Page, form.Gender, form.Age, form.BanStatus)
-	count, users, err := models.GetSearchListBySort(form.Userid, form.NickName, form.KeyWord,
-		form.Gender, form.Age, form.BanStatus, getCount*form.Page, getCount, form.Sort, "", "")
-	if err != nil {
-		writeResponse(resp, err)
-		return
-	}
-	countvalid := len(users)
-	//log.Println("countvalid is :", countvalid)
+func getSearchListHandler(w http.ResponseWriter, redis *models.RedisLogger, form getSearchListForm) {
 	/*
-		if countvalid == 0 {
-			writeResponse(resp, err)
+		valid, errT := checkToken(redis, form.Token)
+		if !valid {
+			writeResponse(w, errT)
 			return
 		}
 	*/
-	list := make([]*userInfoJsonStruct, countvalid)
-	for i, user := range users {
-		list[i] = convertUser(&user, redis)
+
+	count := form.Count
+	if count == 0 {
+		count = defaultCount
 	}
 
-	totalPage := count / getCount
-	if count%getCount != 0 {
+	total, users, _ := models.GetSearchListBySort(form.Userid, form.NickName, form.KeyWord,
+		form.Gender, form.Age, form.BanStatus, form.Role, count*form.Page, count, form.Sort)
+
+	list := make([]*userInfoJsonStruct, len(users))
+	for i, _ := range users {
+		list[i] = convertUser(&users[i], redis)
+	}
+
+	totalPage := total / count
+	if total%count != 0 {
 		totalPage++
 	}
 
-	if countvalid == 0 {
-		info := &userListJsonStruct{
-			Users:     list,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//			NextCursor:  "",
-			//			PrevCursor:  "",
-			TotalNumber: count,
-		}
-		writeResponse(resp, info)
-	} else {
-		info := &userListJsonStruct{
-			Users:     list,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//			NextCursor:  list[countvalid-1].Userid,
-			//			PrevCursor:  list[0].Userid,
-			TotalNumber: count,
-		}
-		writeResponse(resp, info)
+	info := &userListJsonStruct{
+		Users:       list,
+		Page:        form.Page,
+		PageTotal:   totalPage,
+		TotalNumber: total,
 	}
+
+	writeResponse(w, info)
 }
 
 type getUserFriendsForm struct {
@@ -507,22 +433,24 @@ type getUserFriendsForm struct {
 	Page  int    `form:"page_index"`
 	//	NextCursor string `form:"next_cursor"`
 	//	PrevCursor string `form:"prev_cursor"`
-	Token string `form:"access_token" binding:"required"`
+	//Token string `form:"access_token" binding:"required"`
 }
 
-func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserFriendsForm) {
-	valid, errT := checkToken(redis, form.Token)
-	if !valid {
-		writeResponse(resp, errT)
-		return
+func getUserFriendsHandler(w http.ResponseWriter,
+	redis *models.RedisLogger, form getUserFriendsForm) {
+	/*
+		valid, errT := checkToken(redis, form.Token)
+		if !valid {
+			writeResponse(w, errT)
+			return
+		}
+	*/
+
+	count := form.Count
+	if count == 0 {
+		count = defaultCount
 	}
 
-	getCount := form.Count
-	if getCount == 0 {
-		getCount = defaultCount
-	}
-
-	log.Println("getCount is ", getCount)
 	var friendType string
 	switch form.Type {
 	case "follows":
@@ -537,97 +465,27 @@ func getUserFriendsHandler(request *http.Request, resp http.ResponseWriter, redi
 		friendType = models.RelFriend
 	}
 	userids := redis.Friends(friendType, form.UserId)
-	if getCount > len(userids) {
-		log.Println("userid length is littler than getCount")
-		getCount = len(userids)
-	}
-
-	if getCount == 0 {
-		listEmpty := make([]*userInfoJsonStruct, getCount)
-		info := &userListJsonStruct{
-			Users:     listEmpty,
-			Page:      form.Page,
-			PageTotal: 0,
-
-			//			NextCursor:  "",
-			//			PrevCursor:  "",
-			TotalNumber: getCount,
-		}
-
-		writeResponse(resp, info)
-
-		//		writeResponse(resp, errors.NewError(errors.NotExistsError))
-		return
-	}
-
+	total := len(userids)
 	//count, users, err := models.GetFriendsListBySort(0, getCount, userids, form.Sort, form.PrevCursor, form.NextCursor)
-	count, users, err := models.GetFriendsListBySort(getCount*form.Page, getCount, userids, form.Sort, "", "")
-	if err != nil {
-		writeResponse(resp, err)
-		return
+	users, _ := models.GetFriendsListBySort(userids, count*form.Page, count, form.Sort)
+	list := make([]*userInfoJsonStruct, len(users))
+	for i, _ := range users {
+		list[i] = convertUser(&users[i], redis)
 	}
-	countvalid := len(users)
-	log.Println("countvalid is :", countvalid)
-	/*
-		if countvalid == 0 {
-			writeResponse(resp, errors.NewError(errors.DbError))
-			return
-		}
-	*/
-	list := make([]*userInfoJsonStruct, countvalid)
-	for i, user := range users {
-		list[i] = convertUser(&user, redis)
-	}
-	/*
-		var pc, nc string
-		switch form.Sort {
-		case "logintime":
-			pc = strconv.FormatInt(list[0].LastLog, 10)
-			nc = strconv.FormatInt(list[count-1].LastLog, 10)
-		case "userid":
-			pc = list[0].Userid
-			nc = list[count-1].Userid
-		case "nickname":
-			pc = list[0].Nickname
-			nc = list[count-1].Nickname
-		case "score":
-			pc = strconv.FormatInt(list[0].Score, 10)
-			nc = strconv.FormatInt(list[count-1].Score, 10)
-		case "regtime":
-			fallthrough
-		default:
-			pc = strconv.FormatInt(list[0].RegTime, 10)
-			nc = strconv.FormatInt(list[count-1].RegTime, 10)
-		}
-	*/
-	totalPage := count / getCount
-	if count%getCount != 0 {
+
+	totalPage := total / count
+	if total%count != 0 {
 		totalPage++
 	}
 
-	if countvalid == 0 {
-		info := &userListJsonStruct{
-			Users:     list,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//NextCursor:  "",
-			//PrevCursor:  "",
-			TotalNumber: count,
-		}
-
-		writeResponse(resp, info)
-	} else {
-		info := &userListJsonStruct{
-			Users:     list,
-			Page:      form.Page,
-			PageTotal: totalPage,
-			//NextCursor:  list[countvalid-1].Userid,
-			//PrevCursor:  list[0].Userid,
-			TotalNumber: count,
-		}
-
-		writeResponse(resp, info)
+	info := &userListJsonStruct{
+		Users:       list,
+		Page:        form.Page,
+		PageTotal:   totalPage,
+		TotalNumber: total,
 	}
+
+	writeResponse(w, info)
 }
 
 type banUserForm struct {

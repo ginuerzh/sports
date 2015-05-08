@@ -11,7 +11,7 @@ import (
 	//"log"
 	//"math/rand"
 	"net/http"
-	"strconv"
+	//"strconv"
 	"time"
 )
 
@@ -210,19 +210,22 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 		GiveAwards(user, awards, redis)
 		record.Coin = awards.Wealth
 
-		// ws push
-		event := &models.Event{
-			Type: models.EventStatus,
-			Time: time.Now().Unix(),
-			Data: models.EventData{
-				Type: models.EventTask,
-				To:   user.Id,
-				Body: []models.MsgBody{
-					{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
+		/*
+			// ws push
+			event := &models.Event{
+				Type: models.EventStatus,
+				Time: time.Now().Unix(),
+				Data: models.EventData{
+					Type: models.EventTask,
+					To:   user.Id,
+					Body: []models.MsgBody{
+						{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
+					},
 				},
-			},
-		}
-		redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+
+			}
+			redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+		*/
 	}
 
 	err := record.Save()

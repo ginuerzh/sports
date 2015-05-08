@@ -399,6 +399,23 @@ func update(collection string, selector, change interface{}, safe bool) error {
 	return withCollection(collection, nil, update)
 }
 
+func updateAll(collection string, selector, change interface{}, safe bool) (info *mgo.ChangeInfo, err error) {
+	update := func(c *mgo.Collection) error {
+		info, err = c.UpdateAll(selector, change)
+		return err
+	}
+	if safe {
+		withCollection(collection, &mgo.Safe{}, update)
+	} else {
+		withCollection(collection, nil, update)
+	}
+	if err != nil {
+		return info, errors.NewError(errors.DbError)
+	}
+
+	return
+}
+
 func upsert(collection string, selector, change interface{}, safe bool) (*mgo.ChangeInfo, error) {
 	var chinfo *mgo.ChangeInfo
 
