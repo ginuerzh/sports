@@ -120,7 +120,7 @@ User = (function() {
     })(this));
   };
 
-  User.search = function(token, keyword, gender, age, ban_status, sort, callback, pageIndex, pageCount) {
+  User.search = function(token, keyword, gender, age, ban_status, role, sort, callback, pageIndex, pageCount) {
     if (pageIndex == null) {
       pageIndex = 0;
     }
@@ -132,6 +132,7 @@ User = (function() {
       gender: gender,
       age: age,
       ban_status: ban_status,
+      role: role,
       sort: sort,
       page_index: pageIndex,
       page_count: pageCount,
@@ -704,7 +705,7 @@ urlPath = function(url) {
 };
 
 app.config(function($routeProvider) {
-  var aricledetail, ariclelist, articleimport, authdetail, authenticationlist, login, tasklist, userdetail, userlist;
+  var aricledetail, ariclelist, articleimport, authdetail, authenticationlist, dashboard, login, tasklist, userdetail, userlist;
   login = {
     templateUrl: 'html/user-login.html',
     controller: 'loginController'
@@ -712,6 +713,10 @@ app.config(function($routeProvider) {
   userlist = {
     templateUrl: 'html/user-list.html',
     controller: 'userlistController'
+  };
+  dashboard = {
+    templateUrl: 'html/dashboard-info.html',
+    controller: 'dashboardController'
   };
   userdetail = {
     templateUrl: 'html/user-details.html',
@@ -741,7 +746,7 @@ app.config(function($routeProvider) {
     templateUrl: 'html/authentication-detail.html',
     controller: 'authenticationController'
   };
-  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/5', authenticationlist).when('/authdetail/:authid', authdetail).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
+  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/0', dashboard).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/5', authenticationlist).when('/authdetail/:authid', authdetail).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
 });
 
 app.run([
@@ -846,7 +851,7 @@ app.run([
       };
       return $rootScope.showDialog(dialogInfo);
     };
-    $rootScope.navBarItems = ["首页", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理"];
+    $rootScope.navBarItems = ["Dashboard", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理"];
     return app.rootScope = $rootScope;
   }
 ]);
@@ -1004,10 +1009,8 @@ app.filter("statusname", function() {
   return function(data) {
     var taskSource;
     taskSource = "手动";
-    if (angular.isString(data)) {
-      if (data.length > 0) {
-        taskSource = "自动";
-      }
+    if (angular.isString(data) && data.length > 0) {
+      taskSource = "自动(" + data + ")";
     }
     return taskSource;
   };
@@ -1054,6 +1057,40 @@ app.filter("statusname", function() {
       }
     }
     return authclass;
+  };
+}).filter("rolefilter", function() {
+  return function(data) {
+    var rolestr;
+    rolestr = "手机";
+    if (angular.isString(data)) {
+      switch (data) {
+        case "weibo":
+          rolestr = "微博";
+          break;
+        case "email":
+          rolestr = "邮箱";
+      }
+    }
+    return rolestr;
+  };
+}).filter("gender", function() {
+  return function(data) {
+    var gender;
+    gender = "男";
+    if (angular.isString(data) && data === "female") {
+      gender = "女";
+    }
+    return gender;
+  };
+}).filter("age", function() {
+  return function(data) {
+    var age, birth;
+    age = 0;
+    if ((data != null) && data !== 0) {
+      birth = new Date(data * 1000);
+      age = new Date().getFullYear() - birth.getFullYear();
+    }
+    return age;
   };
 });
 
@@ -1104,7 +1141,7 @@ app.directive('zjcustomize', function() {
         scope.pagetotal = value.pagetotal;
         return scope.paginationTo = function(p) {
           if (p > 0 && p <= scope.pagetotal) {
-            return scope.$emit('genPagination', p);
+            return scope.$emit('genPagination', p, element.context.id);
           }
         };
       });
@@ -1409,6 +1446,69 @@ authenticationController = app.controller('authenticationController', [
   }
 ]);
 
+var dashboardController;
+
+dashboardController = app.controller('dashboardController', [
+  'app', '$scope', '$routeParams', '$rootScope', 'dashboardService', function(app, $scope, $routeParams, $rootScope, dashboardService) {
+    var days, getArticleList, getGameList, getOnlineList, getReportList, getsummaryinfo;
+    if (!app.getCookie("isLogin")) {
+      window.location.href = "#/";
+      return;
+    }
+    days = [1, 7, 15, 30];
+    $scope.dropdowmItems = ["1 天", "7 天", "15 天", "30 天"];
+    $scope.selectindex = 1;
+    $scope.countPageChange = function(index) {
+      $scope.selectindex = index;
+      return getsummaryinfo(days[$scope.selectindex]);
+    };
+    getsummaryinfo = function(day) {
+      return $scope.summary = dashboardService.getsummaryinfo(day);
+    };
+    getOnlineList = function(pageIndex) {
+      var userlist;
+      userlist = dashboardService.getlist('-onlinetime', pageIndex);
+      $scope.onlinelist = userlist.userlist;
+      return $scope.pagination = userlist.pagination;
+    };
+    getReportList = function(pageIndex) {
+      var userlist;
+      userlist = dashboardService.getlist('-record', pageIndex);
+      $scope.reportlist = userlist.userlist;
+      return $scope.reportpagination = userlist.pagination;
+    };
+    getArticleList = function(pageIndex) {
+      var userlist;
+      userlist = dashboardService.getlist('-post', pageIndex);
+      $scope.articlelist = userlist.userlist;
+      return $scope.articlepagination = userlist.pagination;
+    };
+    getGameList = function(pageIndex) {
+      var userlist;
+      userlist = dashboardService.getlist('-gametime', pageIndex);
+      $scope.gamelist = userlist.userlist;
+      return $scope.gamepagination = userlist.pagination;
+    };
+    $scope.$on('genPagination', function(event, p, id) {
+      event.stopPropagation();
+      if (id === 'onlinepage') {
+        return getOnlineList(p);
+      } else if (id === 'reportpage') {
+        return getReportList(p);
+      } else if (id === 'articlepage') {
+        return getArticleList(p);
+      } else if (id === 'gamepage') {
+        return getGameList(p);
+      }
+    });
+    getsummaryinfo(days[$scope.selectindex]);
+    getOnlineList(0);
+    getReportList(0);
+    getArticleList(0);
+    return getGameList(0);
+  }
+]);
+
 var loginController;
 
 loginController = app.controller('loginController', [
@@ -1421,7 +1521,7 @@ loginController = app.controller('loginController', [
           if (checkRequest(retData)) {
             retData.isLogin = true;
             app.checkUser(retData);
-            window.location.href = "#/userlist";
+            window.location.href = "#/0";
             $scope.username = "";
             return $scope.pwd = "";
           } else {
@@ -1536,8 +1636,8 @@ tasklistController = app.controller('tasklistController', [
 var userdetailController;
 
 userdetailController = app.controller('userdetailController', [
-  'app', '$scope', '$routeParams', '$rootScope', function(app, $scope, $routeParams, $rootScope) {
-    var getArrayString, userinfoId;
+  'app', '$scope', '$routeParams', '$rootScope', 'utils', 'dashboardService', function(app, $scope, $routeParams, $rootScope, utils, dashboardService) {
+    var getArrayString, getArticleByUser, getFollowers, getFollows, getSportByUser, userinfoId;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
@@ -1584,7 +1684,7 @@ userdetailController = app.controller('userdetailController', [
         }
       });
     };
-    return $scope.banUser = function(nState) {
+    $scope.banUser = function(nState) {
       $rootScope.sel.nSuccess = 0;
       if (nState > 0) {
         nState = 30 * 24 * 60 * 60;
@@ -1598,7 +1698,7 @@ userdetailController = app.controller('userdetailController', [
           refresh = true;
           $rootScope.note.successState = true;
           if (nState === 0) {
-            $scope.userDetail.ban_statusTmp = "正常1";
+            $scope.userDetail.ban_statusTmp = "正常";
             $scope.userDetailBtnState[0] = 0;
             $scope.userDetail.banStyle = $rootScope.banStyleList[0];
           } else if (nState > 0) {
@@ -1617,6 +1717,52 @@ userdetailController = app.controller('userdetailController', [
         return setTimeout(app.hideNote, 1500);
       });
     };
+    getArticleByUser = function(pageIndex) {
+      var listdata;
+      listdata = dashboardService.getaritlclebyuser(userinfoId, pageIndex);
+      $scope.articlesList = listdata.articlelist;
+      return $scope.pagination = listdata.pagination;
+    };
+    getSportByUser = function(pageIndex) {
+      var listdata;
+      listdata = dashboardService.getsportlistbyuser(userinfoId, pageIndex, 'run');
+      $scope.sportList = listdata.sportlist;
+      return $scope.sportpagination = listdata.pagination;
+    };
+    getFollows = function(pageIndex) {
+      var listdata;
+      listdata = dashboardService.getfriendshiplistbyuser(userinfoId, pageIndex, 'follows');
+      $scope.followslist = listdata.friendshiplist;
+      return $scope.followspagination = listdata.pagination;
+    };
+    getFollowers = function(pageIndex) {
+      var listdata;
+      listdata = dashboardService.getfriendshiplistbyuser(userinfoId, pageIndex, 'followers');
+      $scope.followerslist = listdata.friendshiplist;
+      return $scope.followerspagination = listdata.pagination;
+    };
+    $scope.showImgs = function(index) {
+      var str;
+      utils.removeItem("task_imgs");
+      utils.setItem("task_imgs", $scope.rowCollection[index].images);
+      return str = utils.getItem("task_imgs");
+    };
+    $scope.$on('genPagination', function(event, p, id) {
+      event.stopPropagation();
+      if (id === 'articlepage') {
+        return getArticleByUser(p);
+      } else if (id === 'sportpage') {
+        return getSportByUser(p);
+      } else if (id === 'followerspage') {
+        return getFollowers(p);
+      } else if (id === 'followspage') {
+        return getFollows(p);
+      }
+    });
+    getArticleByUser(0);
+    getSportByUser(0);
+    getFollows(0);
+    return getFollowers(0);
   }
 ]);
 
@@ -1624,7 +1770,7 @@ var userlistController,
   __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
 userlistController = app.controller('userlistController', [
-  'app', '$scope', '$rootScope', function(app, $scope, $rootScope) {
+  'app', '$scope', '$rootScope', '$routeParams', function(app, $scope, $rootScope, $routeParams) {
     var banuserFinish, pageCount, resetCheckState, searchMode, sortStr, timer, userPageIndex, userSearchPageIndex;
     pageCount = 50;
     searchMode = false;
@@ -1637,8 +1783,8 @@ userlistController = app.controller('userlistController', [
       return;
     }
     $scope.dropdowmItems = ["50项", "100项", "200项"];
-    $scope.selectType = ["选择", "性别", "年龄", "状态"];
-    $scope.selectItemList = [["选择"], ["男", "女"], ["< 20岁", "20～40岁", "> 40岁"], ["正常", "禁言", "拉黑"]];
+    $scope.selectType = ["选择", "性别", "年龄", "状态", "账号类型"];
+    $scope.selectItemList = [["选择"], ["男", "女"], ["< 20岁", "20～40岁", "> 40岁"], ["正常", "禁言", "拉黑"], ["手机", "微博", "邮箱"]];
     $scope.selectItem = $scope.selectItemList[0];
     $scope.filtStr = ["启用过滤", "取消过滤"];
     $scope.filtState = 0;
@@ -1752,15 +1898,24 @@ userlistController = app.controller('userlistController', [
           } else {
             searchDetail.ban_status = "ban";
           }
+        } else if ($scope.typeIndex === 4) {
+          if ($scope.filtItemIndex === 0) {
+            searchDetail.role = "phone";
+          } else if ($scope.filtItemIndex === 1) {
+            searchDetail.role = "weibo";
+          } else {
+            searchDetail.role = "email";
+          }
         }
       } else {
         searchDetail.gender = "";
         searchDetail.age = "";
         searchDetail.ban_status = "";
       }
-      return User.search(userToken, searchDetail.keyword, searchDetail.gender, searchDetail.age, searchDetail.ban_status, sortStr, function(retData, page_index, page_total, total_count) {
+      return User.search(userToken, searchDetail.keyword, searchDetail.gender, searchDetail.age, searchDetail.ban_status, searchDetail.role, sortStr, function(retData, page_index, page_total, total_count) {
         var useritem, _i, _j, _len, _results;
         if (checkRequest(retData)) {
+          $scope.total_num = total_count;
           $scope.arrPage = (function() {
             _results = [];
             for (var _i = 0; 0 <= page_total ? _i < page_total : _i > page_total; 0 <= page_total ? _i++ : _i--){ _results.push(_i); }
@@ -1810,6 +1965,7 @@ userlistController = app.controller('userlistController', [
       return User.list(userToken, sortStr, function(retData, page_index, page_total, total_count) {
         var useritem, _i, _j, _len, _results;
         if (checkRequest(retData)) {
+          $scope.total_num = total_count;
           $scope.arrPage = (function() {
             _results = [];
             for (var _i = 0; 0 <= page_total ? _i < page_total : _i > page_total; 0 <= page_total ? _i++ : _i--){ _results.push(_i); }
@@ -2053,6 +2209,87 @@ app.factory('authq', [
   }
 ]);
 
+app.factory('dashboardq', [
+  '$http', function($http) {
+    return {
+      getsummary: function(day) {
+        return $http.get(Util.host + "/admin/stat/summary", {
+          params: {
+            days: day,
+            access_token: userToken
+          }
+        });
+      },
+      getuserlist: function(sort, pageIndex, pageCount) {
+        if (pageIndex == null) {
+          pageIndex = 0;
+        }
+        if (pageCount == null) {
+          pageCount = 20;
+        }
+        return $http.get(Util.host + "/admin/user/list", {
+          params: {
+            sort: sort,
+            access_token: userToken,
+            page_index: pageIndex,
+            page_count: pageCount
+          }
+        });
+      },
+      getsportlistbyuser: function(userId, type, pageIndex, pageCount) {
+        if (pageIndex == null) {
+          pageIndex = 0;
+        }
+        if (pageCount == null) {
+          pageCount = 20;
+        }
+        return $http.get(Util.host + "/admin/record/timeline", {
+          params: {
+            userid: userId,
+            type: type,
+            access_token: userToken,
+            page_index: pageIndex,
+            page_count: pageCount
+          }
+        });
+      },
+      getfriendshipbyuser: function(userId, type, pageIndex, pageCount) {
+        if (pageIndex == null) {
+          pageIndex = 0;
+        }
+        if (pageCount == null) {
+          pageCount = 20;
+        }
+        return $http.get(Util.host + "/admin/user/friendship", {
+          params: {
+            userid: userId,
+            type: type,
+            access_token: userToken,
+            page_index: pageIndex,
+            page_count: pageCount
+          }
+        });
+      },
+      getarticlebyuser: function(userid, pageIndex, pageCount) {
+        if (pageIndex == null) {
+          pageIndex = 0;
+        }
+        if (pageCount == null) {
+          pageCount = 50;
+        }
+        return $http.get(Util.host + "/admin/article/timeline", {
+          params: {
+            userid: userid,
+            page_index: pageIndex,
+            page_count: pageCount,
+            access_token: userToken
+          }
+        });
+      }
+    };
+  }
+]);
+
 app.factory('taskService', [
   '$q', 'taskq', function($q, $taskq) {
     return {
@@ -2228,6 +2465,195 @@ app.factory('authService', [
       },
       authinfo: function(userid) {
         return $authq.authinfo(userid);
+      }
+    };
+  }
+]);
+
+app.factory('dashboardService', [
+  '$q', 'dashboardq', function($q, $dashboardq) {
+    return {
+      getsummaryinfo: function(day) {
+        var summary;
+        summary = {
+          "summarylist": [],
+          "users": 0,
+          "onlines": 0,
+          "online_coaches": 0
+        };
+        $dashboardq.getsummary(day).success(function(response) {
+          var i, item, items, _i, _j, _len, _results;
+          if (checkRequest(response)) {
+            items = (function() {
+              _results = [];
+              for (var _i = 0; 0 <= day ? _i < day : _i > day; 0 <= day ? _i++ : _i--){ _results.push(_i); }
+              return _results;
+            }).apply(this);
+            for (_j = 0, _len = items.length; _j < _len; _j++) {
+              i = items[_j];
+              item = {};
+              item.reg_phone = response.reg_phone[i];
+              item.reg_email = response.reg_email[i];
+              item.reg_weibo = response.reg_weibo[i];
+              item.logins = response.logins[i];
+              item.actives = response.actives[i];
+              item.post_users = response.post_users[i];
+              item.posts = response.posts[i];
+              item.gamers = response.gamers[i];
+              item.game_time = response.game_time[i];
+              item.record_users = response.record_users[i];
+              item.auth_coaches = response.auth_coaches[i];
+              item.coach_logins = response.coach_logins[i];
+              item.coins = response.coins[i];
+              item.dateTime = (new Date()).valueOf() - 24 * 60 * 60 * 1000 * i;
+              summary.summarylist.push(item);
+            }
+            summary.users = response.users;
+            summary.onlines = response.onlines;
+            return summary.online_coaches = response.online_coaches;
+          }
+        });
+        return summary;
+      },
+      getlist: function(sort, pageIndex) {
+        var listdata;
+        listdata = {
+          'userlist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $dashboardq.getuserlist(sort, pageIndex, 10).success(function(response) {
+          var item, userItem, _i, _j, _len, _ref, _ref1, _results;
+          if (checkRequest(response)) {
+            _ref = response.users;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              userItem = {};
+              userItem.userid = item.userid;
+              userItem.nickname = item.nickname;
+              userItem.profile = item.profile;
+              userItem.gender = item.gender;
+              userItem.birthday = item.birthday;
+              if (item.stat !== null && item.stat !== void 0) {
+                userItem.onlinetime = item.stat.onlinetime;
+                userItem.report = item.stat.records;
+                userItem.article = item.stat.articles;
+                userItem.game = item.stat.gametime;
+              } else {
+                userItem.onlinetime = 0;
+                userItem.report = 0;
+                userItem.article = 0;
+                userItem.game = 0;
+              }
+              listdata.userlist.push(userItem);
+            }
+            listdata.pagination.pageIndex = response.page_index;
+            listdata.pagination.total = response.total_number;
+            listdata.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return listdata.pagination.pagetotal = response.page_total;
+          }
+        });
+        return listdata;
+      },
+      getsportlistbyuser: function(userid, pageIndex, type) {
+        var listdata;
+        listdata = {
+          'sportlist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $dashboardq.getsportlistbyuser(userid, type, pageIndex).success(function(response) {
+          var item, _i, _j, _len, _ref, _ref1, _results;
+          if (checkRequest(response)) {
+            _ref = response.records;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              listdata.sportlist.push(item);
+            }
+            listdata.pagination.pageIndex = response.page_index;
+            listdata.pagination.total = response.total_number;
+            listdata.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return listdata.pagination.pagetotal = response.page_total;
+          }
+        });
+        return listdata;
+      },
+      getfriendshiplistbyuser: function(userid, pageIndex, type) {
+        var listdata;
+        listdata = {
+          'friendshiplist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $dashboardq.getfriendshipbyuser(userid, type, pageIndex).success(function(response) {
+          var item, _i, _j, _len, _ref, _ref1, _results;
+          if (checkRequest(response)) {
+            _ref = response.users;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              listdata.friendshiplist.push(item);
+            }
+            listdata.pagination.pageIndex = response.page_index;
+            listdata.pagination.total = response.total_number;
+            listdata.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return listdata.pagination.pagetotal = response.page_total;
+          }
+        });
+        return listdata;
+      },
+      getaritlclebyuser: function(userId, pageIndex) {
+        var listdata;
+        listdata = {
+          'articlelist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $dashboardq.getarticlebyuser(userId, pageIndex).success(function(response) {
+          var item, _i, _j, _len, _ref, _results;
+          if (checkRequest(response)) {
+            for (_i = 0, _len = response.length; _i < _len; _i++) {
+              item = response[_i];
+              listdata.articlelist.push(item);
+            }
+            listdata.pagination.pageIndex = response.page_index;
+            listdata.pagination.total = response.total_number;
+            listdata.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref = response.page_total; 0 <= _ref ? _j < _ref : _j > _ref; 0 <= _ref ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return listdata.pagination.pagetotal = response.page_total;
+          }
+        });
+        return listdata;
       }
     };
   }

@@ -23,7 +23,7 @@
                 <th st-sort="end_time">end_time</th>
                 <th st-sort="distance">distance</th>
                 <th st-sort="reason">reason</th>
-                <th ng-show="checked">action</th>
+                <th>action</th>
             </tr>
 
             </thead>
@@ -49,7 +49,7 @@
                 <td class="col-md-1">
                     <textarea rows="4" name="S1" cols="20" ng-model="row.reason"></textarea>
                 </td>
-                <td ng-show="checked" class="col-md-1">
+                <td class="col-md-1">
                     <button type="button" class="btn btn-primary" ng-click="Approve(row)" ng-disabled="row.reason.length==0">批准</button>
 
                     <button type="button" class="btn btn-primary" ng-click="Reject(row)" ng-disabled="row.reason.length==0">拒绝</button>
