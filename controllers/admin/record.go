@@ -45,7 +45,7 @@ type record struct {
 }
 
 type recordsListJsonStruct struct {
-	Records []*record `json:"records"`
+	Records []record `json:"records"`
 	//NextCursor  string   `json:"next_cursor"`
 	//PrevCursor  string   `json:"prev_cursor"`
 	Page        int `json:"page_index"`
@@ -70,7 +70,7 @@ func getRecordsListHandler(w http.ResponseWriter, redis *models.RedisLogger, for
 	//tn, records, err := models.GetRecords(form.Userid, form.Type, form.NextCursor, form.PrevCursor, form.Count, form.FromTime, form.ToTime, 0, getCount)
 	total, records, _ := models.GetRecords(form.Userid, form.Type, form.Count, fromTime, toTime, count*form.Page, count)
 
-	list := make([]*record, len(records))
+	list := make([]record, len(records))
 	for i, _ := range records {
 		list[i].ID = records[i].Uid
 		list[i].Type = records[i].Type
