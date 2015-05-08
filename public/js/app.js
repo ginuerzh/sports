@@ -977,6 +977,8 @@ app.filter("statusname", function() {
     if (angular.isString(data)) {
       if (data.length > 50) {
         titlestr = data.substr(0, 50) + "......";
+      } else if (data.length === 0) {
+        titlestr = "无标题文章";
       }
     }
     return titlestr;
@@ -2637,17 +2639,18 @@ app.factory('dashboardService', [
           }
         };
         $dashboardq.getarticlebyuser(userId, pageIndex).success(function(response) {
-          var item, _i, _j, _len, _ref, _results;
+          var item, _i, _j, _len, _ref, _ref1, _results;
           if (checkRequest(response)) {
-            for (_i = 0, _len = response.length; _i < _len; _i++) {
-              item = response[_i];
+            _ref = response.articles;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
               listdata.articlelist.push(item);
             }
             listdata.pagination.pageIndex = response.page_index;
             listdata.pagination.total = response.total_number;
             listdata.pagination.showPages = (function() {
               _results = [];
-              for (var _j = 0, _ref = response.page_total; 0 <= _ref ? _j < _ref : _j > _ref; 0 <= _ref ? _j++ : _j--){ _results.push(_j); }
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
               return _results;
             }).apply(this);
             return listdata.pagination.pagetotal = response.page_total;

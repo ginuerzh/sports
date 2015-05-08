@@ -161,7 +161,7 @@
                   <div class="panel-heading">作者文章 ( 共 {{ articlesList.length }} 篇 )</div>
                   <ul class="media-list comments" >
                     <li ng-repeat="item in articlesList">
-                      <span class="label">{{item.time}}</span>&nbsp;<a ng-href="{{'#/articledetail/'+item.article_id}}" title="{{item.author+'发表'}}">{{item.cover_text|articletitle}}</a>
+                      <span class="label">{{item.time|timeconvert}}</span>&nbsp;<a ng-href="{{'#/articledetail/'+item.article_id}}" title="{{item.author+'发表'}}">{{item.cover_text|articletitle}}</a>
                     </li>
                   </ul>
                   <div gen-pagination="pagination" id="articlepage"></div>
@@ -218,8 +218,8 @@
                     <td>{{user.nickname}}</td>
                     <td>{{user.gender|gender}}</td>
                     <td>{{user.birthday|age}}</td>
-                    <td>{{user.reg_time}}</td>
-                    <td>{{user.last_login_time}}</td>
+                    <td>{{user.reg_time|timeconvert}}</td>
+                    <td>{{user.last_login_time|timeconvert}}</td>
                     <td>{{user.address}}</td>
                   </tr>
                   </tbody>
@@ -247,8 +247,8 @@
                     <td>{{user.nickname}}</td>
                     <td>{{user.gender|gender}}</td>
                     <td>{{user.birthday|age}}</td>
-                    <td>{{user.reg_time}}</td>
-                    <td>{{user.last_login_time}}</td>
+                    <td>{{user.reg_time|timeconvert}}</td>
+                    <td>{{user.last_login_time|timeconvert}}</td>
                     <td>{{user.address}}</td>
                   </tr>
                   </tbody>
