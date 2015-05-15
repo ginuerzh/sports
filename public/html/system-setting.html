@@ -1,0 +1,49 @@
+<div class="main-bg" ng-controller="configController">
+    <div class="row"><h2 class="col-md-12">系统设置</h2></div>
+    <div class="row" ng-show="!addstate">
+        <div class="col-md-12 btn-row">
+            <button type="button" class="btn btn-primary" ng-click="add()">新增</button>
+
+        </div>
+    </div>
+    <div class="row" ng-show="addstate">
+        <div class="col-md-12 btn-row">
+            <div class="row">
+                &nbsp;&nbsp;&nbsp;标题：<textarea rows="1" cols="50" placeholder="请输入标题" ng-model="adddata.title" style="resize:none"></textarea>
+            </div>
+            <br>
+            <div class="row">
+                &nbsp;&nbsp;&nbsp;内容：<textarea rows="1" cols="50" placeholder="请输入内容" ng-model="adddata.url" style="resize:none"></textarea>
+            </div>
+            <br>
+            <div class="row">
+                &nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="addsave()" ng-disabled="adddata.title.length==0 || adddata.url.length==0">保存</button>&nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="cancelsave()">取消</button>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead>
+                <tr>
+                    <th>标题</th>
+                    <th>内容</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                    <tr ng-repeat="item in configlist">
+                        <td><p ng-show="!item.isedit">{{item.title}}</p><textarea rows="1" name={{$index}} cols="20" ng-model="item.title" ng-show="item.isedit"></textarea></td>
+                        <td><p ng-show="!item.isedit">{{item.url}}</p><textarea rows="1" name={{$index}} cols="20" ng-model="item.url" ng-show="item.isedit"></textarea></td>
+                        <td class="col-md-1">
+                            <button type="button" class="btn btn-primary" ng-click="edit($index)" ng-show="!item.isedit">修改</button>
+                            <button type="button" class="btn btn-primary" ng-click="delete($index)" ng-show="!item.isedit">删除</button>
+
+                            <button type="button" class="btn btn-primary" ng-click="editsave($index)" ng-show="item.isedit">保存</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
