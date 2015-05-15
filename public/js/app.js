@@ -705,7 +705,7 @@ urlPath = function(url) {
 };
 
 app.config(function($routeProvider) {
-  var aricledetail, ariclelist, articleimport, authdetail, authenticationlist, dashboard, login, tasklist, userdetail, userlist;
+  var aricledetail, ariclelist, articleimport, authdetail, authenticationlist, configsetting, dashboard, login, tasklist, userdetail, userlist;
   login = {
     templateUrl: 'html/user-login.html',
     controller: 'loginController'
@@ -746,7 +746,11 @@ app.config(function($routeProvider) {
     templateUrl: 'html/authentication-detail.html',
     controller: 'authenticationController'
   };
-  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/0', dashboard).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/5', authenticationlist).when('/authdetail/:authid', authdetail).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
+  configsetting = {
+    templateUrl: 'html/system-setting.html',
+    controller: 'configController'
+  };
+  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/0', dashboard).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/5', authenticationlist).when('/6', configsetting).when('/authdetail/:authid', authdetail).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
 });
 
 app.run([
@@ -851,7 +855,7 @@ app.run([
       };
       return $rootScope.showDialog(dialogInfo);
     };
-    $rootScope.navBarItems = ["Dashboard", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理"];
+    $rootScope.navBarItems = ["Dashboard", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理", "系统设置"];
     return app.rootScope = $rootScope;
   }
 ]);
@@ -1445,6 +1449,58 @@ authenticationController = app.controller('authenticationController', [
       return authPost("refused", type);
     };
     return refreshmain();
+  }
+]);
+
+var configController;
+
+configController = app.controller('configController', [
+  'app', '$scope', 'configService', function(app, $scope, configService) {
+    var getconfiginfo, setconfiginfo;
+    $scope.addstate = false;
+    $scope.adddata = {
+      "title": "",
+      "url": ""
+    };
+    if (!app.getCookie("isLogin")) {
+      window.location.href = "#/";
+      return;
+    }
+    getconfiginfo = function() {
+      return $scope.configlist = configService.getconfig();
+    };
+    setconfiginfo = function() {
+      var configinfo;
+      configinfo = {
+        "videos": $scope.configlist
+      };
+      return configService.setconfig(configinfo).then(getconfiginfo);
+    };
+    $scope.edit = function(index) {
+      return $scope.configlist[index].isedit = true;
+    };
+    $scope.editsave = function(index) {
+      $scope.configlist[index].isedit = false;
+      return setconfiginfo();
+    };
+    $scope["delete"] = function(index) {
+      $scope.configlist.splice(index, 1);
+      return setconfiginfo();
+    };
+    $scope.add = function() {
+      $scope.adddata.url = "";
+      $scope.adddata.title = "";
+      return $scope.addstate = true;
+    };
+    $scope.addsave = function() {
+      $scope.addstate = false;
+      $scope.configlist.push($scope.adddata);
+      return setconfiginfo();
+    };
+    $scope.cancelsave = function() {
+      return $scope.addstate = false;
+    };
+    return getconfiginfo();
   }
 ]);
 
@@ -2292,6 +2348,26 @@ app.factory('dashboardq', [
   }
 ]);
 
+app.factory('configq', [
+  '$http', function($http) {
+    return {
+      getconfig: function() {
+        return $http.get(Util.host + "/admin/config/get", {
+          params: {
+            access_token: userToken
+          }
+        });
+      },
+      setconfig: function(configinfo) {
+        return $http.post(Util.host + '/admin/config/set', {
+          config: configinfo,
+          access_token: userToken
+        });
+      }
+    };
+  }
+]);
+
 app.factory('taskService', [
   '$q', 'taskq', function($q, $taskq) {
     return {
@@ -2657,6 +2733,34 @@ app.factory('dashboardService', [
           }
         });
         return listdata;
+      }
+    };
+  }
+]);
+
+app.factory('configService', [
+  '$q', 'configq', function($q, $configq) {
+    return {
+      getconfig: function() {
+        var configList;
+        configList = [];
+        $configq.getconfig().success(function(response) {
+          var item, _i, _len, _ref, _results;
+          if (checkRequest(response)) {
+            _ref = response.videos;
+            _results = [];
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              item.isedit = false;
+              _results.push(configList.push(item));
+            }
+            return _results;
+          }
+        });
+        return configList;
+      },
+      setconfig: function(info) {
+        return $configq.setconfig(info).success();
       }
     };
   }
