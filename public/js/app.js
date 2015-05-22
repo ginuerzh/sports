@@ -19,10 +19,17 @@ Util = (function() {
     });
   };
 
+  Util._checkDate = function(data) {
+    var retData;
+    retData = data;
+    retData += "";
+    return retData.replace(/^(\d)$/, "0$1");
+  };
+
   Util._formatDate = function(date) {
     var d, t;
-    d = [date.getFullYear(), date.getMonth() + 1, date.getDate()].join("-");
-    t = [date.getHours(), date.getMinutes(), date.getSeconds()].join(":");
+    d = [date.getFullYear(), Util._checkDate(date.getMonth() + 1), Util._checkDate(date.getDate())].join("-");
+    t = [Util._checkDate(date.getHours()), Util._checkDate(date.getMinutes()), Util._checkDate(date.getSeconds())].join(":");
     return [d, t].join(" ");
   };
 
@@ -677,7 +684,7 @@ app.factory('taskq', [
   }
 ]);
 
-var articleObj, checkRequest, converter, urlPath, userId, userObj, userToken;
+var articleObj, checkDate, checkRequest, converter, urlPath, userId, userObj, userToken;
 
 app.constant('app', {
   version: Date.now()
@@ -702,6 +709,13 @@ checkRequest = function(reqData) {
 
 urlPath = function(url) {
   return url;
+};
+
+checkDate = function(data) {
+  var retData;
+  retData = data;
+  retData += "";
+  return retData.replace(/^(\d)$/, "0$1");
 };
 
 app.config(function($routeProvider) {
@@ -970,8 +984,8 @@ app.filter("statusname", function() {
   return function(data) {
     var d, date, t;
     date = new Date(data * 1000);
-    d = [date.getFullYear(), date.getMonth() + 1, date.getDate()].join("-");
-    t = [date.getHours(), date.getMinutes(), date.getSeconds()].join(":");
+    d = [date.getFullYear(), checkDate(date.getMonth() + 1), checkDate(date.getDate())].join("-");
+    t = [checkDate(date.getHours()), checkDate(date.getMinutes()), checkDate(date.getSeconds())].join(":");
     return [d, t].join(" ");
   };
 }).filter("articletitle", function() {
@@ -1427,17 +1441,20 @@ authenticationController = app.controller('authenticationController', [
       return refreshmain();
     });
     authPost = function(status, type) {
-      var authStatus, authType;
+      var authStatus, authType, authreview;
       authType = "idcard";
       authStatus = status;
+      authreview = $scope.userinfo.auth.idcard.auth_review;
       switch (type) {
         case 1:
           authType = "cert";
+          authreview = $scope.userinfo.auth.cert.auth_review;
           break;
         case 2:
           authType = "record";
+          authreview = $scope.userinfo.auth.record.auth_review;
       }
-      return authService.authpost(authid, authType, authStatus).then(refreshmain);
+      return authService.authpost(authid, authType, authStatus, authreview).then(refreshmain);
     };
     $scope.approve = function(type) {
       return authPost("verified", type);
@@ -2247,11 +2264,12 @@ app.factory('authq', [
           }
         });
       },
-      authactionpost: function(userid, auth_type, auth_status) {
+      authactionpost: function(userid, auth_type, auth_status, authreview) {
         return $http.post(Util.host + "/admin/user/auth", {
           userid: userid,
           auth_type: auth_type,
           auth_status: auth_status,
+          auth_review: authreview,
           access_token: userToken
         });
       },
@@ -2536,8 +2554,8 @@ app.factory('authService', [
         });
         return authlistinfo;
       },
-      authpost: function(userid, auth_type, auth_status) {
-        return $authq.authactionpost(userid, auth_type, auth_status).success(function(response) {
+      authpost: function(userid, auth_type, auth_status, authreview) {
+        return $authq.authactionpost(userid, auth_type, auth_status, authreview).success(function(response) {
           return console.log(response);
         });
       },
