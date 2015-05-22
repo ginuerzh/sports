@@ -18,9 +18,8 @@
                 <span>身份证认证</span>
                 <span class="label" ng-style="userinfo.auth.idcard.auth_status|authclass">{{userinfo.auth.idcard.auth_status|authstatus}}</span>
                 <div class="pull-right">
-                    <button type="button" id="idcard-auth-confirm" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="approve(0)" ng-disabled="userinfo.auth.idcard==null">认证</button>
-                    <button type="button" id="idcard-auth-cancel" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="cancel(0)" ng-disabled="userinfo.auth.idcard==null">取消</button>
-                    <button type="button" id="idcard-auth-refuse" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="reject(0)" ng-disabled="userinfo.auth.idcard==null">拒绝</button>
+                    <button type="button" id="idcard-auth-confirm" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="approve(0)" ng-disabled="userinfo.auth.idcard==null || userinfo.auth.idcard.auth_review.length==0">认证</button>
+                    <button type="button" id="idcard-auth-refuse" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="reject(0)" ng-disabled="userinfo.auth.idcard==null || userinfo.auth.idcard.auth_review.length==0">拒绝</button>
                 </div>
             </div>
             <div class="row">
@@ -34,15 +33,19 @@
             <div ng-show="userinfo.auth.idcard==null">
                 &nbsp;&nbsp;&nbsp;&nbsp;暂无认证图片
             </div>
+            <div class="panel-heading">
+                审核意见：
+                <div><textarea rows="1" cols="100" placeholder="请输入审核意见" ng-model="userinfo.auth.idcard.auth_review" style="resize:none"></textarea></div>
+            </div>
         </div>
         <div class="panel panel-info">
             <div class="panel-heading">
                 <span>资格证认证</span>
                 <span class="label" ng-style="userinfo.auth.cert.auth_status|authclass">{{userinfo.auth.cert.auth_status|authstatus}}</span>
                 <div class="pull-right">
-                    <button type="button" id="title-auth-confirm" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="approve(1)" ng-disabled="userinfo.auth.cert==null">认证</button>
-                    <button type="button" id="title-auth-cancel" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="cancel(1)" ng-disabled="userinfo.auth.cert==null">取消</button>
-                    <button type="button" id="title-auth-refuse" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="reject(1)" ng-disabled="userinfo.auth.cert==null">拒绝</button>
+
+                    <button type="button" id="title-auth-confirm" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="approve(1)" ng-disabled="userinfo.auth.cert==null || userinfo.auth.cert.auth_review.length==0">认证</button>
+                    <button type="button" id="title-auth-refuse" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="reject(1)" ng-disabled="userinfo.auth.cert==null || userinfo.auth.cert.auth_review.length==0">拒绝</button>
                 </div>
             </div>
             <div class="row">
@@ -56,15 +59,18 @@
             <div ng-show="userinfo.auth.cert==null">
                 &nbsp;&nbsp;&nbsp;&nbsp;暂无认证图片
             </div>
+            <div class="panel-heading">
+                审核意见：
+                <div><textarea rows="1" cols="100" placeholder="请输入审核意见" ng-model="userinfo.auth.cert.auth_review" style="resize:none"></textarea></div>
+            </div>
         </div>
         <div class="panel panel-info">
             <div class="panel-heading">
                 <span>运动成绩认证</span>
                 <span class="label" ng-style="userinfo.auth.record.auth_status|authclass">{{userinfo.auth.record.auth_status|authstatus}}</span>
                 <div class="pull-right">
-                    <button type="button" id="score-auth-confirm" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="approve(2)" ng-disabled="userinfo.auth.record==null">认证</button>
-                    <button type="button" id="score-auth-cancel" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="cancel(2)" ng-disabled="userinfo.auth.record==null">取消</button>
-                    <button type="button" id="score-auth-refuse" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="reject(2)" ng-disabled="userinfo.auth.record==null">拒绝</button>
+                    <button type="button" id="score-auth-confirm" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="approve(2)" ng-disabled="userinfo.auth.record==null || userinfo.auth.record.auth_review.length==0">认证</button>
+                    <button type="button" id="score-auth-refuse" data-loading-text="加载中" class="btn btn-xs btn-primary" ng-click="reject(2)" ng-disabled="userinfo.auth.record==null || userinfo.auth.record.auth_review.length==0">拒绝</button>
                 </div>
             </div>
             <div class="row">
@@ -77,6 +83,11 @@
             </div>
             <div ng-show="userinfo.auth.record==null">
                 &nbsp;&nbsp;&nbsp;&nbsp;暂无认证图片
+            </div>
+
+            <div class="panel-heading">
+                审核意见：
+                <div><textarea rows="1" cols="100" placeholder="请输入审核意见" ng-model="userinfo.auth.record.auth_review" style="resize:none"></textarea></div>
             </div>
         </div>
     </div>
