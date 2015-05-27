@@ -1,49 +1,112 @@
 <div class="main-bg" ng-controller="configController">
     <div class="row"><h2 class="col-md-12">系统设置</h2></div>
-    <div class="row" ng-show="!addstate">
-        <div class="col-md-12 btn-row">
-            <button type="button" class="btn btn-primary" ng-click="add()">新增</button>
 
-        </div>
-    </div>
-    <div class="row" ng-show="addstate">
-        <div class="col-md-12 btn-row">
-            <div class="row">
-                &nbsp;&nbsp;&nbsp;标题：<textarea rows="1" cols="50" placeholder="请输入标题" ng-model="adddata.title" style="resize:none"></textarea>
-            </div>
-            <br>
-            <div class="row">
-                &nbsp;&nbsp;&nbsp;内容：<textarea rows="1" cols="50" placeholder="请输入内容" ng-model="adddata.url" style="resize:none"></textarea>
-            </div>
-            <br>
-            <div class="row">
-                &nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="addsave()" ng-disabled="adddata.title.length==0 || adddata.url.length==0">保存</button>&nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="cancelsave()">取消</button>
-            </div>
-        </div>
-    </div>
     <div class="row">
-        <div class="table-responsive">
-            <table class="table table-bordered table-hover">
-                <thead>
-                <tr>
-                    <th>标题</th>
-                    <th>内容</th>
-                    <th>操作</th>
-                </tr>
-                </thead>
-                <tbody>
-                    <tr ng-repeat="item in configlist">
-                        <td><p ng-show="!item.isedit">{{item.title}}</p><textarea rows="1" name={{$index}} cols="20" ng-model="item.title" ng-show="item.isedit"></textarea></td>
-                        <td><p ng-show="!item.isedit">{{item.url}}</p><textarea rows="1" name={{$index}} cols="20" ng-model="item.url" ng-show="item.isedit"></textarea></td>
-                        <td class="col-md-1">
-                            <button type="button" class="btn btn-primary" ng-click="edit($index)" ng-show="!item.isedit">修改</button>
-                            <button type="button" class="btn btn-primary" ng-click="delete($index)" ng-show="!item.isedit">删除</button>
+    <div class="col-md-12">
+        <ul role="tablist" class="nav nav-tabs" id="myTab">
+            <li class="active" role="presentation"><a aria-expanded="true" aria-controls="vedio" data-toggle="tab" role="tab" id="vedio-tab"  href="#vedio" target="_self">运动教学视频</a></li>
+            <li role="presentation" class=""><a aria-controls="pets" data-toggle="tab" id="pets-tab"  role="tab" href="#pets" aria-expanded="false" target="_self">宠物头像</a></li>
+        </ul>
+        <div class="tab-content" id="systemsetting">
+            <div aria-labelledby="vedio-tab" id="vedio" class="tab-pane fade active in" role="tabpanel">
+                <div class="row" ng-show="!addstate">
+                    <div class="col-md-12 btn-row">
+                        <button type="button" class="btn btn-primary" ng-click="add(0)">新增</button>
 
-                            <button type="button" class="btn btn-primary" ng-click="editsave($index)" ng-show="item.isedit">保存</button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                    </div>
+                </div>
+                <div class="row" ng-show="addstate">
+                    <div class="col-md-12 btn-row">
+                        <div class="row">
+                            &nbsp;&nbsp;&nbsp;标题：<textarea rows="1" cols="50" placeholder="请输入标题" ng-model="adddata.title" style="resize:none"></textarea>
+                        </div>
+                        <br>
+                        <div class="row">
+                            &nbsp;&nbsp;&nbsp;内容：<textarea rows="1" cols="50" placeholder="请输入内容" ng-model="adddata.url" style="resize:none"></textarea>
+                        </div>
+                        <br>
+                        <div class="row">
+                            &nbsp;&nbsp;&nbsp;描述：<textarea rows="1" cols="50" placeholder="请输入描述" ng-model="adddata.desc" style="resize:none"></textarea>
+                        </div>
+                        <br>
+                        <div class="row">
+                            &nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="addsave(0)" ng-disabled="adddata.title.length==0 || adddata.url.length==0 || adddata.desc.length==0">保存</button>&nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="cancelsave(0)">取消</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                            <tr>
+                                <th>标题</th>
+                                <th>内容</th>
+                                <th>描述</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr ng-repeat="item in configlist">
+                                <td><p ng-show="!item.isedit">{{item.title}}</p><textarea rows="1" name={{$index}} cols="50" ng-model="item.title" ng-show="item.isedit"></textarea></td>
+                                <td><p ng-show="!item.isedit">{{item.url}}</p><textarea rows="1" name={{$index}} cols="50" ng-model="item.url" ng-show="item.isedit"></textarea></td>
+                                <td><p ng-show="!item.isedit">{{item.desc}}</p><textarea rows="1" name={{$index}} cols="50" ng-model="item.desc" ng-show="item.isedit"></textarea></td>
+                                <td class="col-md-1">
+                                    <button type="button" class="btn btn-primary" ng-click="edit(0,$index)" ng-show="!item.isedit">修改</button>
+                                    <button type="button" class="btn btn-primary" ng-click="delete(0,$index)" ng-show="!item.isedit">删除</button>
+
+                                    <button type="button" class="btn btn-primary" ng-click="editsave(0,$index)" ng-show="item.isedit">保存</button>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div aria-labelledby="pets-tab" id="pets" class="tab-pane fade" role="tabpanel">
+                <div class="row" ng-show="!petaddstate">
+                    <div class="col-md-12 btn-row">
+                        <button type="button" class="btn btn-primary" ng-click="add(1)">新增</button>
+
+                    </div>
+                </div>
+                <div class="row" ng-show="petaddstate">
+                    <div class="col-md-12 btn-row">
+                        <div class="row">
+                            &nbsp;&nbsp;&nbsp;内容：<textarea rows="1" cols="50" placeholder="请输入内容" ng-model="petadddata" style="resize:none"></textarea>
+                        </div>
+                        <br>
+                        <div class="row">
+                            &nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="addsave(1)" ng-disabled="petadddata.length==0">保存</button>&nbsp;&nbsp;&nbsp;<button type="button" class="btn btn-primary" ng-click="cancelsave(1)">取消</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                            <tr>
+                                <th>内容</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr ng-repeat="item in petlist">
+                                <td><p ng-show="!item.isedit">{{item.content}}</p><textarea rows="1" name={{$index}} cols="50" ng-model="item.content" ng-show="item.isedit"></textarea></td>
+                                <td class="col-md-1">
+                                    <button type="button" class="btn btn-primary" ng-click="edit(1,$index)" ng-show="!item.isedit">修改</button>
+                                    <button type="button" class="btn btn-primary" ng-click="delete(1,$index)" ng-show="!item.isedit">删除</button>
+
+                                    <button type="button" class="btn btn-primary" ng-click="editsave(1,$index)" ng-show="item.isedit">保存</button>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
         </div>
     </div>
 </div>
