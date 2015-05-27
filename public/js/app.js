@@ -1475,47 +1475,90 @@ configController = app.controller('configController', [
   'app', '$scope', 'configService', function(app, $scope, configService) {
     var getconfiginfo, setconfiginfo;
     $scope.addstate = false;
+    $scope.petaddstate = false;
     $scope.adddata = {
       "title": "",
       "url": ""
     };
+    $scope.petadddata = "";
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
     }
     getconfiginfo = function() {
-      return $scope.configlist = configService.getconfig();
+      var listdata;
+      listdata = configService.getconfig();
+      $scope.configlist = listdata.videos;
+      return $scope.petlist = listdata.pets;
     };
     setconfiginfo = function() {
-      var configinfo;
+      var configinfo, item, petlist, _i, _len, _ref;
+      petlist = [];
+      _ref = $scope.petlist;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        item = _ref[_i];
+        petlist.push(item.content);
+      }
       configinfo = {
-        "videos": $scope.configlist
+        "videos": $scope.configlist,
+        "pets": petlist
       };
       return configService.setconfig(configinfo).then(getconfiginfo);
     };
-    $scope.edit = function(index) {
-      return $scope.configlist[index].isedit = true;
+    $scope.edit = function(type, index) {
+      if (type === 0) {
+        return $scope.configlist[index].isedit = true;
+      } else if (type === 1) {
+        return $scope.petlist[index].isedit = true;
+      }
     };
-    $scope.editsave = function(index) {
-      $scope.configlist[index].isedit = false;
+    $scope.editsave = function(type, index) {
+      if (type === 0) {
+        $scope.configlist[index].isedit = false;
+      } else if (type === 1) {
+        $scope.petlist[index].isedit = false;
+      }
       return setconfiginfo();
     };
-    $scope["delete"] = function(index) {
-      $scope.configlist.splice(index, 1);
+    $scope["delete"] = function(type, index) {
+      if (type === 0) {
+        $scope.configlist.splice(index, 1);
+      } else if (type === 1) {
+        $scope.petlist.splice(index, 1);
+      }
       return setconfiginfo();
     };
-    $scope.add = function() {
-      $scope.adddata.url = "";
-      $scope.adddata.title = "";
-      return $scope.addstate = true;
+    $scope.add = function(type) {
+      if (type === 0) {
+        $scope.adddata.url = "";
+        $scope.adddata.title = "";
+        return $scope.addstate = true;
+      } else if (type === 1) {
+        $scope.petadddata = "";
+        return $scope.petaddstate = true;
+      }
     };
-    $scope.addsave = function() {
-      $scope.addstate = false;
-      $scope.configlist.push($scope.adddata);
+    $scope.addsave = function(type) {
+      var item;
+      if (type === 0) {
+        $scope.addstate = false;
+        $scope.configlist.push($scope.adddata);
+      } else if (type === 1) {
+        item = {
+          "isedit": false,
+          "content": $scope.petadddata
+        };
+        $scope.petlist.push(item);
+        $scope.petaddstate = false;
+      }
       return setconfiginfo();
     };
-    $scope.cancelsave = function() {
-      return $scope.addstate = false;
+    $scope.cancelsave = function(type) {
+      if (type === 0) {
+        return $scope.addstate = false;
+      } else if (type === 1) {
+        return $scope.petaddstate = false;
+      }
     };
     return getconfiginfo();
   }
@@ -2760,22 +2803,34 @@ app.factory('configService', [
   '$q', 'configq', function($q, $configq) {
     return {
       getconfig: function() {
-        var configList;
-        configList = [];
+        var retList;
+        retList = {
+          "videos": [],
+          "pets": []
+        };
         $configq.getconfig().success(function(response) {
-          var item, _i, _len, _ref, _results;
+          var item, itemdata, _i, _j, _len, _len1, _ref, _ref1, _results;
           if (checkRequest(response)) {
             _ref = response.videos;
-            _results = [];
             for (_i = 0, _len = _ref.length; _i < _len; _i++) {
               item = _ref[_i];
               item.isedit = false;
-              _results.push(configList.push(item));
+              retList.videos.push(item);
+            }
+            _ref1 = response.pets;
+            _results = [];
+            for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+              item = _ref1[_j];
+              itemdata = {
+                "content": item,
+                "isedit": false
+              };
+              _results.push(retList.pets.push(itemdata));
             }
             return _results;
           }
         });
-        return configList;
+        return retList;
       },
       setconfig: function(info) {
         return $configq.setconfig(info).success();
