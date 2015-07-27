@@ -669,6 +669,12 @@ app.factory('taskq', [
           access_token: userToken
         });
       },
+      taskauditall: function(auditlist) {
+        return $http.post(Util.host + '/admin/task/auth_list', {
+          auths: auditlist,
+          access_token: userToken
+        });
+      },
       search: function(nickname, finish, page_count, page_index) {
         return $http.get(Util.host + '/admin/task/timeline', {
           params: {
@@ -1738,6 +1744,38 @@ tasklistController = app.controller('tasklistController', [
         return refreshtable();
       }
     };
+    $scope.dealAll = function() {
+      var authlist, item, itemtmp, _i, _len, _ref;
+      authlist = [];
+      _ref = $scope.displayedCollection;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        item = _ref[_i];
+        if (item.pass >= 0 && item.reason.length > 0) {
+          itemtmp = {
+            userid: item.userid,
+            task_id: item.taskid,
+            reason: item.reason,
+            pass: item.pass
+          };
+          authlist.push(itemtmp);
+        }
+      }
+      if (authlist.length > 0) {
+        return taskService.dealalltask(authlist).then(refreshtable);
+      }
+    };
+    $scope.approveSelect = function(index) {
+      $scope.displayedCollection[index].pass = 1;
+      return $scope.displayedCollection[index].reason = "不错呦，加油！";
+    };
+    $scope.rejectSelect = function(index) {
+      $scope.displayedCollection[index].pass = 0;
+      return $scope.displayedCollection[index].reason = "您上传的资料有误，请重新检查！";
+    };
+    $scope.cancelSelect = function(index) {
+      $scope.displayedCollection[index].pass = -1;
+      return $scope.displayedCollection[index].reason = "";
+    };
     $scope.$on('genPagination', function(event, p) {
       event.stopPropagation();
       pageIndex = p;
@@ -2466,7 +2504,8 @@ app.factory('taskService', [
                 profile: taskitem.profile,
                 begin_time: task.begin_time,
                 end_time: task.end_time,
-                distance: task.distance
+                distance: task.distance,
+                pass: -1
               };
               switch (tasktype) {
                 case "Auditting":
@@ -2498,6 +2537,9 @@ app.factory('taskService', [
       },
       taskreject: function(userid, taskid, reason) {
         return $taskq.taskaudit(userid, taskid, false, reason).success();
+      },
+      dealalltask: function(authlist) {
+        return $taskq.taskauditall(authlist).success();
       },
       searchtask: function(nickname, finish, page_index) {
         var tasklistInfo;
