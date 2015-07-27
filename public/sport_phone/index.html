@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN" ng-app="app">
+<head>
+    <meta name="viewport" content="initial-scale=1" charset="utf-8">
+    <link rel="stylesheet" href="css/angular-material.min.css">
+    <link rel="stylesheet" href="css/app.css">
+    <title>悦动力</title>
+
+</head>
+<body layout="column">
+<md-toolbar layout="row">
+    <div class="md-toolbar-tools">
+        <md-button class="md-icon-button" aria-label="logout" ng-click="logout($event)" ng-if="isLogin">
+            <md-icon md-svg-icon="images/menu.svg"></md-icon>
+        </md-button>
+        <h1>
+            <span>{{apptile}}</span>
+        </h1>
+        <span flex></span>
+
+        <md-menu ng-if="isLogin">
+            <md-button aria-label="Open demo menu" class="md-icon-button" ng-click="$mdOpenMenu()">
+                <md-icon md-svg-icon="images/more_vert.svg"></md-icon>
+            </md-button>
+            <md-menu-content width="2">
+                <md-menu-item ng-repeat="item in taskmenu">
+                    <md-button ng-click="taskmenuClick($index)">
+                        {{item}}
+                    </md-button>
+                </md-menu-item>
+            </md-menu-content>
+        </md-menu>
+    </div>
+</md-toolbar>
+<div ng-view></div>
+
+<!-- Angular Material Dependencies -->
+<script type="text/javascript" src="js/jquery.min.js"></script>
+<script type="text/javascript" src="js/angular.min.js"></script>
+<script type="text/javascript" src="js/angular-route.js"></script>
+<script type="text/javascript" src="js/angular-cookies.js"></script>
+<script type="text/javascript" src="js/angular-animate.min.js"></script>
+<script type="text/javascript" src="js/angular-aria.min.js"></script>
+<script type="text/javascript" src="js/angular-material.min.js"></script>
+<script type="text/javascript" src="js/app.js"></script>
+</body>
+</html>
