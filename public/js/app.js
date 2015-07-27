@@ -1755,7 +1755,9 @@ tasklistController = app.controller('tasklistController', [
             userid: item.userid,
             task_id: item.taskid,
             reason: item.reason,
-            pass: item.pass
+            pass: typeof item.pass === "function" ? item.pass({
+              "true": false
+            }) : void 0
           };
           authlist.push(itemtmp);
         }
