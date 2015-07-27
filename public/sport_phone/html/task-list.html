@@ -1,0 +1,230 @@
+<div ng-controller="tasklistController" class="doc-content ng-scope">
+    <md-content ng-if="!taskid" style="background-color: rgb(134,176,185)" layout layout-align="center center" layout-wrap> 
+            <div flex-sm="100" flex-md="50" flex-lg="33" flex-gt-lg="25" ng-repeat="item in taskList">
+                <div class="thumbnail">
+                    <table cellSpacing=0 cellPadding=0>
+                        <tbody>
+                        <tr>
+                            <td rowspan="2" width="18%">
+                                <a href="{{'#/task/'+item.userid}}"><img ng-src="{{item.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a>
+                            </td>
+                            <td colspan="2">
+                                {{item.nickname}}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="25%">
+                                <div id="genderimg">
+                                    <div>33&nbsp;&nbsp;</div>
+                                </div>
+                            </td>
+                            <td id="userlogininfo" width="55%">
+                                2小时前登陆，距离2.5米
+                            </td>
+                            <td align="right">
+                                <div>
+                                    <md-button ng-click="toggleRight($index)" class="md-icon-button md-accent" aria-label="Comment">
+                                        <md-icon md-svg-src="images/comment.svg"></md-icon>
+                                    </md-button>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <div class="sliceline"> </div>
+                    <table>
+                        <tbody>
+                        <tr>
+                            <td width="5%">
+                                <img src="../images/runner.png">
+                            </td>
+                            <td width="20%">
+                                任务
+                            </td>
+                            <td width="35%">
+                                距离:{{item.distance|distance}} 公里
+                            </td>
+                            <td>
+                                时长:25分钟
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <div class="sliceline"> </div>
+                    <table>
+                        <tbody>
+                        <tr>
+                            <td width="5%">
+                                <img src="../images/statistic.png">
+                            </td>
+                            <td width="20%">
+                                成绩
+                            </td>
+                            <td width="35%">
+                                距离:{{item.distance|distance}} 公里
+                            </td>
+                            <td>
+                                时长:30分钟
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <table>
+                        <tbody>
+                        <tr>
+                            <td width="5%">
+                                <img src="../images/pen.png" ng-if="item.source.length==0 || item.source.length==NULL">
+                                <img src="../images/source.png" ng-if="item.source.length>0">
+                            </td>
+                            <td width="30%">
+                                {{item.source|taskSource}}
+                            </td>
+                            <td>
+                                <div ng-if="item.source.length>0">{{item.source}}</div>
+                                <div ng-if="item.source.length==0 || item.source.length==NULL">
+                                    <div ng-show="item.images.length>0" ng-click="showImgDetail($event,item.images[0])" class="img-small"><img ng-src="{{item.images[0]}}" class="img-small"></div>
+                                    <p ng-show="item.images.length==0">无图片</p>
+                                </div>
+
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="3">
+                                运动心情
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="3">
+                                <div ng-if="!item.showdetail">{{item.desc|descfilter}}</div>
+                                <div ng-if="item.showdetail">{{item.desc|descfilterdetail}}</div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <div ng-if="item.showdetail">
+                        <div class="sliceline"> </div>
+                        <table>
+                            <tbody>
+                            <tr>
+                                <td width="10%">
+                                    <img src="../images/time.png">
+                                </td>
+                                <td colspan="3">
+                                    {{item.begin_time|timeconvert}}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td width="10%">
+                                    <img src="../images/speed.png">
+                                </td>
+                                <td width="40%">
+                                    10 km/h
+                                </td>
+                                <td width="10%">
+                                    <img src="../images/cal.png">
+                                </td>
+                                <td>
+                                    200 卡
+                                </td>
+                            </tr>
+                            <tr>
+                                <td width="10%">
+                                    <img src="../images/history.png">
+                                </td>
+                                <td width="40%">
+                                    江湖史
+                                </td>
+                                <td width="10%">
+                                    <img src="../images/statistic.png">
+                                </td>
+                                <td>
+                                    运动统计
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                        <div class="sliceline"> </div>
+                        <md-content style="height: 200px;background-color: inherit">
+                            <table ng-repeat="chatitem in chatlist">
+                                <tbody>
+                                <tr ng-if="!chatitem.self">
+                                    <td width="5%">
+                                        <img ng-src="{{chatitem.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'">
+                                    </td>
+                                    <td>
+                                        <span class="chatstyleother">
+                                            &nbsp;&nbsp;{{chatitem.content}}&nbsp;&nbsp;
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr ng-if="chatitem.self">
+                                    <td  align="right">
+                                        <span class="chatstyleself">
+                                            &nbsp;&nbsp;{{chatitem.content}}&nbsp;&nbsp;
+                                        </span>
+                                    </td>
+                                    <td align="right" width="5%">
+                                        <img ng-src="{{item.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'">
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </md-content>
+                        <div class="sliceline"> </div>
+                        <br>
+                        <table>
+                            <tbody>
+                            <tr>
+                                <td width="95%">
+                                    <md-input-container md-no-float>
+                                        <md-icon md-svg-src="../images/ic_person.svg"></md-icon>
+                                        <input ng-model="item.chatcontent" type="text" placeholder="输入聊天内容" ng-keydown="sendchatbykey($index)">
+                                    </md-input-container>
+                                </td>
+                                <td align="right">
+                                    <md-button ng-click="sendchat($index)" class="md-icon-button md-accent" aria-label="chart" ng-disabled="item.chatcontent.length==0">
+                                        <md-icon md-svg-src="../images/launch.svg"></md-icon>
+                                    </md-button>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div align="center">
+                        <md-button ng-click="showdetail($index)" class="md-icon-button md-accent" aria-label="showdetail">
+                            <md-icon md-svg-src="../images/ic_code_24px.svg"></md-icon>
+                        </md-button>
+                    </div>
+                </div>
+                </div>
+        <md-progress-linear md-mode="indeterminate" ng-if="showwaiting"></md-progress-linear>
+    </md-content>
+    <md-sidenav class="md-sidenav-right md-whiteframe-z2" md-component-id="right">
+        <md-toolbar class="md-theme-light">
+            <h1 class="md-toolbar-tools">审批运动纪录</h1>
+        </md-toolbar>
+        <md-content layout-padding>
+            <form>
+                <md-radio-group ng-model="submitData">
+                    <md-radio-button value="accept" class="md-primary">批准</md-radio-button>
+                    <md-radio-button value="reject" class="md-primary">拒绝</md-radio-button>
+                </md-radio-group>
+
+                <md-input-container>
+                    <label for="reason">审批意见</label>
+                    <input type="text" id="reason" ng-model="reasondata">
+                </md-input-container>
+            </form>
+            <md-button ng-click="submit()" class="md-raised md-primary" ng-disabled="reasondata.length==0">
+                提交
+            </md-button>
+            <md-button ng-click="close()" class="md-raised md-primary">
+                取消
+            </md-button>
+        </md-content>
+    </md-sidenav>
+
+    <md-content ng-if="taskid">
+        adfklsdjfajsdf
+    </md-content>
+</div>

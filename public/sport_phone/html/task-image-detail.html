@@ -1,0 +1,23 @@
+<md-dialog aria-label="图片详情">
+    <form>
+        <md-toolbar>
+            <div class="md-toolbar-tools">
+                <h2>图片详情</h2>
+                <span flex></span>
+                <md-button class="md-icon-button" ng-click="closeDialog()">
+                    <md-icon md-svg-src="../images/ic_close.svg" aria-label="Close dialog"></md-icon>
+                </md-button>
+            </div>
+        </md-toolbar>
+        <md-dialog-content>
+            <div>
+                <img style="margin: auto; max-width: 100%;" alt="资源无效，不能加载" ng-src="{{imgPath}}">
+            </div>
+        </md-dialog-content>
+        <div class="md-actions" layout="row">
+            <md-button ng-click="closeDialog()">
+                关闭
+            </md-button>
+        </div>
+    </form>
+</md-dialog>
