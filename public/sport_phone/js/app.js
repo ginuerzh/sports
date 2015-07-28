@@ -60,6 +60,14 @@ app.factory('userreq', [
         return $http.post(httphost + '/admin/logout', {
           access_token: userToken
         });
+      },
+      getuserinfo: function(userId) {
+        return $http.get(httphost + '/admin/user/info', {
+          params: {
+            userid: userId,
+            access_token: userToken
+          }
+        });
       }
     };
   }
@@ -76,8 +84,18 @@ userToken = "";
 userId = "";
 
 checkRequest = function(reqData) {
+  var data;
   if (reqData === null || (reqData.error_id == null)) {
     return true;
+  } else if (reqData.error_id === 1003) {
+    data = {
+      isLogin: false,
+      userid: '',
+      access_token: '',
+      profile: ''
+    };
+    app.checkUser(data);
+    window.location.href = "#/";
   }
   return false;
 };
@@ -107,7 +125,7 @@ app.config(function($routeProvider) {
 });
 
 app.run([
-  'app', '$rootScope', 'utils', '$filter', function(app, $rootScope, utils, $filter) {
+  'app', '$rootScope', 'utils', '$filter', 'userService', '$mdDialog', function(app, $rootScope, utils, $filter, userService, $mdDialog) {
     $rootScope.isLogin = utils.getItem('isLogin');
     $rootScope.profile = utils.getItem('profile');
     app.filter = $filter;
@@ -116,6 +134,10 @@ app.run([
     } else {
       userToken = utils.getItem("access_token");
       userId = utils.getItem("id");
+      $rootScope.profile = utils.getItem("profile");
+      $rootScope.access_token = userToken;
+      $rootScope.id = userId;
+      $rootScope.isLogin = utils.getItem("isLogin");
     }
     app.checkUser = function(data) {
       var tmp;
@@ -140,6 +162,22 @@ app.run([
     };
     app.getCookie = function(key) {
       return utils.getItem(key);
+    };
+    $rootScope.logout = function(ev) {
+      var confirm;
+      confirm = $mdDialog.confirm().parent(angular.element(document.body)).title('悦动力').content('你确定要退出吗？').ariaLabel('Lucky day').ok('确认').cancel('取消').targetEvent(ev);
+      return $mdDialog.show(confirm).then(function() {
+        var data;
+        userService.userlogout();
+        data = {
+          isLogin: false,
+          userid: '',
+          access_token: '',
+          profile: ''
+        };
+        app.checkUser(data);
+        return window.location.href = "#/";
+      }, function() {});
     };
     return app.rootScope = $rootScope;
   }
@@ -522,6 +560,20 @@ app.factory('userService', [
           return deferred.reject(data);
         });
         return deferred.promise;
+      },
+      getuserinfo: function(userId) {
+        var deferred;
+        deferred = $q.defer();
+        $userreq.getuserinfo(userid).success(function(data, status, headers, config) {
+          if (checkRequest(data)) {
+            return deferred.resolve(data);
+          } else {
+            return deferred.reject(data);
+          }
+        }).error(function(data, status, headers, config) {
+          return deferred.reject(data);
+        });
+        return deferred.promise;
       }
     };
   }
@@ -539,7 +591,17 @@ loginController = app.controller('loginController', [
       if (($scope.username != null) && ($scope.pwd != null)) {
         promise = userService.userlogin($scope.username, $scope.pwd);
         return promise.then(function(data) {
-          app.checkUser(data);
+          var dataTmp, promiseuserinfo;
+          dataTmp = {
+            isLogin: true,
+            access_token: retData.access_token,
+            userid: retData.userid
+          };
+          app.checkUser(dataTmp);
+          promiseuserinfo = userService.getuserinfo(retData.userid).then(function(userInfo) {
+            dataTmp.profile = userInfo.profile;
+            return app.checkUser(dataTmp);
+          });
           $scope.alert = '';
           window.location.href = "#/task";
           $scope.username = "";
@@ -556,26 +618,9 @@ loginController = app.controller('loginController', [
         return $scope.onLogin();
       }
     };
-    $rootScope.logout = function(ev) {
-      var confirm;
-      confirm = $mdDialog.confirm().parent(angular.element(document.body)).title('悦动力').content('你确定要退出吗？').ariaLabel('Lucky day').ok('确认').cancel('取消').targetEvent(ev);
-      return $mdDialog.show(confirm).then(function() {
-        var data;
-        userService.userlogout();
-        data = {
-          isLogin: false,
-          userid: '',
-          access_token: '',
-          profile: ''
-        };
-        app.checkUser(data);
-        return window.location.href = "#/";
-      }, function() {});
-    };
     checkLogin = function() {
-      $rootScope.isLogin = app.getCookie("isLogin");
-      if ($routeParams.index == null) {
-        return $rootScope.isLogin = false;
+      if ($rootScope.isLogin) {
+        return window.location.href = "#/task";
       }
     };
     return checkLogin();

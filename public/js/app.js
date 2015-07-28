@@ -707,8 +707,18 @@ userToken = "";
 userId = "";
 
 checkRequest = function(reqData) {
+  var data;
   if (reqData === null || (reqData.error_id == null)) {
     return true;
+  } else if (reqData.error_id === 1003) {
+    data = {
+      isLogin: false,
+      userid: '',
+      access_token: '',
+      profile: ''
+    };
+    app.checkUser(data);
+    window.location.href = "#/";
   }
   return false;
 };
@@ -805,6 +815,10 @@ app.run([
     } else {
       userToken = utils.getItem("access_token");
       userId = utils.getItem("id");
+      $rootScope.profile = utils.getItem("profile");
+      $rootScope.access_token = userToken;
+      $rootScope.id = userId;
+      $rootScope.isLogin = utils.getItem("isLogin");
     }
     app.checkUser = function(data) {
       var tmp;
@@ -1642,9 +1656,20 @@ loginController = app.controller('loginController', [
       if (($scope.username != null) && ($scope.pwd != null)) {
         $scope.loginAlert = false;
         return User.login($scope.username, $scope.pwd, function(retData) {
+          var data;
           if (checkRequest(retData)) {
-            retData.isLogin = true;
-            app.checkUser(retData);
+            data = {
+              isLogin: true,
+              access_token: retData.access_token,
+              userid: retData.userid
+            };
+            userObj.userid = retData.userid;
+            userObj.getInfo(retData.access_token, function(userInfo) {
+              if (checkRequest(userInfo)) {
+                data.profile = userInfo.profile;
+                return app.checkUser(data);
+              }
+            });
             window.location.href = "#/0";
             $scope.username = "";
             return $scope.pwd = "";
@@ -1664,9 +1689,8 @@ loginController = app.controller('loginController', [
       }
     };
     return $scope.checkLogin = function() {
-      $rootScope.isLogin = app.getCookie("isLogin");
-      if ($routeParams.index == null) {
-        return $rootScope.isLogin = false;
+      if ($rootScope.isLogin) {
+        return window.location.href = "#/0";
       }
     };
   }
@@ -1754,11 +1778,13 @@ tasklistController = app.controller('tasklistController', [
           itemtmp = {
             userid: item.userid,
             task_id: item.taskid,
-            reason: item.reason,
-            pass: typeof item.pass === "function" ? item.pass({
-              "true": false
-            }) : void 0
+            reason: item.reason
           };
+          if (item.pass === 1) {
+            itemtmp.pass = true;
+          } else {
+            itemtmp.pass = false;
+          }
           authlist.push(itemtmp);
         }
       }
@@ -1768,15 +1794,21 @@ tasklistController = app.controller('tasklistController', [
     };
     $scope.approveSelect = function(index) {
       $scope.displayedCollection[index].pass = 1;
-      return $scope.displayedCollection[index].reason = "不错呦，加油！";
+      if ($scope.displayedCollection[index].reason.length === 0) {
+        return $scope.displayedCollection[index].reason = "不错呦，加油！";
+      }
     };
     $scope.rejectSelect = function(index) {
       $scope.displayedCollection[index].pass = 0;
-      return $scope.displayedCollection[index].reason = "您上传的资料有误，请重新检查！";
+      if ($scope.displayedCollection[index].reason.length === 0) {
+        return $scope.displayedCollection[index].reason = "您上传的资料有误，请重新检查！";
+      }
     };
     $scope.cancelSelect = function(index) {
       $scope.displayedCollection[index].pass = -1;
-      return $scope.displayedCollection[index].reason = "";
+      if ($scope.displayedCollection[index].reason.length > 0) {
+        return $scope.displayedCollection[index].reason = "";
+      }
     };
     $scope.$on('genPagination', function(event, p) {
       event.stopPropagation();

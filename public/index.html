@@ -52,7 +52,7 @@
                 <div class="navbar-text logOFF">
                     <div class="navbar-inner">
                         <ul class="nav">
-                            <li class="dropdown"> <img class="img-circle admin-profile" ng-src="{{profile}}">
+                            <li class="dropdown"> <img class="img-circle admin-profile" ng-src="{{profile|profilefilter}}">
                                 <ul class="dropdown-menu">
                                     <li><a ng-click="logOutApp()">退出</a></li>
                                 </ul>
