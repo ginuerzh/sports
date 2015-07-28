@@ -400,7 +400,9 @@ app.factory('taskService', [
                   profile: taskitem.profile,
                   begin_time: task.begin_time,
                   end_time: task.end_time,
-                  distance: task.distance
+                  distance: task.distance,
+                  source: task.source,
+                  duration: task.duration
                 };
                 switch (tasktype) {
                   case "Auditting":

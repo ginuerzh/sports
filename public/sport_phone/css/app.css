@@ -68,6 +68,12 @@ div.sliceline {
     border-radius: 20% !important;
 }
 
+#soucealign{
+    height: 40px;
+    text-align: left;
+    line-height: 40px;
+}
+
 .chatstyleself {
     background-color: rgb(172,118,118);
 }
