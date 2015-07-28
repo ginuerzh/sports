@@ -80,7 +80,7 @@
                                 {{item.source|taskSource}}
                             </td>
                             <td>
-                                <div ng-if="item.source.length>0">{{item.source}}</div>
+                                <div ng-if="item.source.length>0" id="soucealign">{{item.source}}</div>
                                 <div ng-if="item.source.length==0 || item.source.length==NULL">
                                     <div ng-show="item.images.length>0" ng-click="showImgDetail($event,item.images[0])" class="img-small"><img ng-src="{{item.images[0]}}" class="img-small"></div>
                                     <p ng-show="item.images.length==0">无图片</p>

@@ -1048,9 +1048,9 @@ app.filter("statusname", function() {
 }).filter("taskSource", function() {
   return function(data) {
     var taskSource;
-    taskSource = "手动";
-    if (angular.isString(data) && data.length > 0) {
-      taskSource = "自动(" + data + ")";
+    taskSource = data;
+    if (data.length === 0) {
+      taskSource = "手动";
     }
     return taskSource;
   };
@@ -1663,6 +1663,7 @@ loginController = app.controller('loginController', [
               access_token: retData.access_token,
               userid: retData.userid
             };
+            app.checkUser(data);
             userObj.userid = retData.userid;
             userObj.getInfo(retData.access_token, function(userInfo) {
               if (checkRequest(userInfo)) {
@@ -2539,6 +2540,8 @@ app.factory('taskService', [
                 begin_time: task.begin_time,
                 end_time: task.end_time,
                 distance: task.distance,
+                source: task.source,
+                duration: task.duration,
                 pass: -1
               };
               switch (tasktype) {
