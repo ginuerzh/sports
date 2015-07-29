@@ -870,7 +870,7 @@ func calcInfo(setinfo *models.SetInfo) int {
 	return int((n / 14.0) * 100.0)
 }
 
-func setInfoHandler(request *http.Request, resp http.ResponseWriter,
+func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger,
 	user *models.Account, p Parameter) {
 
 	form := p.(setInfoForm)
@@ -939,6 +939,7 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	err := user.SetInfo(setinfo)
+	GiveAwards(user, awards, redis)
 
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
 
@@ -963,7 +964,7 @@ type setPhotosForm struct {
 	parameter
 }
 
-func setPhotosHandler(request *http.Request, resp http.ResponseWriter,
+func setPhotosHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger,
 	user *models.Account, p Parameter) {
 	form := p.(setPhotosForm)
 
@@ -973,6 +974,7 @@ func setPhotosHandler(request *http.Request, resp http.ResponseWriter,
 		awards.Score = 10 * int64(len(form.Pics))
 	}
 	err := user.AddPhotos(form.Pics)
+	GiveAwards(user, awards, redis)
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
 }
 
