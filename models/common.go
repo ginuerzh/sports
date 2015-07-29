@@ -55,6 +55,7 @@ var (
 	eventColl  = "events"
 	ruleColl   = "rules"
 	txColl     = "txs"
+	configColl = "config"
 	//rateColl     = "rates"
 )
 
@@ -146,6 +147,10 @@ func initLevelScores() {
 		levelScores[i] = total
 		//fmt.Println(i, total)
 	}
+}
+
+func GetLevelScore() []int64 {
+	return levelScores
 }
 
 func Score2Level(score int64) int64 {

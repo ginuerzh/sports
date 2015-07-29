@@ -20,7 +20,9 @@ func BindTaskApi(m *martini.ClassicMartini) {
 	m.Get("/admin/task/timeline", binding.Form(userTaskForm{}), adminErrorHandler, userTaskHandler)
 	//m.Get("/admin/task/timeline", binding.Form(taskTimelineForm{}), adminErrorHandler, taskTimelineHandler)
 	m.Post("/admin/task/auth", binding.Json(taskAuthForm{}), adminErrorHandler, taskAuthHandler)
-	m.Options("/admin/task/auth", taskAuthOptionsHandler)
+	m.Options("/admin/task/auth", optionsHandler)
+	m.Post("/admin/task/auth_list", binding.Json(taskAuthListForm{}), adminErrorHandler, taskAuthListHandler)
+	m.Options("/admin/task/auth_list", optionsHandler)
 }
 
 type taskinfo struct {
@@ -34,6 +36,7 @@ type taskinfo struct {
 	Source    string   `json:"source"`
 	Images    []string `json:"images"`
 	Status    string   `json:"status"`
+	Mood      string   `json:"mood"`
 	Reason    string   `json:"reason"`
 }
 
@@ -72,8 +75,8 @@ func convertTask(record *models.Record) *taskinfo {
 	if len(info.Status) == 0 {
 		info.Status = models.StatusFinish
 	}
-	if info.Id > 0 && info.Id <= int64(len(models.Tasks)) {
-		info.Desc = models.Tasks[info.Id-1].Desc
+	if info.Id > 0 && info.Id <= int64(len(models.NewTasks)) {
+		info.Desc = models.NewTasks[info.Id-1].Desc
 	}
 	if record.Sport != nil {
 		info.Source = record.Sport.Source
@@ -81,6 +84,7 @@ func convertTask(record *models.Record) *taskinfo {
 		info.Duration = record.Sport.Duration
 		info.Images = record.Sport.Pics
 		info.Reason = record.Sport.Review
+		info.Mood = record.Sport.Mood
 	}
 
 	return info
@@ -99,6 +103,11 @@ type userTask struct {
 }
 
 func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form tasklistForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
@@ -170,6 +179,11 @@ type userTaskForm struct {
 }
 
 func userTaskHandler(w http.ResponseWriter, redis *models.RedisLogger, form userTaskForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
@@ -213,13 +227,10 @@ type taskTimelineForm struct {
 }
 
 func taskTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form taskTimelineForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 	/*
 		u := &models.User{Id: form.Userid}
 		tl, err := u.GetTasks()
@@ -249,16 +260,116 @@ func taskTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form 
 	writeResponse(w, map[string]interface{}{"tasks": nil})
 }
 
-type taskAuthForm struct {
+type taskAuth struct {
 	Userid string `json:"userid" binding:"required"`
 	Id     int64  `json:"task_id" binding:"required"`
 	Pass   bool   `json:"pass"`
 	Reason string `json:"reason"`
-	Token  string `json:"access_token"`
+}
+
+type taskAuthForm struct {
+	taskAuth
+	Token string `json:"access_token"`
 }
 
 func taskAuthOptionsHandler(w http.ResponseWriter) {
 	writeResponse(w, nil)
+}
+
+func taskAuthFunc(userid string, auth *taskAuth, redis *models.RedisLogger) error {
+	user := &models.Account{}
+	user.FindByUserid(auth.Userid)
+
+	record := &models.Record{Uid: user.Id, Task: auth.Id}
+	record.FindByTask(auth.Id)
+	awards := controllers.Awards{}
+
+	parent := &models.Article{}
+	parent.FindByRecord(record.Id.Hex())
+	if len(parent.Id) > 0 && len(auth.Reason) > 0 {
+		review := &models.Article{
+			Parent:   parent.Id.Hex(),
+			Author:   userid,
+			Title:    auth.Reason,
+			Type:     models.ArticleCoach,
+			Contents: []models.Segment{{ContentType: "TEXT", ContentText: auth.Reason}},
+			PubTime:  time.Now(),
+		}
+		review.Save()
+	}
+
+	if auth.Pass {
+		level := user.Level()
+		awards = controllers.Awards{
+			Physical: 3 + level,
+			Wealth:   3 * models.Satoshi,
+			Score:    3 + level,
+		}
+		awards.Level = models.Score2Level(user.Props.Score+awards.Score) - level
+
+		if err := controllers.GiveAwards(user, awards, redis); err != nil {
+			return err
+		}
+		if record.Sport != nil {
+			redis.UpdateRecLB(user.Id, record.Sport.Distance, int(record.Sport.Duration))
+		}
+
+		record.SetStatus(models.StatusFinish, auth.Reason, awards.Wealth)
+		if auth.Id < 1000 {
+			user.UpdateTask(int(auth.Id), models.StatusFinish)
+		}
+	} else {
+		record.SetStatus(models.StatusUnFinish, auth.Reason, 0)
+		if auth.Id < 1000 {
+			user.UpdateTask(int(auth.Id), models.StatusUnFinish)
+		}
+		parent.SetPrivilege(models.PrivPrivate)
+	}
+
+	// ws push
+	event := &models.Event{
+		Type: models.EventNotice,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventTaskDone,
+			To:   user.Id,
+			Body: []models.MsgBody{
+				{Type: "physique_value", Content: strconv.FormatInt(awards.Physical, 10)},
+				{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
+			},
+		},
+	}
+	if auth.Id < 1000 {
+		event.Data.Body = append(event.Data.Body, models.MsgBody{Type: "task_id", Content: strconv.Itoa(int(auth.Id))})
+	}
+
+	if !auth.Pass {
+		event.Data.Type = models.EventTaskFailure
+	}
+	redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+	event.Save()
+
+	event = &models.Event{
+		Type: models.EventArticle,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventCoachPass,
+			Id:   parent.Id.Hex(),
+			From: userid,
+			To:   parent.Author,
+			Body: []models.MsgBody{
+				{Type: "total_count", Content: strconv.Itoa(parent.CoachReviewCount + 1)},
+				{Type: "image", Content: ""},
+			},
+		},
+	}
+	if !auth.Pass {
+		event.Data.Type = models.EventCoachNPass
+	}
+	event.Save()
+	redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+
+	return nil
 }
 
 func taskAuthHandler(r *http.Request, w http.ResponseWriter,
@@ -269,83 +380,38 @@ func taskAuthHandler(r *http.Request, w http.ResponseWriter,
 		return
 	}
 
-	//u := &models.User{Id: form.Userid}
-	user := &models.Account{}
-	user.FindByUserid(form.Userid)
-
-	record := &models.Record{Uid: user.Id, Task: form.Id}
-	record.FindByTask(form.Id)
-	awards := controllers.Awards{}
-
-	parent := &models.Article{}
-	parent.FindByRecord(record.Id.Hex())
-	if len(parent.Id) > 0 && len(form.Reason) > 0 {
-		review := &models.Article{
-			Parent:   parent.Id.Hex(),
-			Author:   userid,
-			Title:    form.Reason,
-			Type:     models.ArticleCoach,
-			Contents: []models.Segment{{ContentType: "TEXT", ContentText: form.Reason}},
-			PubTime:  time.Now(),
-		}
-		review.Save()
+	a := &taskAuth{
+		Userid: form.Userid,
+		Id:     form.Id,
+		Pass:   form.Pass,
+		Reason: form.Reason,
 	}
-
-	if form.Pass {
-		level := user.Level()
-		awards = controllers.Awards{
-			Physical: 30 + level,
-			Wealth:   30 * models.Satoshi,
-			Score:    30 + level,
-		}
-		awards.Level = models.Score2Level(user.Props.Score+awards.Score) - level
-
-		if err := controllers.GiveAwards(user, awards, redis); err != nil {
-			writeResponse(w, err)
-			return
-		}
-		if record.Sport != nil {
-			redis.UpdateRecLB(user.Id, record.Sport.Distance, int(record.Sport.Duration))
-		}
-
-		record.SetStatus(models.StatusFinish, form.Reason, awards.Wealth)
-
-	} else {
-		record.SetStatus(models.StatusUnFinish, form.Reason, 0)
-		parent.SetPrivilege(models.PrivPrivate)
+	if err := taskAuthFunc(userid, a, redis); err != nil {
+		writeResponse(w, err)
+		return
 	}
-
-	// ws push
-	event := &models.Event{
-		Type: models.EventStatus,
-		Time: time.Now().Unix(),
-		Data: models.EventData{
-			Type: models.EventTask,
-			To:   user.Id,
-			Body: []models.MsgBody{
-				{Type: "physique_value", Content: strconv.FormatInt(awards.Physical, 10)},
-				{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
-			},
-		},
-	}
-	redis.PubMsg(event.Type, event.Data.To, event.Bytes())
-
-	event = &models.Event{
-		Type: models.EventArticle,
-		Time: time.Now().Unix(),
-		Data: models.EventData{
-			Type: models.EventCoach,
-			Id:   parent.Id.Hex(),
-			From: userid,
-			To:   parent.Author,
-			Body: []models.MsgBody{
-				{Type: "total_count", Content: strconv.Itoa(parent.CoachReviewCount + 1)},
-				{Type: "image", Content: ""},
-			},
-		},
-	}
-	event.Save()
-	redis.PubMsg(event.Type, event.Data.To, event.Bytes())
-
 	writeResponse(w, map[string]bool{"pass": form.Pass})
+}
+
+type taskAuthListForm struct {
+	Auths []taskAuth `json:"auths"`
+	Token string     `json:"access_token"`
+}
+
+func taskAuthListHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, form taskAuthListForm) {
+
+	userid := redis.OnlineUser(form.Token)
+	if len(userid) == 0 {
+		writeResponse(w, errors.NewError(errors.AccessError))
+		return
+	}
+
+	pass := make([]bool, len(form.Auths))
+	for i, _ := range form.Auths {
+		taskAuthFunc(userid, &form.Auths[i], redis)
+		pass[i] = form.Auths[i].Pass
+	}
+
+	writeResponse(w, map[string][]bool{"pass": pass})
 }

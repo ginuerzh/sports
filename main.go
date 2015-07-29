@@ -18,6 +18,7 @@ import (
 	"os"
 	"strings"
 	//"strconv"
+	"encoding/json"
 	"time"
 )
 
@@ -38,6 +39,7 @@ func init() {
 	flag.StringVar(&controllers.CoinAddr, "cs", "localhost:8087", "coin server")
 	flag.StringVar(&weedfsAddr, "weed", "localhost:9334", "weed-fs server")
 	flag.StringVar(&controllers.BtcRpcHost, "btcrpc", "localhost:8110", "bitcoin rpc host")
+	flag.StringVar(&controllers.WalletAddr, "wallet", "", "system wallet address")
 	flag.Parse()
 
 	if !strings.HasPrefix(controllers.CoinAddr, "http") {
@@ -76,6 +78,7 @@ func main() {
 	controllers.BindGroupApi(m)
 	controllers.BindWalletApi(m)
 	controllers.BindTaskApi(m)
+	controllers.BindSysApi(m)
 
 	//admin apis
 	admin.BindArticleApi(m)
@@ -83,6 +86,7 @@ func main() {
 	admin.BindStatApi(m)
 	admin.BindAccountApi(m)
 	admin.BindRecordsApi(m)
+	admin.BindConfigApi(m)
 
 	admin.BindRuleApi(m)
 	admin.BindUeditorApi(m)
@@ -93,8 +97,44 @@ func main() {
 
 	models.InsureIndexes()
 
+	initAddr()
+
 	gracehttp.Serve(&http.Server{Addr: listenAddr, Handler: m})
 	//log.Fatal(http.ListenAndServe(listenAddr, m))
+}
+
+func initAddr() {
+	if controllers.WalletAddr != "" {
+		return
+	}
+
+	config := &models.Config{}
+	config.Find()
+	if config.Addr != "" {
+		controllers.WalletAddr = config.Addr
+		return
+	}
+
+	resp, err := http.Get(controllers.CoinAddr + "/newaddr")
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	var r struct {
+		Addr   string `json:"addr"`
+		Result string `json:"result"`
+	}
+	json.NewDecoder(resp.Body).Decode(&r)
+	if r.Addr != "" {
+		config.Addr = r.Addr
+		err := config.Update()
+		if err == nil {
+			return
+		}
+		panic(err)
+	}
+	panic(r.Result)
 }
 
 func redisPool() *redis.Pool {

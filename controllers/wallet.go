@@ -299,7 +299,7 @@ func txHandler(r *http.Request, w http.ResponseWriter,
 			msg = user.Nickname + "给你的文章打赏了" +
 				strconv.FormatFloat(float64(form.Value)/float64(models.Satoshi), 'f', 8, 64) + "个贝币"
 		}
-		go sendApn(client, msg, receiver.EventCount(""), receiver.Devs...)
+		go sendApn(client, msg, receiver.EventCount("", ""), receiver.Devs...)
 	}
 
 	writeResponse(r.RequestURI, w, map[string]string{"txid": txid}, nil)

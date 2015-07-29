@@ -21,6 +21,11 @@ type summaryForm struct {
 }
 
 func summaryHandler(w http.ResponseWriter, redis *models.RedisLogger, form summaryForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
 	var stats struct {
 		RegPhone      []int64 `json:"reg_phone"`
 		RegEmail      []int64 `json:"reg_email"`
@@ -77,13 +82,11 @@ type retentionForm struct {
 }
 
 func retentionHandler(w http.ResponseWriter, redis *models.RedisLogger, form retentionForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
 	date := time.Now()
 	if form.Date > 0 {
 		date = time.Unix(form.Date, 0)

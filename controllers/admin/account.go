@@ -31,12 +31,15 @@ type response struct {
 
 func BindAccountApi(m *martini.ClassicMartini) {
 	m.Post("/admin/login", binding.Json(adminLoginForm{}), adminErrorHandler, adminLoginHandler)
+	m.Options("/admin/login", optionsHandler)
 	m.Post("/admin/logout", binding.Json(adminLogoutForm{}), adminErrorHandler, adminLogoutHandler)
+	m.Options("/admin/logout", optionsHandler)
 	m.Get("/admin/user/info", binding.Form(getUserInfoForm{}), adminErrorHandler, singleUserInfoHandler)
 	m.Get("/admin/user/list", binding.Form(getUserListForm{}), adminErrorHandler, getUserListHandler)
 	m.Get("/admin/user/search", binding.Form(getSearchListForm{}), adminErrorHandler, getSearchListHandler)
 	m.Get("/admin/user/friendship", binding.Form(getUserFriendsForm{}), adminErrorHandler, getUserFriendsHandler)
 	m.Post("/admin/user/ban", binding.Json(banUserForm{}), adminErrorHandler, banUserHandler)
+	m.Options("/admin/user/ban", optionsHandler)
 	m.Get("/admin/user/set_actor", binding.Form(setActorForm{}), setActorHandler)
 	m.Get("/admin/user/auth/list", binding.Form(userAuthListForm{}), userAuthListHandler)
 	m.Post("/admin/user/auth", binding.Json(userAuthForm{}), userAuthHandler)
@@ -112,17 +115,6 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 
 type adminLogoutForm struct {
 	Token string `json:"access_token" binding:"required"`
-}
-
-func checkToken(r *models.RedisLogger, t string) (valid bool, err error) {
-	uid := r.OnlineUser(t)
-	if len(uid) == 0 {
-		err = errors.NewError(errors.AccessError)
-		valid = false
-		return
-	}
-	valid = true
-	return
 }
 
 func adminLogoutHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form adminLogoutForm) {
@@ -296,9 +288,8 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 func singleUserInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form getUserInfoForm) {
 	//log.Println("get a single user infomation")
 
-	valid, errT := checkToken(redis, form.Token)
-	if !valid {
-		writeResponse(resp, errT)
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(resp, err)
 		return
 	}
 
@@ -321,9 +312,9 @@ type getUserListForm struct {
 	Sort string `form:"sort"`
 	//NextCursor string `form:"next_cursor"`
 	//PrevCursor string `form:"prev_cursor"`
-	//Token string `form:"access_token" binding:"required"`
-	Count int `form:"page_count"`
-	Page  int `form:"page_index"`
+	Token string `form:"access_token" binding:"required"`
+	Count int    `form:"page_count"`
+	Page  int    `form:"page_index"`
 }
 
 type userListJsonStruct struct {
@@ -336,13 +327,11 @@ type userListJsonStruct struct {
 }
 
 func getUserListHandler(r *http.Request, w http.ResponseWriter, redis *models.RedisLogger, form getUserListForm) {
-	/*
-		valid, errT := checkToken(redis, form.Token)
-		if !valid {
-			writeResponse(w, errT)
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
 	count := form.Count
 	if count == 0 {
 		count = defaultCount
@@ -382,19 +371,16 @@ type getSearchListForm struct {
 	Sort string `form:"sort"`
 	//	NextCursor string `form:"next_cursor"`
 	//	PrevCursor string `form:"prev_cursor"`
-	Count int `form:"page_count"`
-	Page  int `form:"page_index"`
-	//Token string `form:"access_token" binding:"required"`
+	Count int    `form:"page_count"`
+	Page  int    `form:"page_index"`
+	Token string `form:"access_token" binding:"required"`
 }
 
 func getSearchListHandler(w http.ResponseWriter, redis *models.RedisLogger, form getSearchListForm) {
-	/*
-		valid, errT := checkToken(redis, form.Token)
-		if !valid {
-			writeResponse(w, errT)
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 
 	count := form.Count
 	if count == 0 {
@@ -433,18 +419,15 @@ type getUserFriendsForm struct {
 	Page  int    `form:"page_index"`
 	//	NextCursor string `form:"next_cursor"`
 	//	PrevCursor string `form:"prev_cursor"`
-	//Token string `form:"access_token" binding:"required"`
+	Token string `form:"access_token" binding:"required"`
 }
 
 func getUserFriendsHandler(w http.ResponseWriter,
 	redis *models.RedisLogger, form getUserFriendsForm) {
-	/*
-		valid, errT := checkToken(redis, form.Token)
-		if !valid {
-			writeResponse(w, errT)
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 
 	count := form.Count
 	if count == 0 {
@@ -496,9 +479,8 @@ type banUserForm struct {
 
 // This function bans user with a time value or forever by Duration.
 func banUserHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form banUserForm) {
-	valid, errT := checkToken(redis, form.Token)
-	if !valid {
-		writeResponse(resp, errT)
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(resp, err)
 		return
 	}
 
@@ -757,12 +739,10 @@ type userAuthListForm struct {
 
 func userAuthListHandler(r *http.Request, w http.ResponseWriter,
 	redis *models.RedisLogger, form userAuthListForm) {
-	/*
-		if valid, err := checkToken(redis, form.Token); !valid {
-			writeResponse(w, err)
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 
 	count := form.Count
 	if count == 0 {
@@ -794,19 +774,20 @@ type userAuthForm struct {
 	Userid string `json:"userid" binding:"required"`
 	Type   string `json:"auth_type" binding:"required"`
 	Status string `json:"auth_status" binding:"required"`
+	Review string `json:"auth_review"`
 	Token  string `json:"access_token" binding:"required"`
 }
 
 func userAuthHandler(r *http.Request, w http.ResponseWriter,
 	redis *models.RedisLogger, form userAuthForm) {
 
-	if valid, err := checkToken(redis, form.Token); !valid {
+	if ok, err := checkToken(redis, form.Token); !ok {
 		writeResponse(w, err)
 		return
 	}
 
 	user := &models.Account{}
 	user.FindByUserid(form.Userid)
-	err := user.SetAuth(form.Type, form.Status)
+	err := user.SetAuth(form.Type, form.Status, form.Review)
 	writeResponse(w, err)
 }

@@ -20,14 +20,15 @@ const (
 )
 
 type SportRecord struct {
-	Source   string
-	Duration int64
-	Distance int
-	Weight   int
-	Mood     string
-	Speed    float64
-	Pics     []string
-	Review   string
+	Source    string
+	Duration  int64
+	Distance  int
+	Weight    int
+	Mood      string
+	HeartRate int
+	Speed     float64
+	Pics      []string
+	Review    string
 }
 
 type GameRecord struct {
@@ -73,11 +74,17 @@ func (this *Record) Find() error {
 }
 
 func (this *Record) FindByTask(tid int64) (bool, error) {
-	return this.findOne(bson.M{"uid": this.Uid, "task": tid})
+	err := findOne(recordColl, bson.M{"uid": this.Uid, "task": tid}, []string{"-pub_time"}, this)
+	find := true
+	if err != nil || len(this.Id) == 0 {
+		find = false
+	}
+
+	return find, err
 }
 
 func (this *Record) SetStatus(status string, review string, coin int64) error {
-	query := bson.M{"uid": this.Uid, "task": this.Task}
+	//query := bson.M{"uid": this.Uid, "task": this.Task}
 	change := bson.M{
 		"$set": bson.M{
 			"status":       status,
@@ -86,7 +93,7 @@ func (this *Record) SetStatus(status string, review string, coin int64) error {
 			"auth_time":    time.Now(),
 		},
 	}
-	if err := update(recordColl, query, change, true); err != nil {
+	if err := updateId(recordColl, this.Id, change, true); err != nil {
 		return errors.NewError(errors.DbError)
 	}
 	return nil

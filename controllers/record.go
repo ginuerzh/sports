@@ -6,6 +6,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
+	"labix.org/v2/mgo/bson"
 	"log"
 	"net/http"
 	"sort"
@@ -21,6 +22,11 @@ func BindRecordApi(m *martini.ClassicMartini) {
 		loadUserHandler,
 		checkLimitHandler,
 		newRecordHandler)
+	m.Get("/1/record/get",
+		binding.Form(getRecordForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		getRecordHandler)
 	m.Get("/1/record/timeline",
 		binding.Form(recTimelineForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -45,6 +51,7 @@ func BindRecordApi(m *martini.ClassicMartini) {
 }
 
 type record struct {
+	Id        string   `json:"record_id"`
 	Type      string   `json:"type"`
 	Source    string   `json:"source"`
 	BeginTime int64    `json:"begin_time"`
@@ -53,6 +60,7 @@ type record struct {
 	Distance  int      `json:"distance"`
 	Weight    int      `json:"weight"`
 	Mood      string   `json:"mood"`
+	HeartRate int      `json:"heart_rate"`
 	Pics      []string `json:"sport_pics"`
 	GameType  string   `json:"game_type"`
 	GameScore int      `json:"game_score"`
@@ -65,6 +73,7 @@ type record struct {
 func convertRecord(r *models.Record) *record {
 	rec := &record{}
 
+	rec.Id = r.Id.Hex()
 	rec.Type = r.Type
 	rec.Status = r.Status
 	rec.Coins = r.Coin
@@ -77,6 +86,7 @@ func convertRecord(r *models.Record) *record {
 		rec.Distance = r.Sport.Distance
 		rec.Weight = r.Sport.Weight
 		rec.Mood = r.Sport.Mood
+		rec.HeartRate = r.Sport.HeartRate
 		rec.Pics = r.Sport.Pics
 	}
 	if r.Game != nil {
@@ -106,8 +116,8 @@ func gameAwards(level int64, gameScore int, isTask bool) Awards {
 
 	if !isTask {
 		base = 1.0
-		scale = 0.5
-		factor = 0.5
+		scale = 1.0
+		factor = 0.0
 	}
 
 	award := int64(scale * (base + factor*float64(level) + factor*(float64(gameScore)/100.0)))
@@ -133,10 +143,32 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	awards := Awards{}
+	level := user.Level()
 
 	switch form.Record.Type {
+	case "post":
+		rec.Status = models.StatusFinish
+		if form.Task > 0 {
+			rec.Coin = (2 + level) * models.Satoshi
+			awards = Awards{
+				Score:   2 + level,
+				Literal: 2 + level,
+				Wealth:  rec.Coin,
+			}
+		} else {
+			rec.Coin = 2 * models.Satoshi
+			awards = Awards{
+				Score:   2,
+				Literal: 2,
+				Wealth:  rec.Coin,
+			}
+		}
+
+		GiveAwards(user, awards, redis)
+
+		redis.AddPost(user.Id, "", 1)
+		user.UpdateStat(models.StatArticles, 1)
 	case "game":
-		level := user.Level()
 		if form.Task > 0 {
 			awards = gameAwards(level, form.Record.GameScore, true)
 			//user.AddTask(models.Tasks[form.Task-1].Type, form.Task, nil)
@@ -167,12 +199,13 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			rec.Delete()
 		}
 		rec.Sport = &models.SportRecord{
-			Source:   form.Record.Source,
-			Duration: form.Record.Duration,
-			Distance: form.Record.Distance,
-			Weight:   form.Record.Weight,
-			Mood:     form.Record.Mood,
-			Pics:     form.Record.Pics,
+			Source:    form.Record.Source,
+			Duration:  form.Record.Duration,
+			Distance:  form.Record.Distance,
+			Weight:    form.Record.Weight,
+			Mood:      form.Record.Mood,
+			HeartRate: form.Record.HeartRate,
+			Pics:      form.Record.Pics,
 		}
 
 		if rec.Sport.Weight == 0 {
@@ -232,14 +265,58 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			article.Privilege = models.PrivPrivate
 		}
 
-		if err := article.Save(); err != nil {
-			log.Println(err)
+		if err := article.Save(); err == nil {
+			redis.AddPost(user.Id, "", 1)
+			user.UpdateStat(models.StatArticles, 1)
 		}
 	}
+
+	if form.Task > 0 {
+		user.UpdateTask(int(form.Task), rec.Status)
+		/*
+			if rec.Status == models.StatusFinish {
+				// ws push
+				event := &models.Event{
+					Type: models.EventNotice,
+					Time: time.Now().Unix(),
+					Data: models.EventData{
+						Type: models.EventTaskDone,
+						To:   user.Id,
+						Body: []models.MsgBody{
+							{Type: "task_id", Content: strconv.Itoa(int(form.Task))},
+							{Type: "literature_value", Content: strconv.FormatInt(awards.Literal, 10)},
+							{Type: "magic_value", Content: strconv.FormatInt(awards.Mental, 10)},
+							{Type: "coin_value", Content: strconv.FormatInt(awards.Wealth, 10)},
+						},
+					},
+				}
+				event.Save()
+				redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+			}
+		*/
+	}
+
 	respData := map[string]interface{}{
+		"record_id": rec.Id.Hex(),
 		"ExpEffect": awards,
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
+}
+
+type getRecordForm struct {
+	Record string `form:"record_id"`
+	parameter
+}
+
+func getRecordHandler(r *http.Request, w http.ResponseWriter, p Parameter) {
+	rec := &models.Record{}
+	form := p.(getRecordForm)
+	if bson.IsObjectIdHex(form.Record) {
+		rec.Id = bson.ObjectIdHex(form.Record)
+		rec.Find()
+	}
+
+	writeResponse(r.RequestURI, w, convertRecord(rec), nil)
 }
 
 type recTimelineForm struct {

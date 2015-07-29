@@ -275,9 +275,9 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			return
 		}
 
-		awards = Awards{Literal: 2 + user.Level(), Score: 2 + user.Level()}
+		awards = Awards{Literal: 1 + user.Level(), Score: 1 + user.Level()}
 	} else {
-		awards = Awards{Literal: 10 + user.Level(), Wealth: 10 * models.Satoshi, Score: 10 + user.Level()}
+		awards = Awards{Literal: 2 + user.Level(), Wealth: 2 * models.Satoshi, Score: 2 + user.Level()}
 	}
 
 	if article.Type == models.ArticleRecord {
@@ -384,7 +384,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		redis.PubMsg(models.EventArticle, parent.Author, event.Bytes())
 		// apple push
 		if author.Push {
-			go sendApn(client, user.Nickname+"评论了你的主题!", author.EventCount(""), author.Devs...)
+			go sendApn(client, user.Nickname+"评论了你的主题!", author.EventCount("", ""), author.Devs...)
 		}
 	}
 
@@ -485,7 +485,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 
 		// apple push
 		if author.Push {
-			go sendApn(client, user.Nickname+"赞了你的主题!", author.EventCount(""), author.Devs...)
+			go sendApn(client, user.Nickname+"赞了你的主题!", author.EventCount("", ""), author.Devs...)
 		}
 	} else {
 		//count := author.DelEvent(models.EventThumb, article.Id.Hex(), user.Id, author.Id)

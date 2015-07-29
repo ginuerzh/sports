@@ -12,6 +12,8 @@ import (
 	"time"
 	//"labix.org/v2/mgo/bson"
 	"bytes"
+	"github.com/qiniu/api/conf"
+	"github.com/qiniu/api/rs"
 	"golang.org/x/image/bmp"
 	"image"
 	"image/gif"
@@ -32,6 +34,9 @@ func init() {
 	image.RegisterFormat("png", "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A", png.Decode, png.DecodeConfig)
 	image.RegisterFormat("gif", "\x47\x49\x46\x38\x39\x61", gif.Decode, gif.DecodeConfig)
 	image.RegisterFormat("bmp", "\x42\x4D", bmp.Decode, bmp.DecodeConfig)
+
+	conf.ACCESS_KEY = "Zuc-jpgrzuAmFY46MOjhKkwEClS0dHZm25IPVek3"
+	conf.SECRET_KEY = "a_Xw1Xz0cdO1I694JoXT9QKX6XFTRoRlkqhoZvNF"
 }
 
 func BindFileApi(m *martini.ClassicMartini) {
@@ -45,6 +50,11 @@ func BindFileApi(m *martini.ClassicMartini) {
 		ErrorHandler,
 		checkTokenHandler,
 		fileDeleteHandler)
+	m.Get("/1/file/uptoken",
+		binding.Form(uptokenForm{}),
+		ErrorHandler,
+		checkTokenHandler,
+		getQiniuTokenHandler)
 	//m.Post("/1/file/upload", binding.MultipartForm(fileUploadForm2{}), ErrorHandler, fileUploadHandler2)
 	//m.Get(ImageDownloadV1Uri, binding.Form(imageDownloadForm{}), ErrorHandler, imageDownloadHandler)
 }
@@ -226,3 +236,33 @@ func imageDownloadHandler(request *http.Request, resp http.ResponseWriter, form 
 
 
 */
+
+func uptoken(bucketName string) string {
+	putPolicy := rs.PutPolicy{
+		Scope: bucketName,
+		//CallbackUrl: callbackUrl,
+		//CallbackBody:callbackBody,
+		//ReturnUrl:   returnUrl,
+		//ReturnBody:  returnBody,
+		//AsyncOps:    asyncOps,
+		//EndUser:     endUser,
+		//Expires:     expires,
+	}
+	return putPolicy.Token(nil)
+}
+
+type uptokenForm struct {
+	parameter
+}
+
+func getQiniuTokenHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger) {
+	token := redis.GetQiniuUpToken()
+	//log.Println(token)
+	if len(token) == 0 {
+		token = uptoken("test")
+		redis.SetQiniuUpToken(token)
+	}
+
+	writeResponse(r.RequestURI, w, map[string]string{"token": token}, nil)
+}

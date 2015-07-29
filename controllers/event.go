@@ -35,6 +35,11 @@ func BindEventApi(m *martini.ClassicMartini) {
 		ErrorHandler,
 		checkTokenHandler,
 		changeEventStatusHandler)
+	m.Get("/1/event/notices",
+		binding.Form(eventNoticesForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		eventNoticesHandler)
 }
 
 type eventNewsForm struct {
@@ -46,11 +51,13 @@ func eventNewsHandler(request *http.Request, resp http.ResponseWriter,
 
 	//counts := redis.EventCount(user.Id)
 	respData := map[string]int{
-		"new_chat_count":      user.EventCount(models.EventChat),
-		"new_comment_count":   user.EventCount(models.EventComment) + user.EventCount(models.EventCoach),
-		"new_thumb_count":     user.EventCount(models.EventThumb),
-		"new_reward_count":    user.EventCount(models.EventReward) + user.EventCount(models.EventTx),
-		"new_attention_count": user.EventCount(models.EventSub),
+		"new_chat_count": user.EventCount("", models.EventChat),
+		"new_comment_count": user.EventCount("", models.EventComment) +
+			user.EventCount("", models.EventCoach) + user.EventCount("", models.EventCoachPass) + user.EventCount("", models.EventCoachNPass),
+		"new_thumb_count": user.EventCount("", models.EventThumb),
+		//"new_reward_count":    user.EventCount(models.EventReward) + user.EventCount(models.EventTx),
+		"new_reward_count":    user.EventCount(models.EventTx, ""),
+		"new_attention_count": user.EventCount("", models.EventSub) + user.EventCount(models.EventSystem, ""),
 	}
 
 	writeResponse(request.RequestURI, resp, respData, nil)
@@ -100,6 +107,21 @@ func eventDetailHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	writeResponse(request.RequestURI, resp, respData, nil)
+}
+
+type eventNoticesForm struct {
+	parameter
+}
+
+func eventNoticesHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account) {
+	notices, _ := models.NoticeList(user.Id)
+	writeResponse(r.RequestURI, w, map[string]interface{}{"notices": notices}, nil)
+	var ids []interface{}
+	for i, _ := range notices {
+		ids = append(ids, notices[i].Id)
+	}
+	models.RemoveEvents(ids...)
 }
 
 type changeEventStatusForm struct {

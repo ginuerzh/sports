@@ -94,13 +94,10 @@ type articleInfoForm struct {
 }
 
 func articleInfoHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleInfoForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 
 	article := &models.Article{}
 	if find, err := article.FindById(form.Id); !find {
@@ -137,6 +134,11 @@ type articleListForm struct {
 }
 
 func articleListHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
@@ -164,13 +166,10 @@ func hotArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form ar
 }
 
 func articleTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 	if form.PageCount == 0 {
 		form.PageCount = defaultCount
 	}
@@ -197,13 +196,10 @@ func articleTimelineHandler(w http.ResponseWriter, redis *models.RedisLogger, fo
 }
 
 func articleCommentsHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleListForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
@@ -292,6 +288,11 @@ type delArticleForm struct {
 }
 
 func delArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form delArticleForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
 	article := &models.Article{}
 
 	if bson.IsObjectIdHex(form.Id) {
@@ -314,13 +315,10 @@ type articleSearchForm struct {
 }
 
 func articleSearchHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleSearchForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
@@ -354,13 +352,10 @@ type articleUpdateForm struct {
 }
 
 func articleUpdateHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleUpdateForm) {
-	/*
-		user := redis.OnlineUser(form.Token)
-		if user == nil {
-			writeResponse(w, errors.NewError(errors.AccessError))
-			return
-		}
-	*/
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
 
 	var contents []models.Segment
 	for _, content := range form.Contents {

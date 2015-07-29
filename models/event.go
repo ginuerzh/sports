@@ -15,20 +15,35 @@ const (
 	EventArticle = "article"
 	EventWallet  = "wallet"
 	EventStatus  = "status"
+	EventSystem  = "system"
+	EventNotice  = "notice"
 
-	EventChat    = "chat"
-	EventGChat   = "groupchat"
-	EventSub     = "subscribe"
-	EventUnsub   = "unsubscribe"
-	EventThumb   = "thumb"
-	EventComment = "comment"
-	EventCoach   = "coach"
-	EventTx      = "tx"
-	EventReward  = "reward"
-	EventBan     = "ban"
-	EventUnban   = "unban"
-	EventLock    = "lock"
-	EventTask    = "task"
+	EventChat        = "chat"
+	EventGChat       = "groupchat"
+	EventSub         = "subscribe"
+	EventUnsub       = "unsubscribe"
+	EventThumb       = "thumb"
+	EventComment     = "comment"
+	EventCoach       = "coach"
+	EventCoachPass   = "coachpass"
+	EventCoachNPass  = "coachnpass"
+	EventTx          = "tx"
+	EventReward      = "reward"
+	EventBan         = "ban"
+	EventUnban       = "unban"
+	EventLock        = "lock"
+	EventTask        = "task"
+	EventSendHeart   = "sendheart"
+	EventRecvHeart   = "recvheart"
+	EventRunShare    = "runshare"
+	EventRunShared   = "runshared"
+	EventPostShare   = "postshare"
+	EventPostShared  = "postshared"
+	EventPKShare     = "pkshare"
+	EventPKShared    = "pkshared"
+	EventLevelUP     = "levelup"
+	EventTaskDone    = "taskdone"
+	EventTaskFailure = "taskfailure"
 )
 
 func init() {
@@ -117,11 +132,25 @@ func (this *Event) Clear() int {
 }
 
 func Events(userid string) (events []Event, err error) {
-	err = search(eventColl, bson.M{"push.to": userid}, nil, 0, 0, []string{"-time"}, nil, &events)
+	selector := bson.M{"push.to": userid, "type": bson.M{"$ne": EventNotice}}
+	err = search(eventColl, selector, nil, 0, 0, []string{"-time"}, nil, &events)
 	return
 }
 
 func EventCount(typ string, id string, to string) int {
 	n, _ := count(eventColl, bson.M{"push.type": typ, "push.pid": id, "push.to": to})
 	return n
+}
+
+func NoticeList(userid string) (notices []Event, err error) {
+	selector := bson.M{"type": EventNotice, "push.to": userid}
+	err = search(eventColl, selector, nil, 0, 0, []string{"time"}, nil, &notices)
+	return
+}
+
+func RemoveEvents(ids ...interface{}) (err error) {
+	if len(ids) > 0 {
+		_, err = removeAll(eventColl, bson.M{"_id": bson.M{"$in": ids}}, true)
+	}
+	return
 }

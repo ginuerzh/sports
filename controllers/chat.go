@@ -179,7 +179,7 @@ func sendMsgHandler(request *http.Request, resp http.ResponseWriter,
 	event.Save()
 
 	if touser.Push {
-		go sendApn(client, user.Nickname+": "+content, touser.EventCount(""), touser.Devs...)
+		go sendApn(client, user.Nickname+": "+content, touser.EventCount("", ""), touser.Devs...)
 	}
 }
 

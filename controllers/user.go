@@ -160,7 +160,7 @@ func followHandler(request *http.Request, resp http.ResponseWriter,
 
 			// apple push
 			if u.Push {
-				go sendApn(client, user.Nickname+"关注了你!", u.EventCount(""), u.Devs...)
+				go sendApn(client, user.Nickname+"关注了你!", u.EventCount("", ""), u.Devs...)
 			}
 		} else {
 			//count := u.DelEvent(models.EventSub, user.Id, user.Id, u.Id)

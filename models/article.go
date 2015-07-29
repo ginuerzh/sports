@@ -30,7 +30,7 @@ type Segment struct {
 
 type Article struct {
 	Id        bson.ObjectId `bson:"_id,omitempty"`
-	Type      string        // record: running record, coach: coach review, default is post
+	Type      string        // record: running record, coach: coach review, pk: pk result, default is post
 	Privilege int           // 0 - public, 2 - private
 	Parent    string        `bson:",omitempty"`
 	Author    string

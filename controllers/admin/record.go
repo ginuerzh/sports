@@ -15,6 +15,7 @@ var defaultRecordsCount = 50
 func BindRecordsApi(m *martini.ClassicMartini) {
 	m.Get("/admin/record/timeline", binding.Form(getRecordsForm{}), adminErrorHandler, getRecordsListHandler)
 	m.Post("/admin/record/delete", binding.Json(deleteRecordsForm{}), adminErrorHandler, deleteRecordsHandler)
+	m.Options("/admin/record/delete", optionsHandler)
 }
 
 type getRecordsForm struct {
@@ -54,9 +55,8 @@ type recordsListJsonStruct struct {
 }
 
 func getRecordsListHandler(w http.ResponseWriter, redis *models.RedisLogger, form getRecordsForm) {
-	valid, errT := checkToken(redis, form.Token)
-	if !valid {
-		writeResponse(w, errT)
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
 		return
 	}
 
@@ -111,9 +111,8 @@ type deleteRecordsForm struct {
 }
 
 func deleteRecordsHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form deleteRecordsForm) {
-	valid, errT := checkToken(redis, form.Token)
-	if !valid {
-		writeResponse(resp, errT)
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(resp, err)
 		return
 	}
 

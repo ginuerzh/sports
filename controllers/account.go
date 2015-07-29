@@ -97,6 +97,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(setPhotosForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
 		setPhotosHandler)
 	m.Post("/1/user/deleteLifePhoto",
 		binding.Json(delPhotoForm{}, (*Parameter)(nil)),
@@ -191,6 +192,24 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		purchaseListHandler)
 
 	m.Get("/1/user/isPreSportForm", testHandler)
+
+	m.Post("/1/user/sendheart",
+		binding.Json(sendHeartForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		sendHeartHandler)
+	m.Post("/1/user/recvheart",
+		binding.Json(recvHeartForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		recvHeartHandler)
+	m.Get("/1/user/ranks",
+		binding.Form(userRanksForm{}),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		userRanksHandler)
 }
 
 type regFormV2 struct {
@@ -272,6 +291,11 @@ type loginFormV2 struct {
 func loginHandlerV2(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, form loginFormV2) {
 	user := &models.Account{}
+	if exists, _ := models.CheckUserExists(form.Id, form.Type); !exists {
+		writeResponse(request.RequestURI, resp,
+			nil, errors.NewError(errors.AuthError, "该用户还未注册"))
+		return
+	}
 	user.FindPass(form.Id, form.Type, Md5(form.Password))
 	if len(user.Id) == 0 {
 		writeResponse(request.RequestURI, resp,
@@ -618,6 +642,9 @@ type userJsonStruct struct {
 	Setinfo  bool             `json:"setinfo"`
 	Ban      int64            `json:"ban_time"`
 	Auth     *models.UserAuth `json:"auth_info"`
+
+	Pet       string `json:"pet"`
+	ScoreRank int    `json:"score_rank"`
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruct {
@@ -731,6 +758,8 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	info := convertUser(user, redis)
+	//info.Pet = userPet(info.Props.Level)
+	info.ScoreRank, _ = user.PropIndex("score", user.Props.Score)
 
 	if uid := redis.OnlineUser(p.TokenId()); len(uid) > 0 {
 		relation := redis.Relationship(uid, user.Id)
@@ -747,6 +776,29 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	writeResponse(request.RequestURI, resp, info, nil)
+}
+
+func userPet(level int64) string {
+	config := &models.Config{}
+	config.Find()
+
+	if len(config.Pets) == 0 {
+		return ""
+	}
+
+	if level < 5 {
+		return config.Pets[0]
+	}
+
+	if level < 10 && len(config.Pets) > 1 {
+		return config.Pets[1]
+	}
+
+	if len(config.Pets) > 2 {
+		return config.Pets[2]
+	}
+
+	return ""
 }
 
 type friendCountForm struct {
@@ -770,6 +822,54 @@ type setInfoForm struct {
 	parameter
 }
 
+func calcInfo(setinfo *models.SetInfo) int {
+	n := 0.0
+
+	if setinfo.Phone != "" {
+		n++
+	}
+	if setinfo.Nickname != "" {
+		n++
+	}
+	if setinfo.Height > 0 {
+		n++
+	}
+	if setinfo.Weight > 0 {
+		n++
+	}
+	if !time.Unix(setinfo.Birth, 0).Equal(time.Unix(0, 0)) {
+		n++
+	}
+	if setinfo.Gender != "" {
+		n++
+	}
+	if setinfo.Sign != "" {
+		n++
+	}
+	if setinfo.Emotion != "" {
+		n++
+	}
+	if setinfo.Profession != "" {
+		n++
+	}
+	if setinfo.Hobby != "" {
+		n++
+	}
+	if setinfo.Hometown != "" {
+		n++
+	}
+	if setinfo.OftenAppear != "" {
+		n++
+	}
+	if setinfo.CoverImage != "" {
+		n++
+	}
+	if setinfo.Address != nil {
+		n++
+	}
+	return int((n / 14.0) * 100.0)
+}
+
 func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 	user *models.Account, p Parameter) {
 
@@ -790,7 +890,8 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 		OftenAppear: form.UserInfo.OftenAppear,
 		CoverImage:  form.UserInfo.CoverImage,
 
-		Setinfo: true,
+		Setinfo:    user.Setinfo,
+		SetinfoAll: user.SetinfoAll,
 	}
 
 	addr := &models.Address{
@@ -803,9 +904,10 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 	if addr.String() != "" {
 		setinfo.Address = addr
 	}
+
 	if len(setinfo.Phone) > 0 && setinfo.Phone != user.Phone {
 		user.Phone = setinfo.Phone
-		setinfo.Setinfo = false
+		//setinfo.Setinfo = false
 		if b, _ := user.Exists("phone"); b {
 			writeResponse(request.RequestURI, resp, nil,
 				errors.NewError(errors.UserExistError, "绑定失败，当前手机号已绑定"))
@@ -820,16 +922,25 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter,
 			return
 		}
 	}
+
+	awards := Awards{}
+	if !user.Setinfo || !user.SetinfoAll {
+		ratio := calcInfo(setinfo)
+		if ratio >= 80 && !user.Setinfo {
+			setinfo.Setinfo = true
+			awards.Wealth = 30 * models.Satoshi
+			awards.Score = 30
+		}
+		if ratio == 100 && !user.SetinfoAll {
+			setinfo.SetinfoAll = true
+			awards.Wealth = 50 * models.Satoshi
+			awards.Score = 50
+		}
+	}
+
 	err := user.SetInfo(setinfo)
 
-	score := 0
-	/*
-		if !setinfo && err == nil {
-			score = actionExps[ActInfo]
-		}
-	*/
-
-	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{Wealth: int64(score)}}, err)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
 
 	user.UpdateAction(ActInfo, nowDate())
 	//redis.SetOnlineUser(form.Token, user, false)
@@ -855,8 +966,14 @@ type setPhotosForm struct {
 func setPhotosHandler(request *http.Request, resp http.ResponseWriter,
 	user *models.Account, p Parameter) {
 	form := p.(setPhotosForm)
+
+	awards := Awards{}
+	if !user.PhotoSet {
+		awards.Wealth = 10 * int64(len(form.Pics)) * models.Satoshi
+		awards.Score = 10 * int64(len(form.Pics))
+	}
 	err := user.AddPhotos(form.Pics)
-	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": Awards{}}, err)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
 }
 
 type delPhotoForm struct {
@@ -1590,4 +1707,114 @@ func userAuthInfoHandler(r *http.Request, w http.ResponseWriter,
 	}
 
 	writeResponse(r.RequestURI, w, info, nil)
+}
+
+type sendHeartForm struct {
+	Record string `json:"record_id"`
+	parameter
+}
+
+func sendHeartHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(sendHeartForm)
+
+	receivers := redis.HeartReceivers(user.Id)
+
+	if len(receivers) == 0 {
+		writeResponse(r.RequestURI, w, nil, nil)
+	}
+
+	var target string
+	for _, recv := range receivers {
+		if recv != user.Id {
+			target = recv
+			break
+		}
+	}
+	// ws push
+	event := &models.Event{
+		Type: models.EventSystem,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventSendHeart,
+			Id:   user.Id,
+			From: user.Id,
+			To:   target,
+			Body: []models.MsgBody{
+				{Type: "record_id", Content: form.Record},
+				{Type: "userid", Content: user.Id},
+			},
+		},
+	}
+	if len(target) > 0 {
+		event.Save()
+		redis.PubMsg(models.EventSystem, target, event.Bytes())
+		redis.LogHeartSend(user.Id)
+		redis.SetHeartRecv(target, true)
+	}
+
+	writeResponse(r.RequestURI, w, nil, nil)
+}
+
+type recvHeartForm struct {
+	Sender string `json:"sender"`
+	Accept bool   `json:"accept"`
+	parameter
+}
+
+func recvHeartHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+
+	form := p.(recvHeartForm)
+
+	// ws push
+	event := &models.Event{
+		Type: models.EventSystem,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventRecvHeart,
+			Id:   user.Id,
+			From: user.Id,
+			To:   form.Sender,
+			Body: []models.MsgBody{
+				{Type: "userid", Content: user.Id},
+			},
+		},
+	}
+
+	awards := Awards{}
+	if form.Accept {
+		redis.SetRelationship(user.Id, []string{form.Sender}, models.RelFriend, true)
+		event.Save()
+		redis.PubMsg(models.EventSystem, form.Sender, event.Bytes())
+		awards.Wealth = 1 * models.Satoshi
+		GiveAwards(user, awards, redis)
+	}
+	redis.SetHeartRecv(user.Id, false)
+	writeResponse(r.RequestURI, w, map[string]interface{}{"ExpEffect": awards}, nil)
+}
+
+type userRanksForm struct {
+	parameter
+}
+
+func userRanksHandler(r *http.Request, w http.ResponseWriter,
+	user *models.Account) {
+	var ranks struct {
+		Userid         string `json:"userid"`
+		ScoreRank      int    `json:"score_rank"`
+		PhysiqueRank   int    `json:"physique_rank"`
+		LiteratureRank int    `json:"literature_rank"`
+		MagicRank      int    `json:"magic_rank"`
+	}
+
+	//log.Println(user.Props)
+	ranks.Userid = user.Id
+	ranks.ScoreRank, _ = user.PropIndex("score", user.Props.Score)
+	ranks.PhysiqueRank, _ = user.PropIndex("physique", user.Props.Physical)
+	ranks.LiteratureRank, _ = user.PropIndex("literature", user.Props.Literal)
+	ranks.MagicRank, _ = user.PropIndex("magic", user.Props.Mental)
+
+	writeResponse(r.RequestURI, w, ranks, nil)
 }

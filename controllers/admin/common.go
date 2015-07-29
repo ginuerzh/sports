@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	//"fmt"
 	"github.com/ginuerzh/sports/errors"
+	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"io"
 	"net/http"
@@ -56,6 +57,17 @@ func adminErrorHandler(err binding.Errors, w http.ResponseWriter) {
 		s += " " + e.Message
 		writeResponse(w, errors.NewError(errors.JsonError, s))
 	}
+}
+
+func checkToken(r *models.RedisLogger, t string) (valid bool, err error) {
+	uid := r.OnlineUser(t)
+	if len(uid) == 0 {
+		err = errors.NewError(errors.AccessError)
+		valid = false
+		return
+	}
+	valid = true
+	return
 }
 
 func decodeJson(r io.Reader, v interface{}) error {

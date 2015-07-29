@@ -84,6 +84,13 @@ const (
 	redisPubSubUser  = redisPrefix + ":pubsub:user:"
 
 	redisNoticeChannel = redisPrefix + ":pubsub:notice"
+
+	redisQiniuUpToken = redisPrefix + ":uptoken" // string qiniu upload token
+
+	redisRecordUsersPrefix = redisPrefix + ":record:users:" // set per day
+	redisHeartSendPrefix   = redisPrefix + ":heart:send:"   // set per day
+	redisHeartRecv         = redisPrefix + ":heart:recv"    // set per day
+	redisTaskShare         = redisPrefix + ":task:share"
 )
 
 const (
@@ -218,12 +225,24 @@ func (logger *RedisLogger) SetRelationship(userid string, peers []string, relati
 				conn.Send("SREM", redisUserFollowPrefix+userid, peer)
 				conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
 			}
+		case RelFriend:
+			if enable {
+				conn.Send("SADD", redisUserFollowPrefix+userid, peer)
+				conn.Send("SADD", redisUserFollowerPrefix+userid, peer)
+				conn.Send("SADD", redisUserFollowPrefix+peer, userid)
+				conn.Send("SADD", redisUserFollowerPrefix+peer, userid)
+			} else {
+				conn.Send("SREM", redisUserFollowPrefix+userid, peer)
+				conn.Send("SREM", redisUserFollowerPrefix+userid, peer)
+				conn.Send("SREM", redisUserFollowPrefix+peer, userid)
+				conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
+			}
 		case RelBlacklist:
 			if enable {
 				conn.Send("SREM", redisUserFollowPrefix+userid, peer)
+				conn.Send("SREM", redisUserFollowerPrefix+userid, peer)
 				conn.Send("SREM", redisUserFollowPrefix+peer, userid)
 				conn.Send("SREM", redisUserFollowerPrefix+peer, userid)
-				conn.Send("SREM", redisUserFollowerPrefix+userid, peer)
 				conn.Send("SADD", redisUserBlacklistPrefix+userid, peer)
 			} else {
 				conn.Send("SREM", redisUserBlacklistPrefix+userid, peer)
@@ -808,6 +827,13 @@ func (logger *RedisLogger) SendCoins(userid string, coins int64) {
 	conn.Send("EXEC")
 }
 
+func (logger *RedisLogger) ConsumeCoins(userid string, coins int64) {
+	if coins <= 0 {
+		return
+	}
+	logger.conn.Do("ZINCRBY", RedisUserCoins, -coins, userid)
+}
+
 func (logger *RedisLogger) Transaction(from, to string, amount int64) {
 	if len(from) == 0 || len(to) == 0 || amount <= 0 {
 		return
@@ -816,6 +842,7 @@ func (logger *RedisLogger) Transaction(from, to string, amount int64) {
 	conn.Send("MULTI")
 	conn.Send("ZINCRBY", RedisUserCoins, -amount, from)
 	conn.Send("ZINCRBY", RedisUserCoins, amount, to)
+
 	conn.Do("EXEC")
 }
 
@@ -1106,7 +1133,7 @@ func (logger *RedisLogger) AddRecord(userid string, count int) {
 
 	conn := logger.conn
 	conn.Send("MULTI")
-
+	conn.Send("SADD", redisRecordUsersPrefix+sdate, userid)
 	conn.Send("ZINCRBY", redisStatUserRecordsPrefix+sdate, count, userid)
 	conn.Send("ZINCRBY", redisStatUserTotalRecords, count, userid)
 	conn.Send("EXEC")
@@ -1152,4 +1179,45 @@ func (logger *RedisLogger) Retention(date time.Time) []int {
 	}
 
 	return counts
+}
+
+func (logger *RedisLogger) SetQiniuUpToken(token string) error {
+	_, err := logger.conn.Do("SETEX", redisQiniuUpToken, 3000, token)
+	return err
+}
+
+func (logger *RedisLogger) GetQiniuUpToken() string {
+	token, _ := redis.String(logger.conn.Do("GET", redisQiniuUpToken))
+	return token
+}
+
+func (logger *RedisLogger) LogHeartSend(userid string) {
+	logger.conn.Do("SADD", redisHeartSendPrefix+DateString(time.Now()), userid)
+}
+
+func (logger *RedisLogger) HeartReceivers(sender string) []string {
+	sdate := DateString(time.Now())
+	receivers, _ := redis.Strings(logger.conn.Do("SDIFF", redisRecordUsersPrefix+sdate, redisHeartRecv, redisUserFollowerPrefix+sender))
+	return receivers
+}
+
+func (logger *RedisLogger) SetHeartRecv(userid string, add bool) {
+	if add {
+		logger.conn.Do("SADD", redisHeartRecv, userid)
+	} else {
+		logger.conn.Do("SREM", redisHeartRecv, userid)
+	}
+}
+
+func (logger *RedisLogger) SetTaskShare(userid string, add bool) {
+	if add {
+		logger.conn.Do("SADD", redisTaskShare, userid)
+	} else {
+		logger.conn.Do("SREM", redisTaskShare, userid)
+	}
+}
+
+func (logger *RedisLogger) TaskSharers() []string {
+	sharers, _ := redis.Strings(logger.conn.Do("SMEMBERS", redisTaskShare))
+	return sharers
 }

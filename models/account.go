@@ -94,7 +94,8 @@ type SetInfo struct {
 	OftenAppear string `json:"oftenappear,omitempty"`
 	CoverImage  string `json:"coverimage,omitempty"`
 
-	Setinfo bool `json:"setinfo,omitempty"`
+	Setinfo    bool `json:"setinfo,omitempty"`
+	SetinfoAll bool `json:"setinfoall,omitempty"`
 }
 
 type DbWallet struct {
@@ -149,6 +150,7 @@ type AuthInfo struct {
 	Images []string `bson:",omitempty" json:"auth_images"`
 	Desc   string   `bson:",omitempty" json:"auth_desc"`
 	Status string   `bson:",omitempty" json:"auth_status"`
+	Review string   `bson:",omitempty" json:"auth_review"`
 }
 
 type UserStat struct {
@@ -158,6 +160,15 @@ type UserStat struct {
 	Comments   int `json:"comments"`
 	Posts      int `json:"posts"`
 	GameTime   int `json:"gametime"`
+}
+
+type Ratios struct {
+	RunRecv    int
+	RunAccept  int
+	PostRecv   int
+	PostAccept int
+	PKRecv     int
+	PKAccept   int
 }
 
 type Account struct {
@@ -209,10 +220,18 @@ type Account struct {
 
 	TimeLimit int64 `bson:"timelimit"`
 	Privilege int
-	Setinfo   bool
-	Push      bool
+
+	Setinfo    bool
+	SetinfoAll bool
+	PhotoSet   bool
+	Push       bool
 
 	Stat *UserStat `bson:",omitempty"`
+
+	Taskid     int    `bson:"task_id,omitempty"`
+	TaskStatus string `bson:"task_status,omitempty"`
+
+	Ratios Ratios
 }
 
 func (this *Account) Level() int64 {
@@ -635,6 +654,9 @@ func (this *Account) AddPhotos(photos []string) error {
 				"$each": photos,
 			},
 		},
+		"$set": bson.M{
+			"photoset": true,
+		},
 	}
 	if err := update(accountColl, bson.M{"_id": this.Id}, change, true); err != nil {
 		return errors.NewError(errors.DbError)
@@ -1036,7 +1058,7 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			return nil, err
 		}
 		query = bson.M{
-			"pub_time": bson.M{
+			"starttime": bson.M{
 				"$gte": record.PubTime,
 			},
 		}
@@ -1045,7 +1067,7 @@ func recordPagingFunc(c *mgo.Collection, first, last string, args ...interface{}
 			return nil, err
 		}
 		query = bson.M{
-			"pub_time": bson.M{
+			"starttime": bson.M{
 				"$lte": record.PubTime,
 			},
 		}
@@ -1070,7 +1092,7 @@ func (this *Account) Records(all bool, types string, paging *Paging) (int, []Rec
 	if !all {
 		query["status"] = bson.M{"$in": []string{StatusFinish, ""}}
 	}
-	sortFields := []string{"-pub_time", "-_id"}
+	sortFields := []string{"-starttime", "-_id"}
 
 	if err := psearch(recordColl, query, nil,
 		sortFields, nil, &records, recordPagingFunc, paging); err != nil && err != mgo.ErrNotFound {
@@ -1100,8 +1122,21 @@ func (this *Account) Records(all bool, types string, paging *Paging) (int, []Rec
 	return total, records, nil
 }
 
-func (this *Account) TaskRecordCount(status string) (int, error) {
-	total := 0
+func (this *Account) TaskRecords(types string) (records []Record, err error) {
+	query := bson.M{
+		"uid": this.Id,
+		"task": bson.M{
+			"$lte": 1000,
+		},
+		"type":   types,
+		"status": StatusFinish,
+	}
+
+	err = search(recordColl, query, nil, 0, 0, nil, nil, &records)
+	return
+}
+
+func (this *Account) TaskRecordCount(types, status string) (int, error) {
 	query := bson.M{
 		"uid": this.Id,
 		"task": bson.M{
@@ -1109,9 +1144,23 @@ func (this *Account) TaskRecordCount(status string) (int, error) {
 		},
 		"status": status,
 	}
-	err := search(recordColl, query, nil, 0, 0, nil, &total, nil)
+	if len(types) > 0 {
+		query["type"] = types
+	}
 
-	return total, err
+	count, err := count(recordColl, query)
+
+	return count, err
+}
+
+func (this *Account) LastRecord(types string) (*Record, error) {
+	query := bson.M{
+		"uid":  this.Id,
+		"type": types,
+	}
+	record := &Record{}
+	err := findOne(recordColl, query, []string{"pub_time"}, record)
+	return record, err
 }
 
 func (this *Account) LastTaskRecord() (*Record, error) {
@@ -1124,6 +1173,20 @@ func (this *Account) LastTaskRecord() (*Record, error) {
 	}
 	record := &Record{}
 	err := findOne(recordColl, query, []string{"-auth_time"}, record)
+
+	return record, err
+}
+
+func (this *Account) LastTaskRecord2() (*Record, error) {
+	query := bson.M{
+		"uid": this.Id,
+		"task": bson.M{
+			"$gt": 0,
+			"$lt": 1000,
+		},
+	}
+	record := &Record{}
+	err := findOne(recordColl, query, []string{"-task", "-pub_time"}, record)
 
 	return record, err
 }
@@ -1315,7 +1378,7 @@ func SearchUsers(nickname string, paging *Paging) ([]Account, error) {
 func (this *Account) SearchNear(paging *Paging, distance int) ([]Account, error) {
 	var users []Account
 	total := 0
-	//fmt.Println("search nearby:", this.Loc.Lat, this.Loc.Lng, distance)
+	fmt.Println("search nearby:", this.Loc.Lat, this.Loc.Lng, distance)
 	if this.Loc.Lat == 0 && this.Loc.Lng == 0 {
 		return nil, nil
 	}
@@ -1364,12 +1427,16 @@ func (this *Account) AddWalletAddr(addr string) error {
 	return nil
 }
 
-func (this *Account) EventCount(eventType string) int {
+func (this *Account) EventCount(eventType, pushType string) int {
 	query := bson.M{
 		"push.to": this.Id,
+		"type":    bson.M{"$ne": EventNotice},
 	}
 	if len(eventType) > 0 {
-		query["push.type"] = eventType
+		query["type"] = eventType
+	}
+	if len(pushType) > 0 {
+		query["push.type"] = pushType
 	}
 
 	n, _ := count(eventColl, query)
@@ -1910,7 +1977,7 @@ func (this *Account) SetAuthInfo(types string, images []string, desc string) err
 	return nil
 }
 
-func (this *Account) SetAuth(types string, status string) error {
+func (this *Account) SetAuth(types, status, review string) error {
 	var change bson.M
 
 	switch types {
@@ -1918,11 +1985,16 @@ func (this *Account) SetAuth(types string, status string) error {
 		if this.Auth.IdCardTmp == nil {
 			return nil
 		}
+		this.Auth.IdCardTmp.Review = review
+		this.Auth.IdCardTmp.Status = status
 		change = bson.M{
-			"$set": bson.M{"auth.idcardtmp.status": status},
+			"$set": bson.M{
+				"auth.idcardtmp.status": status,
+				"auth.idcardtmp.review": review,
+			},
 		}
 		if status == AuthVerified && this.Auth.IdCardTmp != nil {
-			this.Auth.IdCardTmp.Status = AuthVerified
+			//this.Auth.IdCardTmp.Status = AuthVerified
 			change = bson.M{
 				"$set":   bson.M{"auth.idcard": this.Auth.IdCardTmp},
 				"$unset": bson.M{"auth.idcardtmp": 1},
@@ -1943,11 +2015,16 @@ func (this *Account) SetAuth(types string, status string) error {
 		if this.Auth.CertTmp == nil {
 			return nil
 		}
+		this.Auth.CertTmp.Review = review
+		this.Auth.CertTmp.Status = status
 		change = bson.M{
-			"$set": bson.M{"auth.certtmp.status": status},
+			"$set": bson.M{
+				"auth.certtmp.status": status,
+				"auth.certtmp.review": review,
+			},
 		}
 		if status == AuthVerified && this.Auth.CertTmp != nil {
-			this.Auth.CertTmp.Status = AuthVerified
+			//this.Auth.CertTmp.Status = AuthVerified
 			change = bson.M{
 				"$set":   bson.M{"auth.cert": this.Auth.CertTmp},
 				"$unset": bson.M{"auth.certtmp": 1},
@@ -1967,11 +2044,16 @@ func (this *Account) SetAuth(types string, status string) error {
 		if this.Auth.RecordTmp == nil {
 			return nil
 		}
+		this.Auth.RecordTmp.Review = review
+		this.Auth.RecordTmp.Status = status
 		change = bson.M{
-			"$set": bson.M{"auth.recordtmp.status": status},
+			"$set": bson.M{
+				"auth.recordtmp.status": status,
+				"auth.recordtmp.review": review,
+			},
 		}
 		if status == AuthVerified && this.Auth.RecordTmp != nil {
-			this.Auth.RecordTmp.Status = AuthVerified
+			//this.Auth.RecordTmp.Status = AuthVerified
 			change = bson.M{
 				"$set":   bson.M{"auth.record": this.Auth.RecordTmp},
 				"$unset": bson.M{"auth.recordtmp": 1},
@@ -2028,5 +2110,134 @@ func (this *Account) UpdateStat(types string, count int64) error {
 		return errors.NewError(errors.DbError)
 	}
 
+	return nil
+}
+
+func (this *Account) UpdateTask(tid int, status string) error {
+	change := bson.M{
+		"$set": bson.M{
+			"task_id":     tid,
+			"task_status": status,
+		},
+	}
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+	return nil
+}
+
+func (this *Account) TaskReferrals(taskType string, excludes []string) (accounts []Account, err error) {
+	query := bson.M{
+		"task_id":     this.Taskid,
+		"task_status": this.TaskStatus,
+		"_id": bson.M{
+			"$nin": excludes,
+		},
+	}
+
+	if this.Loc.Lat > 0 {
+		query["loc"] = bson.D{
+			{"$near", []float64{this.Loc.Lat, this.Loc.Lng}},
+			// {"$maxDistance", float64(100000) / float64(111319)},
+		}
+	}
+
+	err = search(accountColl, query, nil, 0, 10, nil, nil, &accounts)
+
+	return
+}
+
+func (this *Account) PropIndex(prop string, value int64) (int, error) {
+	var query bson.M
+
+	switch prop {
+	case "physique":
+		query = bson.M{
+			"props.literal": bson.M{
+				"$gt": value,
+			},
+		}
+	case "literature":
+		query = bson.M{
+			"props.literal": bson.M{
+				"$gt": value,
+			},
+		}
+	case "magic":
+		query = bson.M{
+			"props.mental": bson.M{
+				"$gt": value,
+			},
+		}
+	case "score":
+		query = bson.M{
+			"props.score": bson.M{
+				"$gt": value,
+			},
+		}
+	default:
+		return 0, nil
+	}
+
+	n, err := count(accountColl, query)
+	if err != nil {
+		return 0, err
+	}
+	return n + 1, nil
+}
+
+func (this *Account) UpdateRatio(types string, accept bool) error {
+	var change bson.M
+
+	switch types {
+	case TaskRunning:
+		if accept {
+			change = bson.M{
+				"$inc": bson.M{
+					"ratios.runaccept": 1,
+				},
+			}
+		} else {
+			change = bson.M{
+				"$inc": bson.M{
+					"ratios.runrecv": 1,
+				},
+			}
+		}
+	case TaskPost:
+		if accept {
+			change = bson.M{
+				"$inc": bson.M{
+					"ratios.postaccept": 1,
+				},
+			}
+		} else {
+			change = bson.M{
+				"$inc": bson.M{
+					"ratios.postrecv": 1,
+				},
+			}
+		}
+	case TaskGame:
+		if accept {
+			change = bson.M{
+				"$inc": bson.M{
+					"ratios.pkaccept": 1,
+				},
+			}
+		} else {
+			change = bson.M{
+				"$inc": bson.M{
+					"ratios.pkrecv": 1,
+				},
+			}
+		}
+	default:
+		return nil
+	}
+
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
 	return nil
 }

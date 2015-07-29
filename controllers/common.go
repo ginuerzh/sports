@@ -32,6 +32,10 @@ const (
 	ActInfo    = "info"
 )
 
+var (
+	WalletAddr string
+)
+
 type response struct {
 	ReqPath  string      `json:"req_path"`
 	RespData interface{} `json:"response_data"`
@@ -188,7 +192,7 @@ func GiveAwards(user *models.Account, awards Awards, redis *models.RedisLogger) 
 	}
 	redis.SendCoins(user.Id, awards.Wealth)
 
-	return user.UpdateProps(models.Props{
+	err := user.UpdateProps(models.Props{
 		Physical: awards.Physical,
 		Literal:  awards.Literal,
 		Mental:   awards.Mental,
@@ -196,6 +200,25 @@ func GiveAwards(user *models.Account, awards Awards, redis *models.RedisLogger) 
 		Score: awards.Score,
 		//Level: awards.Level,
 	})
+	if err != nil {
+		return err
+	}
+
+	if lvl := models.Score2Level(user.Props.Score + awards.Score); lvl > user.Level() {
+		// ws push
+		event := &models.Event{
+			Type: models.EventNotice,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventLevelUP,
+				To:   user.Id,
+			},
+		}
+		event.Save()
+		redis.PubMsg(event.Type, event.Data.To, event.Bytes())
+	}
+
+	return nil
 }
 
 func sendCoin(toAddr string, amount int64) (string, error) {
@@ -206,6 +229,7 @@ func sendCoin(toAddr string, amount int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	var r struct {
 		Txid   string `json:"txid"`
@@ -220,6 +244,34 @@ func sendCoin(toAddr string, amount int64) (string, error) {
 	}
 
 	return r.Txid, nil
+}
+
+func consumeCoin(fromAddr string, value int64) (string, error) {
+	if fromAddr == "" || value <= 0 {
+		return "", nil
+	}
+
+	user := &models.Account{}
+	if find, _ := user.FindByWalletAddr(fromAddr); !find {
+		return "", errors.NewError(errors.NotFoundError)
+	}
+	wal, err := getWallet(user.Wallet.Id, user.Wallet.Key)
+	if err != nil {
+		return "", err
+	}
+	outputs, amount, err := getUnspent(fromAddr, wal.Keys, value)
+	if value > amount {
+		return "", errors.NewError(errors.AccessError, "余额不足")
+	}
+	changeAddr := fromAddr
+	if len(changeAddr) == 0 {
+		changeAddr = wal.Keys[0].PubKey
+	}
+	rawtx, err := CreateRawTx2(outputs, amount, value, WalletAddr, changeAddr)
+	if err != nil {
+		return "", err
+	}
+	return sendRawTx(rawtx)
 }
 
 func gameType(t string) int {

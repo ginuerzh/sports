@@ -151,7 +151,7 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 
 					redisLogger.PubMsg(m.Type, m.To, event.Bytes())
 				}
-			case "status":
+			case models.EventStatus:
 				//fmt.Println(user.Id, event.Data.Body)
 				switch event.Data.Type {
 				case "loc":
