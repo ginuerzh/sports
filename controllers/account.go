@@ -823,9 +823,9 @@ type setInfoForm struct {
 }
 
 func calcInfo(user *models.Account, setinfo *models.SetInfo) int {
-	n := 3
+	n := 4.0
 
-	if setinfo.Phone != "" || user.Phone != "" {
+	if len(user.Photos) > 0 {
 		n++
 	}
 	if setinfo.Height > 0 || user.Height > 0 {
@@ -850,9 +850,6 @@ func calcInfo(user *models.Account, setinfo *models.SetInfo) int {
 		n++
 	}
 	if setinfo.OftenAppear != "" || user.Oftenappear != "" {
-		n++
-	}
-	if setinfo.CoverImage != "" || user.CoverImage != "" {
 		n++
 	}
 	return int((n / 13.0) * 100.0)
@@ -914,7 +911,7 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 	awards := Awards{}
 	if !user.Setinfo || !user.SetinfoAll {
 		ratio := calcInfo(user, setinfo)
-		log.Println("ratio:", ratio)
+
 		if ratio >= 80 && !user.Setinfo {
 			setinfo.Setinfo = true
 			awards.Wealth = 30 * models.Satoshi
