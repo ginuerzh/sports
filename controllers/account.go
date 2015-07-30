@@ -822,52 +822,40 @@ type setInfoForm struct {
 	parameter
 }
 
-func calcInfo(setinfo *models.SetInfo) int {
-	n := 0.0
+func calcInfo(user *models.Account, setinfo *models.SetInfo) int {
+	n := 3
 
-	if setinfo.Phone != "" {
+	if setinfo.Phone != "" || user.Phone != "" {
 		n++
 	}
-	if setinfo.Nickname != "" {
+	if setinfo.Height > 0 || user.Height > 0 {
 		n++
 	}
-	if setinfo.Height > 0 {
+	if setinfo.Weight > 0 || user.Weight > 0 {
 		n++
 	}
-	if setinfo.Weight > 0 {
+	if setinfo.Sign != "" || user.Sign != "" {
 		n++
 	}
-	if !time.Unix(setinfo.Birth, 0).Equal(time.Unix(0, 0)) {
+	if setinfo.Emotion != "" || user.Emotion != "" {
 		n++
 	}
-	if setinfo.Gender != "" {
+	if setinfo.Profession != "" || user.Profession != "" {
 		n++
 	}
-	if setinfo.Sign != "" {
+	if setinfo.Hobby != "" || user.Hobby != "" {
 		n++
 	}
-	if setinfo.Emotion != "" {
+	if setinfo.Hometown != "" || user.Hometown != "" {
 		n++
 	}
-	if setinfo.Profession != "" {
+	if setinfo.OftenAppear != "" || user.Oftenappear != "" {
 		n++
 	}
-	if setinfo.Hobby != "" {
+	if setinfo.CoverImage != "" || user.CoverImage != "" {
 		n++
 	}
-	if setinfo.Hometown != "" {
-		n++
-	}
-	if setinfo.OftenAppear != "" {
-		n++
-	}
-	if setinfo.CoverImage != "" {
-		n++
-	}
-	if setinfo.Address != nil {
-		n++
-	}
-	return int((n / 14.0) * 100.0)
+	return int((n / 13.0) * 100.0)
 }
 
 func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger,
@@ -923,9 +911,14 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		}
 	}
 
+	if err := user.SetInfo(setinfo); err != nil {
+		writeResponse(request.RequestURI, resp, nil, err)
+		return
+	}
+
 	awards := Awards{}
 	if !user.Setinfo || !user.SetinfoAll {
-		ratio := calcInfo(setinfo)
+		ratio := calcInfo(user, setinfo)
 		if ratio >= 80 && !user.Setinfo {
 			setinfo.Setinfo = true
 			awards.Wealth = 30 * models.Satoshi
@@ -938,10 +931,9 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		}
 	}
 
-	err := user.SetInfo(setinfo)
 	GiveAwards(user, awards, redis)
 
-	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, err)
+	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)
 
 	user.UpdateAction(ActInfo, nowDate())
 	//redis.SetOnlineUser(form.Token, user, false)

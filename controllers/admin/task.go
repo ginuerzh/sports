@@ -307,9 +307,8 @@ func taskAuthFunc(userid string, auth *taskAuth, redis *models.RedisLogger) erro
 		}
 		awards.Level = models.Score2Level(user.Props.Score+awards.Score) - level
 
-		if err := controllers.GiveAwards(user, awards, redis); err != nil {
-			return err
-		}
+		controllers.GiveAwards(user, awards, redis)
+
 		if record.Sport != nil {
 			redis.UpdateRecLB(user.Id, record.Sport.Distance, int(record.Sport.Duration))
 		}

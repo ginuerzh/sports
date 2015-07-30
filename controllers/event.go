@@ -54,9 +54,8 @@ func eventNewsHandler(request *http.Request, resp http.ResponseWriter,
 		"new_chat_count": user.EventCount("", models.EventChat),
 		"new_comment_count": user.EventCount("", models.EventComment) +
 			user.EventCount("", models.EventCoach) + user.EventCount("", models.EventCoachPass) + user.EventCount("", models.EventCoachNPass),
-		"new_thumb_count": user.EventCount("", models.EventThumb),
-		//"new_reward_count":    user.EventCount(models.EventReward) + user.EventCount(models.EventTx),
-		"new_reward_count":    user.EventCount(models.EventTx, ""),
+		"new_thumb_count":     user.EventCount("", models.EventThumb),
+		"new_reward_count":    user.EventCount(models.EventWallet, ""),
 		"new_attention_count": user.EventCount("", models.EventSub) + user.EventCount(models.EventSystem, ""),
 	}
 
