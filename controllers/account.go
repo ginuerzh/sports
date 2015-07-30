@@ -911,14 +911,10 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		}
 	}
 
-	if err := user.SetInfo(setinfo); err != nil {
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
-	}
-
 	awards := Awards{}
 	if !user.Setinfo || !user.SetinfoAll {
 		ratio := calcInfo(user, setinfo)
+		log.Println("ratio:", ratio)
 		if ratio >= 80 && !user.Setinfo {
 			setinfo.Setinfo = true
 			awards.Wealth = 30 * models.Satoshi
@@ -929,6 +925,11 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 			awards.Wealth = 50 * models.Satoshi
 			awards.Score = 50
 		}
+	}
+
+	if err := user.SetInfo(setinfo); err != nil {
+		writeResponse(request.RequestURI, resp, nil, err)
+		return
 	}
 
 	GiveAwards(user, awards, redis)
