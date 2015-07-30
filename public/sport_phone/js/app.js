@@ -563,7 +563,7 @@ app.factory('userService', [
         });
         return deferred.promise;
       },
-      getuserinfo: function(userId) {
+      getuserinfo: function(userid) {
         var deferred;
         deferred = $q.defer();
         $userreq.getuserinfo(userid).success(function(data, status, headers, config) {
@@ -596,11 +596,11 @@ loginController = app.controller('loginController', [
           var dataTmp, promiseuserinfo;
           dataTmp = {
             isLogin: true,
-            access_token: retData.access_token,
-            userid: retData.userid
+            access_token: data.access_token,
+            userid: data.userid
           };
           app.checkUser(dataTmp);
-          promiseuserinfo = userService.getuserinfo(retData.userid).then(function(userInfo) {
+          promiseuserinfo = userService.getuserinfo(data.userid).then(function(userInfo) {
             dataTmp.profile = userInfo.profile;
             return app.checkUser(dataTmp);
           });
