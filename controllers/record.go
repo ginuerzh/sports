@@ -110,9 +110,9 @@ type newRecordForm struct {
 func gameAwards(level int64, gameScore int, isTask bool) Awards {
 	awards := Awards{}
 
-	base := 5.0
-	scale := 1.2
-	factor := 1.5
+	base := 1.0
+	scale := 1.0
+	factor := 0.5
 
 	if !isTask {
 		base = 1.0
