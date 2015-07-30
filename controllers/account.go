@@ -1680,25 +1680,25 @@ func userAuthInfoHandler(r *http.Request, w http.ResponseWriter,
 	form := p.(authInfoForm)
 	switch form.Type {
 	case models.AuthIdCard:
-		if user.Auth.IdCard != nil {
-			info = user.Auth.IdCard
-		}
 		if user.Auth.IdCardTmp != nil {
 			info = user.Auth.IdCardTmp
 		}
-	case models.AuthCert:
-		if user.Auth.Cert != nil {
-			info = user.Auth.Cert
+		if user.Auth.IdCard != nil {
+			info = user.Auth.IdCard
 		}
+	case models.AuthCert:
 		if user.Auth.CertTmp != nil {
 			info = user.Auth.CertTmp
 		}
-	case models.AuthRecord:
-		if user.Auth.Record != nil {
-			info = user.Auth.Record
+		if user.Auth.Cert != nil {
+			info = user.Auth.Cert
 		}
+	case models.AuthRecord:
 		if user.Auth.RecordTmp != nil {
 			info = user.Auth.RecordTmp
+		}
+		if user.Auth.Record != nil {
+			info = user.Auth.Record
 		}
 	}
 
