@@ -59,6 +59,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(logoutForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
 		logoutHandler)
 	m.Get("/1/user/recommend",
 		binding.Form(recommendForm{}, (*Parameter)(nil)),
@@ -540,8 +541,11 @@ type logoutForm struct {
 }
 
 func logoutHandler(request *http.Request, resp http.ResponseWriter,
-	redis *models.RedisLogger, p Parameter) {
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
 	redis.DelOnlineUser(p.TokenId())
+	if len(user.Devs) > 0 {
+		user.RmDevice(user.Devs[0])
+	}
 	writeResponse(request.RequestURI, resp, nil, nil)
 
 }
