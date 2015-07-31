@@ -1552,7 +1552,7 @@ func purchaseListHandler(r *http.Request, w http.ResponseWriter,
 }
 
 func testHandler(r *http.Request, w http.ResponseWriter) {
-	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": true}, nil)
+	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": false}, nil)
 }
 
 type userlbForm struct {
