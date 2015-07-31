@@ -174,9 +174,11 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			//user.AddTask(models.Tasks[form.Task-1].Type, form.Task, nil)
 			rec.Status = models.StatusFinish
 		} else {
-			if form.Record.GameScore >= 100 {
+			if form.Record.GameScore >= 100 &&
+				user.Stat != nil && user.Stat.LastGameTime < nowDate().Unix() {
 				awards = gameAwards(level, form.Record.GameScore, false)
 			}
+			user.UpdateStat(models.StatLastGameTime, time.Now().Unix())
 		}
 		GiveAwards(user, awards, redis)
 

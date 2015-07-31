@@ -38,12 +38,14 @@ const (
 )
 
 const (
-	StatOnlineTime = "onlinetime"
-	StatRecords    = "records"
-	StatArticles   = "articles"
-	StatComments   = "comments"
-	StatPosts      = "posts"
-	StatGameTime   = "gametime"
+	StatOnlineTime      = "onlinetime"
+	StatRecords         = "records"
+	StatArticles        = "articles"
+	StatComments        = "comments"
+	StatPosts           = "posts"
+	StatGameTime        = "gametime"
+	StatLastArticleTime = "lastarticletime"
+	StatLastGameTime    = "lastgametime"
 )
 
 func init() {
@@ -154,12 +156,14 @@ type AuthInfo struct {
 }
 
 type UserStat struct {
-	OnlineTime int `json:"onlinetime"`
-	Records    int `json:"records"`
-	Articles   int `json:"articles"`
-	Comments   int `json:"comments"`
-	Posts      int `json:"posts"`
-	GameTime   int `json:"gametime"`
+	OnlineTime      int `json:"onlinetime"`
+	Records         int `json:"records"`
+	Articles        int `json:"articles"`
+	Comments        int `json:"comments"`
+	Posts           int `json:"posts"`
+	GameTime        int `json:"gametime"`
+	LastArticleTime int64
+	LastGameTime    int64
 }
 
 type Ratios struct {
@@ -2101,6 +2105,14 @@ func (this *Account) UpdateStat(types string, count int64) error {
 	case StatGameTime:
 		change = bson.M{
 			"$inc": bson.M{"stat.gametime": count},
+		}
+	case StatLastArticleTime:
+		change = bson.M{
+			"$set": bson.M{"stat.lastarticletime": count},
+		}
+	case StatLastGameTime:
+		change = bson.M{
+			"$set": bson.M{"stat.lastgametime": count},
 		}
 	default:
 		return nil

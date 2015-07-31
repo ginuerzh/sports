@@ -277,7 +277,10 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 
 		awards = Awards{Literal: 1 + user.Level(), Score: 1 + user.Level()}
 	} else {
-		awards = Awards{Literal: 2 + user.Level(), Wealth: 2 * models.Satoshi, Score: 2 + user.Level()}
+		if user.Stat != nil && user.Stat.LastArticleTime < nowDate().Unix() {
+			awards = Awards{Literal: 2 + user.Level(), Wealth: 2 * models.Satoshi, Score: 2 + user.Level()}
+		}
+		user.UpdateStat(models.StatLastArticleTime, time.Now().Unix())
 	}
 
 	if article.Type == models.ArticleRecord {
