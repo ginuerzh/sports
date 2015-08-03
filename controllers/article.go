@@ -62,6 +62,11 @@ func BindArticleApi(m *martini.ClassicMartini) {
 	m.Get("/1/aritcle/thumbList",
 		binding.Form(thumbersForm{}),
 		thumbersHandler)
+	m.Get("/1/article/reward_list",
+		binding.Form(rewardlistForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		rewardlistHandler)
 	m.Get("/1/article/news",
 		binding.Form(articleNewsForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -704,6 +709,76 @@ func thumbersHandler(r *http.Request, w http.ResponseWriter,
 	writeResponse(r.RequestURI, w, respData, nil)
 	return
 
+}
+
+type rewardlistForm struct {
+	Id    string `form:"article_id"`
+	Index int    `form:"page_index"`
+	parameter
+}
+
+func rewardlistHandler(r *http.Request, w http.ResponseWriter,
+	user *models.Account, form rewardlistForm) {
+	article := &models.Article{}
+	article.FindById(form.Id)
+
+	if article.Author != user.Id {
+		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))
+		return
+	}
+
+	var respData struct {
+		Users []*leaderboardResp `json:"members_list"`
+	}
+
+	if form.Index < 0 {
+		form.Index = 0
+	}
+	rewardUsers := article.RewardUsers
+	end := len(rewardUsers) - form.Index*20
+	start := end - 20
+
+	if end <= 0 {
+		respData.Users = []*leaderboardResp{}
+		writeResponse(r.RequestURI, w, respData, nil)
+		return
+	}
+	if start < 0 {
+		start = 0
+	}
+
+	rewardUsers = article.RewardUsers[start:end]
+
+	var ids []string
+	for i, _ := range rewardUsers {
+		ids = append(ids, rewardUsers[i].Id)
+	}
+	users, _ := models.FindUsersByIds(1, ids...)
+
+	for j := len(rewardUsers); j > 0; j-- { // reverse
+		for i, _ := range users {
+			if users[i].Id == rewardUsers[j-1].Id {
+				respData.Users = append(respData.Users, &leaderboardResp{
+					Userid:   users[i].Id,
+					Score:    users[i].Props.Score,
+					Level:    users[i].Level(),
+					Profile:  users[i].Profile,
+					Nickname: users[i].Nickname,
+					Gender:   users[i].Gender,
+					LastLog:  users[i].LastLogin.Unix(),
+					Birth:    users[i].Birth,
+					Location: users[i].Loc,
+					Addr:     users[i].LocAddr,
+					Phone:    users[i].Phone,
+					Coins:    rewardUsers[j].Coin,
+				})
+				break
+			}
+		}
+	}
+
+	writeResponse(r.RequestURI, w, respData, nil)
+	return
 }
 
 type articleNewsForm struct {

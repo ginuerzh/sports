@@ -28,6 +28,12 @@ type Segment struct {
 	ContentText string `bson:"seg_content" json:"seg_content"`
 }
 
+type rewardUser struct {
+	Id   string
+	Time time.Time
+	Coin int64
+}
+
 type Article struct {
 	Id        bson.ObjectId `bson:"_id,omitempty"`
 	Type      string        // record: running record, coach: coach review, pk: pk result, default is post
@@ -49,11 +55,12 @@ type Article struct {
 	ReviewCount      int      `bson:"review_count"`
 	CoachReviewCount int      `bson:"coach_review_count"`
 	Coaches          []string
-	Rewards          []string `bson:",omitempty"`
-	RewardCount      int      `bson:"reward_count"`
-	TotalReward      int64    `bson:"total_reward"`
-	Tags             []string `bson:",omitempty"`
-	Loc              Location `bson:",omitempty"`
+	//Rewards          []string `bson:",omitempty"`
+	RewardUsers []rewardUser
+	RewardCount int      `bson:"reward_count"`
+	TotalReward int64    `bson:"total_reward"`
+	Tags        []string `bson:",omitempty"`
+	Loc         Location `bson:",omitempty"`
 }
 
 func (this *Article) Exists() (bool, error) {
@@ -513,8 +520,8 @@ func (this *Article) AdminComments(pageIndex, pageCount int) (total int, article
 func (this *Article) Reward(userid string, amount int64) error {
 	change := mgo.Change{
 		Update: bson.M{
-			"$addToSet": bson.M{
-				"rewards": userid,
+			"$push": bson.M{
+				"rewardusers": &rewardUser{Id: userid, Time: time.Now(), Coin: amount},
 			},
 			"$inc": bson.M{
 				"total_reward": amount,

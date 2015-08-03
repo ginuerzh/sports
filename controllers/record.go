@@ -367,6 +367,7 @@ type leaderboardResp struct {
 	Distance int    `json:"total_distance"`
 	Status   string `json:"status"`
 	Phone    string `json:"phone_number"`
+	Coins    int64  `json:"coins"`
 }
 
 type leaderboardForm struct {

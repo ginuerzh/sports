@@ -56,7 +56,7 @@ func convertArticle(article *models.Article, redis *models.RedisLogger) *article
 	info.Thumbs = len(article.Thumbs)
 	info.CommentCount = len(article.Reviews)
 	info.Rewards = article.TotalReward
-	info.RewardUsers = article.Rewards
+	//info.RewardUsers = article.Rewards
 	info.Tags = article.Tags
 	info.Title = article.Title
 	info.Image = article.Image
