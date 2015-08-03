@@ -770,7 +770,7 @@ func rewardlistHandler(r *http.Request, w http.ResponseWriter,
 					Location: users[i].Loc,
 					Addr:     users[i].LocAddr,
 					Phone:    users[i].Phone,
-					Coins:    rewardUsers[j].Coin,
+					Coins:    rewardUsers[j-1].Coin,
 				})
 				break
 			}
