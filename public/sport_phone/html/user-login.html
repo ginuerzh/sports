@@ -1,21 +1,22 @@
-<div ng-controller="loginController" class="login-panel">
+<div ng-controller="loginController">
     <br>
-    <md-content layout-padding class="autoScroll">
+    <md-content layout-padding>
+        <div flex="100">
+            <label>用户名</label>
+            <md-input-container md-no-float>
+                <input type="text" placeholder="输入用户名" ng-keydown="enterLogin()" ng-model="username">
+            </md-input-container>
+            <label>密码</label>
+            <md-input-container md-no-float>
 
-        <label>用户名</label>
-        <md-input-container md-no-float>
-            <input type="text" placeholder="输入用户名" ng-keydown="enterLogin()" ng-model="username">
-        </md-input-container>
-        <label>密码</label>
-        <md-input-container md-no-float>
+                <input type="password" placeholder="输入密码" ng-keydown="enterLogin()" ng-model="pwd">
+            </md-input-container>
 
-            <input type="password" placeholder="输入密码" ng-keydown="enterLogin()" ng-model="pwd">
-        </md-input-container>
+            <md-button class="md-raised md-primary" ng-click="onLogin()">登录</md-button>
 
-        <md-button class="md-raised md-primary" ng-click="onLogin()">登录</md-button>
-
-        <div class="login-erro" role="alert" ng-if="alert">
-            {{alert}}
+            <div class="login-erro" role="alert" ng-if="alert">
+                {{alert}}
+            </div>
         </div>
     </md-content>
 </div>
