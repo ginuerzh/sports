@@ -280,7 +280,11 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 			return
 		}
 
-		awards = Awards{Literal: 1 + user.Level(), Score: 1 + user.Level()}
+		if user.Stat != nil && user.Stat.LastCommentTime < nowDate().Unix() {
+			awards = Awards{Literal: 1 + user.Level(), Wealth: 1 * models.Satoshi, Score: 1 + user.Level()}
+		}
+		user.UpdateStat(models.StatLastCommentTime, time.Now().Unix())
+		//awards = Awards{Literal: 1 + user.Level(), Score: 1 + user.Level()}
 	} else {
 		if user.Stat != nil && user.Stat.LastArticleTime < nowDate().Unix() {
 			awards = Awards{Literal: 2 + user.Level(), Wealth: 2 * models.Satoshi, Score: 2 + user.Level()}
@@ -454,7 +458,10 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 
 	awards := Awards{}
 	if form.Status {
-		awards = Awards{Score: 1, Wealth: 1 * models.Satoshi}
+		if user.Stat != nil && user.Stat.LastThumbTime < nowDate().Unix() {
+			awards = Awards{Score: 1, Wealth: 1 * models.Satoshi}
+		}
+		user.UpdateStat(models.StatLastThumbTime, time.Now().Unix())
 		GiveAwards(user, awards, redis)
 	}
 	writeResponse(request.RequestURI, resp, map[string]interface{}{"ExpEffect": awards}, nil)

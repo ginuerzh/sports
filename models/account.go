@@ -45,6 +45,8 @@ const (
 	StatPosts           = "posts"
 	StatGameTime        = "gametime"
 	StatLastArticleTime = "lastarticletime"
+	StatLastCommentTime = "lastcommenttime"
+	StatLastThumbTime   = "lastthumbtime"
 	StatLastGameTime    = "lastgametime"
 )
 
@@ -163,6 +165,8 @@ type UserStat struct {
 	Posts           int `json:"posts"`
 	GameTime        int `json:"gametime"`
 	LastArticleTime int64
+	LastCommentTime int64
+	LastThumbTime   int64
 	LastGameTime    int64
 }
 
@@ -2109,6 +2113,14 @@ func (this *Account) UpdateStat(types string, count int64) error {
 	case StatLastArticleTime:
 		change = bson.M{
 			"$set": bson.M{"stat.lastarticletime": count},
+		}
+	case StatLastCommentTime:
+		change = bson.M{
+			"$set": bson.M{"stat.lastcommenttime": count},
+		}
+	case StatLastThumbTime:
+		change = bson.M{
+			"$set": bson.M{"stat.lastthumbtime": count},
 		}
 	case StatLastGameTime:
 		change = bson.M{
