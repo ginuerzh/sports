@@ -166,8 +166,8 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 
 		GiveAwards(user, awards, redis)
 
-		redis.AddPost(user.Id, "", 1)
-		user.UpdateStat(models.StatArticles, 1)
+		//redis.AddPost(user.Id, "", 1)
+		//user.UpdateStat(models.StatArticles, 1)
 	case "game":
 		if form.Task > 0 {
 			awards = gameAwards(level, form.Record.GameScore, true)
