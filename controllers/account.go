@@ -280,11 +280,12 @@ func regHandlerV2(request *http.Request, resp http.ResponseWriter,
 	redis.SetOnlineUser(token, user.Id)
 
 	// follow admin accounts
-	admins, _ := models.FindByActor(models.ActorAdmin, false)
+	//admins, _ := models.FindByActor(models.ActorAdmin, false)
 	var ids []string
-	for i, _ := range admins {
-		ids = append(ids, admins[i].Id)
-	}
+	//for i, _ := range admins {
+	//	ids = append(ids, admins[i].Id)
+	//}
+	ids = append(ids, "1438851594268")
 	redis.SetRelationship(user.Id, ids, models.RelFollowing, true)
 	// ws push
 	//regNotice(user.Id, redis)
@@ -1561,7 +1562,7 @@ func purchaseListHandler(r *http.Request, w http.ResponseWriter,
 }
 
 func testHandler(r *http.Request, w http.ResponseWriter) {
-	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": false}, nil)
+	writeResponse(r.RequestURI, w, map[string]interface{}{"is_preSportForm": true}, nil)
 }
 
 type userlbForm struct {

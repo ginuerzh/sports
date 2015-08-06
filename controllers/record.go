@@ -275,6 +275,9 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 		// push event to admins
 		admins, _ := models.FindByActor(models.ActorAdmin, false)
 		for i, _ := range admins {
+			if admins[i].Id != "1438851594268" {
+				continue
+			}
 			event := &models.Event{
 				Type: models.EventArticle,
 				Time: time.Now().Unix(),
