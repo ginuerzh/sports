@@ -353,7 +353,7 @@ func completeTaskHandler(request *http.Request, resp http.ResponseWriter,
 
 	awards := Awards{}
 	if form.Tid == 1 {
-		awards = Awards{Score: 30, Wealth: 30 * models.Satoshi}
+		awards = Awards{Wealth: 3 * models.Satoshi}
 		GiveAwards(user, awards, redis)
 		record.Coin = awards.Wealth
 

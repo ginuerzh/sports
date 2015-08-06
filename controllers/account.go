@@ -919,12 +919,12 @@ func setInfoHandler(request *http.Request, resp http.ResponseWriter, redis *mode
 		if ratio >= 80 && !user.Setinfo {
 			setinfo.Setinfo = true
 			awards.Wealth = 30 * models.Satoshi
-			awards.Score = 30
+			//awards.Score = 30
 		}
 		if ratio == 100 && !user.SetinfoAll {
 			setinfo.SetinfoAll = true
 			awards.Wealth = 50 * models.Satoshi
-			awards.Score = 50
+			//awards.Score = 50
 		}
 	}
 
@@ -965,7 +965,7 @@ func setPhotosHandler(request *http.Request, resp http.ResponseWriter, redis *mo
 	awards := Awards{}
 	if !user.PhotoSet {
 		awards.Wealth = 10 * int64(len(form.Pics)) * models.Satoshi
-		awards.Score = 10 * int64(len(form.Pics))
+		//awards.Score = 10 * int64(len(form.Pics))
 	}
 	err := user.AddPhotos(form.Pics)
 	GiveAwards(user, awards, redis)
@@ -1010,7 +1010,8 @@ func loginAwards(days, level int) Awards {
 		factor = 1.5
 		r = ran.Intn(level*5) + 1
 	}
-	awards.Score = int64(float64(days)*scale + float64(level)*factor + float64(r))
+	awards.Physical = int64(float64(days)*scale + float64(level)*factor + float64(r))
+	awards.Score = awards.Physical
 
 	return awards
 }
@@ -1036,7 +1037,7 @@ func loginAwardsHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	index := (user.LoginDays - 1) % 7
-	awards := Awards{Wealth: a[index*2], Score: a[index*2+1]}
+	awards := Awards{Wealth: a[index*2], Physical: a[index*2+1], Score: a[index*2+1]}
 	awards.Level = models.Score2Level(user.Props.Score+awards.Score) - user.Level()
 	GiveAwards(user, awards, redis)
 
@@ -1312,8 +1313,9 @@ type pkShareForm struct {
 func pkShareHandler(r *http.Request, w http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account) {
 	awards := Awards{
-		Wealth: 30 * models.Satoshi,
-		Score:  30,
+		Wealth: 2 * models.Satoshi,
+		Score:  2,
+		Mental: 2,
 	}
 	if err := GiveAwards(user, awards, redis); err != nil {
 		log.Println(err)

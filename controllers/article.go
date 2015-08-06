@@ -459,7 +459,10 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 	awards := Awards{}
 	if form.Status {
 		if user.Stat != nil && user.Stat.LastThumbTime < nowDate().Unix() {
-			awards = Awards{Score: 1, Wealth: 1 * models.Satoshi}
+			awards = Awards{
+				//Score:  1,
+				Wealth: 1 * models.Satoshi,
+			}
 		}
 		user.UpdateStat(models.StatLastThumbTime, time.Now().Unix())
 		GiveAwards(user, awards, redis)
