@@ -347,6 +347,22 @@ func (this *Account) FindPass(id, types, password string) (bool, error) {
 	return true, nil
 }
 
+func FindByActor(actor string, verbose bool) ([]Account, error) {
+	var users []Account
+	var selector bson.M
+
+	if actor == "" {
+		return nil, nil
+	}
+
+	if !verbose {
+		selector = bson.M{"_id": 1, "nickname": 1, "profile": 1}
+	}
+
+	err := search(accountColl, bson.M{"actor": actor}, selector, 0, 0, nil, nil, &users)
+	return users, err
+}
+
 func FindUsersByIds(verbose int, ids ...string) ([]Account, error) {
 	var users []Account
 	var selector bson.M
@@ -364,11 +380,8 @@ func FindUsersByIds(verbose int, ids ...string) ([]Account, error) {
 		selector = bson.M{"contacts": 0, "wallet": 0}
 	}
 
-	if err := search(accountColl, bson.M{"_id": bson.M{"$in": ids}}, selector, 0, 0, nil, nil, &users); err != nil {
-		return nil, errors.NewError(errors.DbError)
-	}
-
-	return users, nil
+	err := search(accountColl, bson.M{"_id": bson.M{"$in": ids}}, selector, 0, 0, nil, nil, &users)
+	return users, err
 }
 
 func FindUsersByPhones(phones []string) ([]Account, error) {

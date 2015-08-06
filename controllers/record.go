@@ -271,6 +271,27 @@ func newRecordHandler(request *http.Request, resp http.ResponseWriter,
 			redis.AddPost(user.Id, "", 1)
 			user.UpdateStat(models.StatArticles, 1)
 		}
+
+		// push event to admins
+		admins, _ := models.FindByActor(models.ActorAdmin, false)
+		for i, _ := range admins {
+			event := &models.Event{
+				Type: models.EventArticle,
+				Time: time.Now().Unix(),
+				Data: models.EventData{
+					Type: models.EventRecord,
+					Id:   article.Id.Hex(),
+					From: user.Id,
+					To:   admins[i].Id,
+					Body: []models.MsgBody{
+						//{Type: "total_count", Content: strconv.Itoa(parent.ReviewCount + 1)},
+						{Type: "image", Content: admins[i].Profile},
+					},
+				},
+			}
+			event.Save()
+			redis.PubMsg(models.EventArticle, admins[i].Id, event.Bytes())
+		}
 	}
 
 	if form.Task > 0 {

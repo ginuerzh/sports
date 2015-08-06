@@ -27,6 +27,8 @@ const (
 	EventCoach       = "coach"
 	EventCoachPass   = "coachpass"
 	EventCoachNPass  = "coachnpass"
+	EventAt          = "at"
+	EventRecord      = "record"
 	EventTx          = "tx"
 	EventReward      = "reward"
 	EventBan         = "ban"

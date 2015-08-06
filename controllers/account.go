@@ -279,6 +279,13 @@ func regHandlerV2(request *http.Request, resp http.ResponseWriter,
 	redis.LogRegister(user.Id, form.Type)
 	redis.SetOnlineUser(token, user.Id)
 
+	// follow admin accounts
+	admins, _ := models.FindByActor(models.ActorAdmin, false)
+	var ids []string
+	for i, _ := range admins {
+		ids = append(ids, admins[i].Id)
+	}
+	redis.SetRelationship(user.Id, ids, models.RelFollowing, true)
 	// ws push
 	//regNotice(user.Id, redis)
 }

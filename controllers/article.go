@@ -221,6 +221,7 @@ type newArticleForm struct {
 	models.Location
 	Type string   `json:"type"`
 	Tags []string `json:"article_tag"`
+	At   []string `json:"at"`
 	parameter
 }
 
@@ -398,6 +399,30 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 		if author.Push {
 			go sendApn(client, user.Nickname+"评论了你的主题!", author.EventCount("", ""), author.Devs...)
 		}
+	}
+
+	for _, at := range form.At {
+		p := models.Account{}
+		p.FindByNickname(at)
+		if p.Id == "" {
+			continue
+		}
+		event := &models.Event{
+			Type: models.EventArticle,
+			Time: time.Now().Unix(),
+			Data: models.EventData{
+				Type: models.EventAt,
+				Id:   article.Id.Hex(),
+				From: user.Id,
+				To:   p.Id,
+				Body: []models.MsgBody{
+					//{Type: "total_count", Content: strconv.Itoa(parent.ReviewCount + 1)},
+					{Type: "image", Content: p.Profile},
+				},
+			},
+		}
+		event.Save()
+		redis.PubMsg(models.EventArticle, p.Id, event.Bytes())
 	}
 
 	respData := map[string]interface{}{
