@@ -13,8 +13,8 @@ func init() {
 }
 
 type Account struct {
-	Id    string `bson:"_id,omitempty"`
-	Actor string `bson:",omitempty"`
+	Id    string   `bson:"_id,omitempty"`
+	Actor []string `bson:",omitempty"`
 }
 
 func main() {
@@ -24,13 +24,19 @@ func main() {
 	search("accounts", nil, bson.M{"actor": 1}, 0, 0, nil, &total, &users)
 
 	for _, user := range users {
-		if user.Actor == "" {
+		if len(user.Actor) == 0 {
 			continue
 		}
-		var actor []string
-		actor = append(actor, user.Actor)
-
-		change := bson.M{"$set": bson.M{"actor": actor}}
+		//var actor []string
+		//actor = append(actor, user.Actor)
+		change := bson.M{}
+		for _, actor := range user.Actor {
+			if actor == "admin" {
+				change["admin"] = true
+			} else {
+				change["$set"] = bson.M{"actor": actor}
+			}
+		}
 		if err := updateId("accounts", user.Id, change, true); err != nil {
 			log.Println(err)
 		}
