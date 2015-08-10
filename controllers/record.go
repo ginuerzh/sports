@@ -376,15 +376,15 @@ func recTimelineHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type leaderboardResp struct {
-	Userid   string `json:"userid"`
-	Nickname string `json:"nikename"`
-	Profile  string `json:"user_profile_image"`
-	Rank     int    `json:"index,omitempty"`
-	Score    int64  `json:"score"`
-	Level    int64  `json:"rankLevel"`
-	Gender   string `json:"sex_type"`
-	Birth    int64  `json:"birthday"`
-	Actor    string `json:"actor"`
+	Userid   string   `json:"userid"`
+	Nickname string   `json:"nikename"`
+	Profile  string   `json:"user_profile_image"`
+	Rank     int      `json:"index,omitempty"`
+	Score    int64    `json:"score"`
+	Level    int64    `json:"rankLevel"`
+	Gender   string   `json:"sex_type"`
+	Birth    int64    `json:"birthday"`
+	Actor    []string `json:"actor"`
 	models.Location
 	LastLog  int64  `json:"recent_login_time"`
 	Addr     string `json:"locaddr"`
@@ -535,17 +535,17 @@ type userRecStatForm struct {
 }
 
 type statResp struct {
-	RecCount      int     `json:"total_records_count"`
-	TotalDistance int     `json:"total_distance"`
-	TotalDuration int     `json:"total_duration"`
-	MaxDistance   *record `json:"max_distance_record"`
-	MaxSpeed      *record `json:"max_speed_record"`
-	Actor         string  `json:"actor"`
-	Score         int64   `json:"rankscore"`
-	Level         int64   `json:"rankLevel"`
-	Rank          string  `json:"rankName"`
-	Index         int     `json:"top_index"`
-	LBCount       int     `json:"leaderboard_max_items"`
+	RecCount      int      `json:"total_records_count"`
+	TotalDistance int      `json:"total_distance"`
+	TotalDuration int      `json:"total_duration"`
+	MaxDistance   *record  `json:"max_distance_record"`
+	MaxSpeed      *record  `json:"max_speed_record"`
+	Actor         []string `json:"actor"`
+	Score         int64    `json:"rankscore"`
+	Level         int64    `json:"rankLevel"`
+	Rank          string   `json:"rankName"`
+	Index         int      `json:"top_index"`
+	LBCount       int      `json:"leaderboard_max_items"`
 }
 
 func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *models.RedisLogger, form userRecStatForm) {
@@ -586,7 +586,7 @@ func userRecStatHandler(request *http.Request, resp http.ResponseWriter, redis *
 	}
 
 	stats.Score = user.Props.Score
-	stats.Actor = userActor(user.Actor)
+	stats.Actor = user.Actor //userActor(user.Actor)
 	stats.Level = user.Level()
 	//stats.Rank = userRank(stats.Level)
 

@@ -113,6 +113,9 @@ func (this *Event) Delete() int {
 func (this *Event) Clear() int {
 	docs := bson.M{}
 
+	if len(this.Type) > 0 {
+		docs["type"] = this.Type
+	}
 	if len(this.Data.Type) > 0 {
 		docs["push.type"] = this.Data.Type
 	}

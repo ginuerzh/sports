@@ -629,7 +629,7 @@ type userJsonStruct struct {
 	Hometown    string `json:"hometown"`
 	OftenAppear string `json:"oftenAppear"`
 
-	Actor string `json:"actor"`
+	Actor []string `json:"actor"`
 	//Rank  string `json:"rankName"`
 	//Followed bool   `json:"beFriend"`
 	Online bool `json:"beOnline"`

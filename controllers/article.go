@@ -299,7 +299,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 
 	if article.Type == models.ArticleCoach {
 		if parent.Author != user.Id &&
-			user.Actor != models.ActorCoach && user.Actor != models.ActorAdmin {
+			!user.IsActor(models.ActorCoach) && !user.IsActor(models.ActorAdmin) {
 			writeResponse(request.RequestURI, resp, nil,
 				errors.NewError(errors.AccessError))
 			return
@@ -615,7 +615,7 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
 	article := &models.Article{}
 	if find, err := article.FindById(form.Id); !find {
 		if err == nil {
-			err = errors.NewError(errors.NotExistsError)
+			err = errors.NewError(errors.NotExistsError, "文章不存在")
 		}
 		writeResponse(request.RequestURI, resp, nil, err)
 		return

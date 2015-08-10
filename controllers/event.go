@@ -52,9 +52,11 @@ func eventNewsHandler(request *http.Request, resp http.ResponseWriter,
 	//counts := redis.EventCount(user.Id)
 	respData := map[string]int{
 		"new_chat_count": user.EventCount("", models.EventChat),
-		"new_comment_count": user.EventCount("", models.EventComment) +
-			user.EventCount("", models.EventCoach) + user.EventCount("", models.EventCoachPass) + user.EventCount("", models.EventCoachNPass),
-		"new_thumb_count":     user.EventCount("", models.EventThumb),
+		//"new_comment_count": user.EventCount("", models.EventComment) +
+		//	user.EventCount("", models.EventCoach) + user.EventCount("", models.EventCoachPass) + user.EventCount("", models.EventCoachNPass),
+		"new_comment_count": user.EventCount(models.EventArticle, ""),
+		//"new_thumb_count":     user.EventCount("", models.EventThumb),
+		"new_thumb_count":     0,
 		"new_reward_count":    user.EventCount(models.EventWallet, ""),
 		"new_attention_count": user.EventCount("", models.EventSub) + user.EventCount(models.EventSystem, ""),
 	}
@@ -124,8 +126,9 @@ func eventNoticesHandler(r *http.Request, w http.ResponseWriter,
 }
 
 type changeEventStatusForm struct {
-	Type string `json:"type" binding:"required"`
-	Id   string `json:"id" binding:"required"`
+	Event string `json:"event" binding:"required"`
+	Type  string `json:"type" binding:"required"`
+	Id    string `json:"id" binding:"required"`
 	parameter
 }
 
@@ -135,6 +138,7 @@ func changeEventStatusHandler(request *http.Request, resp http.ResponseWriter,
 	form := p.(changeEventStatusForm)
 
 	event := &models.Event{}
+	event.Type = strings.ToLower(form.Event)
 	event.Data.Type = strings.ToLower(form.Type)
 	event.Data.Id = form.Id
 	event.Data.To = user.Id

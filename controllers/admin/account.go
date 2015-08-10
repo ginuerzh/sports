@@ -97,7 +97,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	if user.Actor != models.ActorAdmin {
+	if !user.IsActor(models.ActorAdmin) {
 		writeResponse(resp, errors.NewError(errors.AuthError, "未授权登录用户"))
 		return
 	}
@@ -144,17 +144,17 @@ type userInfoJsonStruct struct {
 	Userid   string `json:"userid"`
 	Nickname string `json:"nickname"`
 
-	Email   string `json:"email"`
-	Phone   string `json:"phone"`
-	Actor   string `json:"actor"`
-	Role    string `json:"role"`
-	About   string `json:"about"`
-	Profile string `json:"profile"`
-	RegTime int64  `json:"reg_time"`
-	Hobby   string `json:"hobby"`
-	Height  int    `json:"height"`
-	Weight  int    `json:"weight"`
-	Birth   int64  `json:"birthday"`
+	Email   string   `json:"email"`
+	Phone   string   `json:"phone"`
+	Actor   []string `json:"actor"`
+	Role    string   `json:"role"`
+	About   string   `json:"about"`
+	Profile string   `json:"profile"`
+	RegTime int64    `json:"reg_time"`
+	Hobby   string   `json:"hobby"`
+	Height  int      `json:"height"`
+	Weight  int      `json:"weight"`
+	Birth   int64    `json:"birthday"`
 
 	//Props *models.Props `json:"proper_info"`
 	Physical int64 `json:"physique_value"`
@@ -437,7 +437,7 @@ func getUserFriendsHandler(w http.ResponseWriter,
 	var friendType string
 	switch form.Type {
 	case "follows":
-		friendType = models.RelFollower
+		friendType = models.RelFollowing
 	case "followers":
 		friendType = models.RelFollower
 	case "blacklist":

@@ -195,7 +195,7 @@ type Account struct {
 	Role       string   `bson:",omitempty"`
 	Height     int      `bson:",omitempty"`
 	Weight     int      `bson:",omitempty"`
-	Actor      string   `bson:",omitempty"` // admin, coach
+	Actor      []string `bson:",omitempty"` // admin, coach
 	Url        string   `bson:",omitempty"`
 	About      string   `bson:",omitempty"`
 	Addr       *Address `bson:",omitempty"`
@@ -240,6 +240,16 @@ type Account struct {
 	TaskStatus string `bson:"task_status,omitempty"`
 
 	Ratios Ratios
+}
+
+func (this *Account) IsActor(actor string) bool {
+	for _, act := range this.Actor {
+		if act == actor {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (this *Account) Level() int64 {
@@ -1890,7 +1900,7 @@ func (this *Account) SetGameTime(typ int, t time.Time) error {
 
 func (this *Account) SetActor(actor string) error {
 	change := bson.M{
-		"$set": bson.M{
+		"$addToSet": bson.M{
 			"actor": actor,
 		},
 	}
@@ -2020,13 +2030,14 @@ func (this *Account) SetAuth(types, status, review string) error {
 				"$set":   bson.M{"auth.idcard": this.Auth.IdCardTmp},
 				"$unset": bson.M{"auth.idcardtmp": 1},
 			}
-			if this.Actor != ActorAdmin &&
-				((this.Auth.Cert != nil && this.Auth.Cert.Status == AuthVerified) ||
-					(this.Auth.Record != nil && this.Auth.Record.Status == AuthVerified)) {
+			if (this.Auth.Cert != nil && this.Auth.Cert.Status == AuthVerified) ||
+				(this.Auth.Record != nil && this.Auth.Record.Status == AuthVerified) {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.idcard": this.Auth.IdCardTmp,
-						"actor":       ActorCoach,
+					},
+					"$addToSet": bson.M{
+						"actor": ActorCoach,
 					},
 					"$unset": bson.M{"auth.idcardtmp": 1},
 				}
@@ -2050,12 +2061,13 @@ func (this *Account) SetAuth(types, status, review string) error {
 				"$set":   bson.M{"auth.cert": this.Auth.CertTmp},
 				"$unset": bson.M{"auth.certtmp": 1},
 			}
-			if this.Actor != ActorAdmin &&
-				(this.Auth.IdCard != nil && this.Auth.IdCard.Status == AuthVerified) {
+			if this.Auth.IdCard != nil && this.Auth.IdCard.Status == AuthVerified {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.cert": this.Auth.CertTmp,
-						"actor":     ActorCoach,
+					},
+					"$addToSet": bson.M{
+						"actor": ActorCoach,
 					},
 					"$unset": bson.M{"auth.certtmp": 1},
 				}
@@ -2079,12 +2091,13 @@ func (this *Account) SetAuth(types, status, review string) error {
 				"$set":   bson.M{"auth.record": this.Auth.RecordTmp},
 				"$unset": bson.M{"auth.recordtmp": 1},
 			}
-			if this.Actor != ActorAdmin &&
-				(this.Auth.IdCard != nil && this.Auth.IdCard.Status == AuthVerified) {
+			if this.Auth.IdCard != nil && this.Auth.IdCard.Status == AuthVerified {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.record": this.Auth.RecordTmp,
-						"actor":       ActorCoach,
+					},
+					"$addToSet": bson.M{
+						"actor": ActorCoach,
 					},
 					"$unset": bson.M{"auth.recordtmp": 1},
 				}

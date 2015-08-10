@@ -972,7 +972,7 @@ func (logger *RedisLogger) zcard(key string) int {
 	return n
 }
 
-func (logger *RedisLogger) SetOnline(userid string, actor string, add bool, duration int64) {
+func (logger *RedisLogger) SetOnline(userid string, isCoach bool, add bool, duration int64) {
 	conn := logger.conn
 	sdate := DateString(time.Now())
 	//t := onlineTimeString()
@@ -983,14 +983,14 @@ func (logger *RedisLogger) SetOnline(userid string, actor string, add bool, dura
 		//conn.Send("SADD", redisStatOnlinesPrefix+DateString(time.Now()), userid)
 		conn.Send("SADD", redisStatOnlines, userid)
 		conn.Send("SADD", redisStatLoginPrefix+sdate, userid)
-		if actor == ActorCoach {
+		if isCoach {
 			conn.Send("SADD", redisStatCoachOnlines, userid)
 			conn.Send("SADD", redisStatCoachLoginPrefix+sdate, userid)
 		}
 	} else {
 		conn.Send("SREM", redisStatOnlines, userid)
 		conn.Send("ZINCRBY", redisStatOnlineTime, duration, userid)
-		if actor == ActorCoach {
+		if isCoach {
 			conn.Send("SREM", redisStatCoachOnlines, userid)
 		}
 	}
