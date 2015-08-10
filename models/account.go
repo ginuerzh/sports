@@ -195,7 +195,8 @@ type Account struct {
 	Role       string   `bson:",omitempty"`
 	Height     int      `bson:",omitempty"`
 	Weight     int      `bson:",omitempty"`
-	Actor      []string `bson:",omitempty"` // admin, coach
+	Actor      string   `bson:",omitempty"` // coach
+	Admin      bool     `bson:",omitempty"`
 	Url        string   `bson:",omitempty"`
 	About      string   `bson:",omitempty"`
 	Addr       *Address `bson:",omitempty"`
@@ -243,13 +244,11 @@ type Account struct {
 }
 
 func (this *Account) IsActor(actor string) bool {
-	for _, act := range this.Actor {
-		if act == actor {
-			return true
-		}
-	}
+	return this.Actor == actor
+}
 
-	return false
+func (this *Account) IsAdmin() bool {
+	return this.Admin
 }
 
 func (this *Account) Level() int64 {
@@ -1898,10 +1897,10 @@ func (this *Account) SetGameTime(typ int, t time.Time) error {
 	return nil
 }
 
-func (this *Account) SetActor(actor string) error {
+func (this *Account) SetAdmin(isAdmin bool) error {
 	change := bson.M{
-		"$addToSet": bson.M{
-			"actor": actor,
+		"$set": bson.M{
+			"admin": isAdmin,
 		},
 	}
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
@@ -2035,9 +2034,7 @@ func (this *Account) SetAuth(types, status, review string) error {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.idcard": this.Auth.IdCardTmp,
-					},
-					"$addToSet": bson.M{
-						"actor": ActorCoach,
+						"actor":       ActorCoach,
 					},
 					"$unset": bson.M{"auth.idcardtmp": 1},
 				}
@@ -2065,9 +2062,7 @@ func (this *Account) SetAuth(types, status, review string) error {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.cert": this.Auth.CertTmp,
-					},
-					"$addToSet": bson.M{
-						"actor": ActorCoach,
+						"actor":     ActorCoach,
 					},
 					"$unset": bson.M{"auth.certtmp": 1},
 				}
@@ -2095,9 +2090,7 @@ func (this *Account) SetAuth(types, status, review string) error {
 				change = bson.M{
 					"$set": bson.M{
 						"auth.record": this.Auth.RecordTmp,
-					},
-					"$addToSet": bson.M{
-						"actor": ActorCoach,
+						"actor":       ActorCoach,
 					},
 					"$unset": bson.M{"auth.recordtmp": 1},
 				}

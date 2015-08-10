@@ -40,7 +40,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	m.Get("/admin/user/friendship", binding.Form(getUserFriendsForm{}), adminErrorHandler, getUserFriendsHandler)
 	m.Post("/admin/user/ban", binding.Json(banUserForm{}), adminErrorHandler, banUserHandler)
 	m.Options("/admin/user/ban", optionsHandler)
-	m.Get("/admin/user/set_actor", binding.Form(setActorForm{}), setActorHandler)
+	m.Get("/admin/user/setadmin", binding.Form(setAdminForm{}), setAdminHandler)
 	m.Get("/admin/user/auth/list", binding.Form(userAuthListForm{}), userAuthListHandler)
 	m.Post("/admin/user/auth", binding.Json(userAuthForm{}), userAuthHandler)
 	m.Options("/admin/user/auth", optionsHandler)
@@ -49,19 +49,19 @@ func BindAccountApi(m *martini.ClassicMartini) {
 	//m.Post("/admin/user/update", binding.Json(userInfoForm{}), adminErrorHandler, updateUserInfoHandler)
 }
 
-type setActorForm struct {
+type setAdminForm struct {
 	Id    string `form:"userid"`
-	Actor string `form:"actor"`
+	Admin bool   `form:"admin"`
 	Token string `form:"access_token"`
 }
 
-func setActorHandler(w http.ResponseWriter, form setActorForm) {
+func setAdminHandler(w http.ResponseWriter, form setAdminForm) {
 	user := &models.Account{Id: form.Id}
-	err := user.SetActor(form.Actor)
+	err := user.SetAdmin(form.Admin)
 	if err != nil {
 		writeResponse(w, err)
 	}
-	writeResponse(w, map[string]interface{}{"userid": user.Id, "actor": form.Actor})
+	writeResponse(w, map[string]interface{}{"userid": user.Id, "admin": form.Admin})
 }
 
 // admin login parameter
@@ -97,7 +97,7 @@ func adminLoginHandler(request *http.Request, resp http.ResponseWriter, redis *m
 		return
 	}
 
-	if !user.IsActor(models.ActorAdmin) {
+	if !user.IsAdmin() {
 		writeResponse(resp, errors.NewError(errors.AuthError, "未授权登录用户"))
 		return
 	}
@@ -144,17 +144,17 @@ type userInfoJsonStruct struct {
 	Userid   string `json:"userid"`
 	Nickname string `json:"nickname"`
 
-	Email   string   `json:"email"`
-	Phone   string   `json:"phone"`
-	Actor   []string `json:"actor"`
-	Role    string   `json:"role"`
-	About   string   `json:"about"`
-	Profile string   `json:"profile"`
-	RegTime int64    `json:"reg_time"`
-	Hobby   string   `json:"hobby"`
-	Height  int      `json:"height"`
-	Weight  int      `json:"weight"`
-	Birth   int64    `json:"birthday"`
+	Email   string `json:"email"`
+	Phone   string `json:"phone"`
+	Actor   string `json:"actor"`
+	Role    string `json:"role"`
+	About   string `json:"about"`
+	Profile string `json:"profile"`
+	RegTime int64  `json:"reg_time"`
+	Hobby   string `json:"hobby"`
+	Height  int    `json:"height"`
+	Weight  int    `json:"weight"`
+	Birth   int64  `json:"birthday"`
 
 	//Props *models.Props `json:"proper_info"`
 	Physical int64 `json:"physique_value"`

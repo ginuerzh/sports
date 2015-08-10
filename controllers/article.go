@@ -299,7 +299,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 
 	if article.Type == models.ArticleCoach {
 		if parent.Author != user.Id &&
-			!user.IsActor(models.ActorCoach) && !user.IsActor(models.ActorAdmin) {
+			!user.IsActor(models.ActorCoach) && !user.IsAdmin() {
 			writeResponse(request.RequestURI, resp, nil,
 				errors.NewError(errors.AccessError))
 			return
