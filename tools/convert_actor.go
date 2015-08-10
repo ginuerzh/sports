@@ -29,15 +29,15 @@ func main() {
 		}
 		//var actor []string
 		//actor = append(actor, user.Actor)
-		change := bson.M{}
+		set := bson.M{}
 		for _, actor := range user.Actor {
 			if actor == "admin" {
-				change["admin"] = true
+				set["admin"] = true
 			} else {
-				change["$set"] = bson.M{"actor": actor}
+				set["actor"] = actor
 			}
 		}
-		if err := updateId("accounts", user.Id, change, true); err != nil {
+		if err := updateId("accounts", user.Id, bson.M{"$set": set}, true); err != nil {
 			log.Println(err)
 		}
 	}
