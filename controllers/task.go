@@ -57,6 +57,11 @@ func BindTaskApi(m *martini.ClassicMartini) {
 		checkTokenHandler,
 		loadUserHandler,
 		taskReferralsHandler)
+	m.Post("/1/tasks/referral/pass",
+		binding.Json(referralPassForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		taskReferralPassHandler)
 	m.Post("/1/tasks/share",
 		binding.Json(taskShareForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -450,6 +455,19 @@ func taskReferralsHandler(r *http.Request, w http.ResponseWriter,
 
 	respData := map[string]interface{}{"referrals": referrals}
 	writeResponse(r.RequestURI, w, respData, nil)
+}
+
+type referralPassForm struct {
+	Userid string `json:"userid"`
+	parameter
+}
+
+func taskReferralPassHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(referralPassForm)
+	u := &models.Account{Id: form.Userid}
+	err := u.SetBlock(user.Id, true)
+	writeResponse(r.RequestURI, w, nil, err)
 }
 
 type taskShareForm struct {

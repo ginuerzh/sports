@@ -237,8 +237,9 @@ type Account struct {
 
 	Stat *UserStat `bson:",omitempty"`
 
-	Taskid     int    `bson:"task_id,omitempty"`
-	TaskStatus string `bson:"task_status,omitempty"`
+	Taskid     int      `bson:"task_id,omitempty"`
+	TaskStatus string   `bson:"task_status,omitempty"`
+	Blocks     []string `bson:",omitempty"`
 
 	Ratios Ratios
 }
@@ -2176,6 +2177,9 @@ func (this *Account) TaskReferrals(taskType string, excludes []string) (accounts
 		"_id": bson.M{
 			"$nin": excludes,
 		},
+		"blocks": bson.M{
+			"$ne": this.Id,
+		},
 	}
 
 	if this.Loc.Lat > 0 {
@@ -2279,6 +2283,25 @@ func (this *Account) UpdateRatio(types string, accept bool) error {
 		return nil
 	}
 
+	if err := updateId(accountColl, this.Id, change, true); err != nil {
+		return errors.NewError(errors.DbError)
+	}
+	return nil
+}
+
+func (this *Account) SetBlock(userid string, block bool) error {
+	change := bson.M{
+		"$addToSet": bson.M{
+			"blocks": userid,
+		},
+	}
+	if !block {
+		change = bson.M{
+			"$pull": bson.M{
+				"blocks": userid,
+			},
+		}
+	}
 	if err := updateId(accountColl, this.Id, change, true); err != nil {
 		return errors.NewError(errors.DbError)
 	}
