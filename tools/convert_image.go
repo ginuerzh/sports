@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	replaced  = "106.187.48.51"
-	replacing = "ice139.com"
+	replacing = "106.187.48.51"
+	replaced  = "ice139.com"
 )
 
 type UserAuth struct {
