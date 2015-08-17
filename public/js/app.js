@@ -972,7 +972,7 @@ app.filter("statusname", function() {
         status = "审核通过";
         break;
       case "UNFINISH":
-        status = "被拒绝";
+        status = "拒绝";
         break;
       case "AUTHENTICATION":
         status = "待审核";
@@ -1701,11 +1701,15 @@ var tasklistController;
 
 tasklistController = app.controller('tasklistController', [
   'app', '$scope', '$rootScope', 'taskService', 'utils', function(app, $scope, $rootScope, taskService, utils) {
-    var pageIndex, refreshtable, taskStr, timeline;
+    var pageIndex, refreshtable, taskReason, taskStr, timeline;
     $scope.checked = true;
     $scope.itemsByPage = 50;
     taskStr = 'Auditting';
     pageIndex = 0;
+    taskReason = {
+      "accept": "不错呦，加油！",
+      "reject": "您上传的资料有误，请重新检查！"
+    };
     $scope.searchData = {
       "data": ""
     };
@@ -1795,20 +1799,23 @@ tasklistController = app.controller('tasklistController', [
     };
     $scope.approveSelect = function(index) {
       $scope.displayedCollection[index].pass = 1;
-      if ($scope.displayedCollection[index].reason.length === 0) {
-        return $scope.displayedCollection[index].reason = "不错呦，加油！";
-      }
+      return $scope.displayedCollection[index].reason = taskReason.accept;
     };
     $scope.rejectSelect = function(index) {
       $scope.displayedCollection[index].pass = 0;
-      if ($scope.displayedCollection[index].reason.length === 0) {
-        return $scope.displayedCollection[index].reason = "您上传的资料有误，请重新检查！";
-      }
+      return $scope.displayedCollection[index].reason = taskReason.reject;
     };
     $scope.cancelSelect = function(index) {
       $scope.displayedCollection[index].pass = -1;
       if ($scope.displayedCollection[index].reason.length > 0) {
         return $scope.displayedCollection[index].reason = "";
+      }
+    };
+    $scope.changeContent = function(index) {
+      if ($scope.displayedCollection[index].pass === 1) {
+        return taskReason.accept = $scope.displayedCollection[index].reason;
+      } else if ($scope.displayedCollection[index].pass === 0) {
+        return taskReason.reject = $scope.displayedCollection[index].reason;
       }
     };
     $scope.$on('genPagination', function(event, p) {

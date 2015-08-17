@@ -27,6 +27,7 @@
                 <th st-sort="begin_time">begin_time</th>
                 <th st-sort="end_time">end_time</th>
                 <th st-sort="distance">distance</th>
+                <th ng-if="!checked">status</th>
                 <th st-sort="reason">reason</th>
                 <th ng-if="!checked">action</th>
             </tr>
@@ -64,8 +65,11 @@
                     </div>
                     <br>
                     <div>
-                    <textarea rows="1" name="S1" cols="40" ng-model="row.reason" style="resize: none"></textarea>
+                    <textarea rows="1" name="S1" cols="40" ng-model="row.reason" style="resize: none" ng-change="changeContent($index)"></textarea>
                     </div>
+                </td>
+                <td class="col-md-1" ng-if="!checked">
+                    {{row.status|statusname}}
                 </td>
 
                 <td class="col-md-1" ng-if="!checked">
