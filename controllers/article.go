@@ -323,6 +323,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 				Body: []models.MsgBody{
 					{Type: "total_count", Content: strconv.Itoa(parent.CoachReviewCount + 1)},
 					{Type: "image", Content: user.Profile},
+					{Type: "nikename", Content: user.Nickname},
 				},
 			},
 		}
@@ -381,6 +382,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 				Body: []models.MsgBody{
 					{Type: "total_count", Content: strconv.Itoa(parent.ReviewCount + 1)},
 					{Type: "image", Content: parent.Image},
+					{Type: "nikename", Content: user.Nickname},
 				},
 			},
 		}
@@ -418,6 +420,7 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 				Body: []models.MsgBody{
 					//{Type: "total_count", Content: strconv.Itoa(parent.ReviewCount + 1)},
 					{Type: "image", Content: p.Profile},
+					{Type: "nikename", Content: user.Nickname},
 				},
 			},
 		}
@@ -508,6 +511,7 @@ func articleThumbHandler(request *http.Request, resp http.ResponseWriter,
 			Body: []models.MsgBody{
 				{Type: "total_count", Content: strconv.Itoa(article.ThumbCount + 1)},
 				{Type: "image", Content: article.Image},
+				{Type: "nikename", Content: user.Nickname},
 			},
 		},
 	}

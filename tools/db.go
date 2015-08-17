@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"labix.org/v2/mgo"
 	"log"
 )
@@ -9,6 +10,11 @@ var (
 	mgoSession *mgo.Session
 	MongoAddr  = "localhost:27017"
 )
+
+func init() {
+	flag.StringVar(&MongoAddr, "mongo", "localhost:27017", "mongodb server")
+	flag.Parse()
+}
 
 func getSession() (*mgo.Session, error) {
 	if mgoSession == nil {
@@ -84,4 +90,31 @@ func updateId(collection string, id interface{}, change interface{}, safe bool) 
 		return withCollection(collection, &mgo.Safe{}, update)
 	}
 	return withCollection(collection, nil, update)
+}
+
+func iter(collection string, query, selector interface{},
+	skip, limit int, sortFields []string) (iter *mgo.Iter, err error) {
+	q := func(c *mgo.Collection) error {
+		qy := c.Find(query)
+
+		if selector != nil {
+			qy = qy.Select(selector)
+		}
+
+		if limit > 0 {
+			qy = qy.Limit(limit)
+		}
+		if skip > 0 {
+			qy = qy.Skip(skip)
+		}
+		if len(sortFields) > 0 {
+			qy = qy.Sort(sortFields...)
+		}
+
+		iter = qy.Iter()
+		return nil
+	}
+
+	err = withCollection(collection, nil, q)
+	return
 }

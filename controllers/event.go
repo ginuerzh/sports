@@ -126,9 +126,9 @@ func eventNoticesHandler(r *http.Request, w http.ResponseWriter,
 }
 
 type changeEventStatusForm struct {
-	Event string `json:"event" binding:"required"`
-	Type  string `json:"type" binding:"required"`
-	Id    string `json:"id" binding:"required"`
+	Event string `json:"event"`
+	Type  string `json:"type"`
+	Id    string `json:"id"`
 	parameter
 }
 

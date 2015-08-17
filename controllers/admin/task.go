@@ -286,7 +286,7 @@ func taskAuthFunc(userid string, auth *taskAuth, redis *models.RedisLogger) erro
 
 	parent := &models.Article{}
 	parent.FindByRecord(record.Id.Hex())
-	if len(parent.Id) > 0 && len(auth.Reason) > 0 {
+	if len(parent.Id) > 0 && len(auth.Reason) > 0 && parent.Id != userid {
 		review := &models.Article{
 			Parent:   parent.Id.Hex(),
 			Author:   userid,

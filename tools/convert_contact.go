@@ -2,15 +2,9 @@
 package main
 
 import (
-	"flag"
 	"labix.org/v2/mgo/bson"
 	"log"
 )
-
-func init() {
-	flag.StringVar(&MongoAddr, "mongo", "localhost:27017", "mongodb server")
-	flag.Parse()
-}
 
 type Contact struct {
 	Id       string

@@ -344,6 +344,9 @@ func (logger *RedisLogger) DelOnlineUser(token string) {
 }
 
 func (logger *RedisLogger) IsOnline(userid string) bool {
+	if userid == "" {
+		return false
+	}
 	conn := logger.conn
 	online, _ := redis.Bool(conn.Do("SISMEMBER", redisStatOnlines, userid))
 	return online

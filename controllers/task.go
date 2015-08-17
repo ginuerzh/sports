@@ -516,18 +516,21 @@ func taskShareHandler(r *http.Request, w http.ResponseWriter,
 			{Type: "locaddr", Content: form.Addr},
 			{Type: "time", Content: strconv.FormatInt(form.Time, 10)},
 			{Type: "addr_image", Content: form.Image},
+			{Type: "nikename", Content: user.Nickname},
 		}
 	case models.TaskPost:
 		event.Data.Type = models.EventPostShare
 		article := user.LatestArticle()
 		event.Data.Body = []models.MsgBody{
 			{Type: "article_id", Content: article.Id.Hex()},
+			{Type: "nikename", Content: user.Nickname},
 		}
 	case models.TaskGame:
 		record, _ := user.LastRecord("run")
 		event.Data.Type = models.EventPKShare
 		event.Data.Body = []models.MsgBody{
 			{Type: "record_id", Content: record.Id.Hex()},
+			{Type: "nikename", Content: user.Nickname},
 		}
 	default:
 		writeResponse(r.RequestURI, w, nil, errors.NewError(errors.AccessError))

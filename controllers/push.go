@@ -12,15 +12,19 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	//"sync"
+	"sync/atomic"
 	//"fmt"
+	//"net"
 	"time"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  512,
-	WriteBufferSize: 512,
-}
+var (
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  512,
+		WriteBufferSize: 512,
+	}
+	pushThreads int32
+)
 
 type wsAuth struct {
 	Token string `json:"token"`
@@ -35,6 +39,14 @@ type wsAuthResp struct {
 
 func BindWSPushApi(m *martini.ClassicMartini) {
 	m.Get("/1/ws", wsPushHandler)
+	m.Get("/1/ws/threads", pushThreadsHandler)
+}
+
+func pushThreadsHandler(r *http.Request, w http.ResponseWriter) {
+	respData := map[string]interface{}{
+		"push_threads": atomic.LoadInt32(&pushThreads),
+	}
+	writeResponse(r.RequestURI, w, respData, nil)
 }
 
 func checkTokenValid(token string) bool {
@@ -56,6 +68,9 @@ func checkTokenValid(token string) bool {
 }
 
 func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger *models.RedisLogger) {
+	atomic.AddInt32(&pushThreads, 1)
+	defer atomic.AddInt32(&pushThreads, -1)
+
 	conn, err := upgrader.Upgrade(resp, request, nil)
 	if err != nil {
 		conn.WriteJSON(errors.NewError(errors.HttpError, err.Error()))
@@ -115,25 +130,41 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	psc := redisLogger.PubSub(user.Id)
 
 	go func(conn *websocket.Conn) {
-		//wg.Add(1)
-		//defer log.Println("ws thread closed")
-		//defer wg.Done()
 		redisLogger.SetOnline(user.Id, user.IsActor(models.ActorCoach), true, 0)
 		start := time.Now()
 
-		defer psc.Close()
+		defer func() {
+			dur := int64(time.Since(start) / time.Second)
+			redisLogger.SetOnline(user.Id, user.IsActor(models.ActorCoach), false, dur)
+			user.UpdateStat(models.StatOnlineTime, dur)
+			//log.Println("set online off")
+
+			psc.Close()
+		}()
 
 		for {
 			event := &models.Event{}
-			err := conn.ReadJSON(event)
-			if err != nil {
+			if err := conn.ReadJSON(event); err != nil {
 				//log.Println(err)
-
-				dur := int64(time.Since(start) / time.Second)
-				redisLogger.SetOnline(user.Id, user.IsActor(models.ActorCoach), false, dur)
-				user.UpdateStat(models.StatOnlineTime, dur)
 				return
 			}
+			/*
+
+				conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+				event := &models.Event{}
+				err := conn.ReadJSON(event)
+				if err != nil {
+					log.Println(err)
+					ne, ok := err.(net.Error)
+					log.Println(ne, ok)
+					if ok && ne.Timeout() {
+						log.Println("time out")
+						continue
+					}
+					return
+				}
+			*/
+
 			//log.Println("recv msg:", event.Type)
 			switch event.Type {
 			case models.EventMsg:

@@ -198,6 +198,7 @@ func BindAccountApi(m *martini.ClassicMartini) {
 		binding.Json(sendHeartForm{}, (*Parameter)(nil)),
 		ErrorHandler,
 		checkTokenHandler,
+		loadUserHandler,
 		sendHeartHandler)
 	m.Post("/1/user/recvheart",
 		binding.Json(recvHeartForm{}, (*Parameter)(nil)),
@@ -288,7 +289,16 @@ func regHandlerV2(request *http.Request, resp http.ResponseWriter,
 	ids = append(ids, "1438851594268")
 	redis.SetRelationship(user.Id, ids, models.RelFollowing, true)
 	// ws push
-	//regNotice(user.Id, redis)
+	notice := &models.Event{
+		Type: models.EventStatus,
+		Time: time.Now().Unix(),
+		Data: models.EventData{
+			Type: models.EventInfo,
+			Id:   user.Id,
+			To:   user.Id,
+		},
+	}
+	notice.Save()
 }
 
 type loginFormV2 struct {
@@ -660,6 +670,10 @@ type userJsonStruct struct {
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruct {
+	if user.Id == "" {
+		return &userJsonStruct{}
+	}
+
 	info := &userJsonStruct{
 		Userid:   user.Id,
 		Nickname: user.Nickname,
@@ -749,11 +763,14 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruc
 		}
 	}
 
+	//info.Profile = strings.Replace(string(b), "172.24.222.54:8082", "172.24.222.42:8082", -1)
+
 	return info
 }
 
 type getInfoForm struct {
-	Userid string `form:"userid" binding:"required"`
+	Userid   string `form:"userid"`
+	Nickname string `form:"nickname"`
 	parameter
 }
 
@@ -761,12 +778,24 @@ func userInfoHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, p Parameter) {
 	user := &models.Account{}
 	form := p.(getInfoForm)
-	if find, err := user.FindByUserid(form.Userid); !find {
-		if err == nil {
-			err = errors.NewError(errors.NotExistsError)
+	if form.Userid != "" {
+		if find, err := user.FindByUserid(form.Userid); !find {
+			if err == nil {
+				err = errors.NewError(errors.NotExistsError)
+			}
+			writeResponse(request.RequestURI, resp, nil, err)
+			return
 		}
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
+	}
+
+	if form.Nickname != "" {
+		if find, err := user.FindByNickname(form.Nickname); !find {
+			if err == nil {
+				err = errors.NewError(errors.NotExistsError)
+			}
+			writeResponse(request.RequestURI, resp, nil, err)
+			return
+		}
 	}
 
 	info := convertUser(user, redis)
@@ -1750,6 +1779,7 @@ func sendHeartHandler(r *http.Request, w http.ResponseWriter,
 			Body: []models.MsgBody{
 				{Type: "record_id", Content: form.Record},
 				{Type: "userid", Content: user.Id},
+				{Type: "nikename", Content: user.Nickname},
 			},
 		},
 	}
@@ -1785,6 +1815,7 @@ func recvHeartHandler(r *http.Request, w http.ResponseWriter,
 			To:   form.Sender,
 			Body: []models.MsgBody{
 				{Type: "userid", Content: user.Id},
+				{Type: "nikename", Content: user.Nickname},
 			},
 		},
 	}

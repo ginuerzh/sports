@@ -35,6 +35,7 @@ const (
 	EventUnban       = "unban"
 	EventLock        = "lock"
 	EventTask        = "task"
+	EventInfo        = "info"
 	EventSendHeart   = "sendheart"
 	EventRecvHeart   = "recvheart"
 	EventRunShare    = "runshare"
