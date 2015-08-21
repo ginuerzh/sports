@@ -75,16 +75,18 @@ func BindArticleApi(m *martini.ClassicMartini) {
 }
 
 type articleJsonStruct struct {
-	Id         string          `json:"article_id"`
-	Parent     string          `json:"parent_article_id"`
-	Author     string          `json:"author"`
-	AuthorInfo *userJsonStruct `json:"authorInfo"`
-	Title      string          `json:"cover_text"`
-	Image      string          `json:"cover_image"`
-	PubTime    int64           `json:"time"`
-	Thumbed    bool            `json:"isThumbed"`
-	Thumbs     int             `json:"thumb_count"`
-	ThumbUsers []string        `json:"thumb_users"`
+	Id           string          `json:"article_id"`
+	Parent       string          `json:"parent_article_id"`
+	Author       string          `json:"author"`
+	AuthorInfo   *userJsonStruct `json:"authorInfo"`
+	Refer        string          `json:"refer"`
+	ReferArticle string          `json:"refer_article"`
+	Title        string          `json:"cover_text"`
+	Image        string          `json:"cover_image"`
+	PubTime      int64           `json:"time"`
+	Thumbed      bool            `json:"isThumbed"`
+	Thumbs       int             `json:"thumb_count"`
+	ThumbUsers   []string        `json:"thumb_users"`
 	//NewThumbs  int              `json:"new_thumb_count"`
 	Reviews      int    `json:"sub_article_count"`
 	CoachReviews int    `json:"coach_review_count"`
@@ -157,6 +159,8 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 	jsonStruct.CoachReviews = article.CoachReviewCount
 	jsonStruct.Rewards = article.TotalReward
 
+	jsonStruct.Refer = article.Refer
+	jsonStruct.ReferArticle = article.ReferArticle
 	jsonStruct.Title = article.Title
 	jsonStruct.Image = article.Image
 	//jsonStruct.Images = article.Images
@@ -609,7 +613,7 @@ func articleListHandler(request *http.Request, resp http.ResponseWriter,
 }
 
 type articleInfoForm struct {
-	Id string `form:"article_id" binding:"required"`
+	Id string `form:"article_id"`
 	parameter
 }
 
@@ -617,12 +621,20 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
 	redis *models.RedisLogger, user *models.Account, p Parameter) {
 	form := p.(articleInfoForm)
 	article := &models.Article{}
-	if find, err := article.FindById(form.Id); !find {
-		if err == nil {
-			err = errors.NewError(errors.NotExistsError, "文章不存在")
+
+	if form.Id != "" {
+		if find, err := article.FindById(form.Id); !find {
+			if err == nil {
+				err = errors.NewError(errors.NotExistsError, "文章不存在")
+			}
+			writeResponse(request.RequestURI, resp, nil, err)
+			return
 		}
-		writeResponse(request.RequestURI, resp, nil, err)
-		return
+	} else {
+		if err := article.FindRefer(); err != nil {
+			writeResponse(request.RequestURI, resp, nil, err)
+			return
+		}
 	}
 
 	event := &models.Event{}
@@ -832,7 +844,7 @@ func articleNewsHandler(r *http.Request, w http.ResponseWriter,
 	followings := redis.Friends(models.RelFollowing, user.Id)
 	//followings = append(followings, user.Id) // self included
 	//fmt.Println(followings)
-	count, err := models.NewArticles(followings, form.Id)
+	count, profiles, err := models.NewArticles(followings, form.Id)
 
-	writeResponse(r.RequestURI, w, bson.M{"count": count}, err)
+	writeResponse(r.RequestURI, w, bson.M{"count": count, "profiles": profiles}, err)
 }

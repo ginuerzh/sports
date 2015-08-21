@@ -665,8 +665,8 @@ type userJsonStruct struct {
 	Ban      int64            `json:"ban_time"`
 	Auth     *models.UserAuth `json:"auth_info"`
 
-	Pet       string `json:"pet"`
-	ScoreRank int    `json:"score_rank"`
+	//	Pet       string `json:"pet"`
+	ScoreRank int `json:"score_rank"`
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userJsonStruct {

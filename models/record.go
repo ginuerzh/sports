@@ -105,11 +105,17 @@ func TotalRecords(userid string) (int, error) {
 	return total, err
 }
 
-func TaskRecords(pageIndex, pageCount int) (int, []Record, error) {
+func TaskRecords(finished bool, pageIndex, pageCount int) (int, []Record, error) {
 	var records []Record
 	total := 0
+	query := bson.M{"type": "run"}
+	if finished {
+		query["status"] = bson.M{"$in": []interface{}{StatusFinish, StatusUnFinish}}
+	} else {
+		query["status"] = StatusAuth
+	}
 
-	if err := search(recordColl, bson.M{"type": "run"}, nil,
+	if err := search(recordColl, query, nil,
 		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &records); err != nil && err != mgo.ErrNotFound {
 		return total, nil, errors.NewError(errors.DbError)
 	}

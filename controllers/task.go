@@ -588,6 +588,8 @@ func taskSharedHandler(r *http.Request, w http.ResponseWriter,
 		article = &models.Article{
 			Author:  user.Id,
 			PubTime: time.Now(),
+			Title:   "我和" + u.Nickname + "约好一起跑步，有想一起参加的吗？",
+			Image:   form.Image,
 			Contents: []models.Segment{
 				{ContentType: "TEXT", ContentText: "我和" + u.Nickname + "约好一起跑步，有想一起参加的吗？" +
 					"\n跑步地点： " + form.Addr +
@@ -603,14 +605,16 @@ func taskSharedHandler(r *http.Request, w http.ResponseWriter,
 		event.Data.Type = models.EventPostShared
 	case models.TaskGame:
 		event.Data.Type = models.EventPKShared
-		result := u.Nickname + " 主动PK " + user.Nickname + "大获全胜。"
+		result := u.Nickname + " 主动PK " + user.Nickname + " 大获全胜。"
 		if u.Props.Score < user.Props.Score {
-			result = u.Nickname + " 主动PK " + user.Nickname + "大败亏输。"
+			result = u.Nickname + " 主动PK " + user.Nickname + " 大败亏输。"
 		}
 		article = &models.Article{
 			Author:  user.Id,
 			Type:    "pk",
 			PubTime: time.Now(),
+			Title:   result,
+			Image:   form.Image,
 			Contents: []models.Segment{
 				{ContentType: "TEXT", ContentText: result},
 				{ContentType: "IMAGE", ContentText: form.Image},

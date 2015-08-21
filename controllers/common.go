@@ -47,6 +47,8 @@ func writeResponse(uri string, resp http.ResponseWriter, data interface{}, err e
 		err = errors.NewError(errors.NoError)
 	}
 	resp.Header().Set("Content-Type", "application/json; charset=utf-8")
+	resp.Header().Set("Access-Control-Allow-Origin", "*")
+	resp.Header().Set("Access-Control-Allow-Headers", "Origin,X-Requested-With,X_Requested_With,Content-Type,Accept")
 	b, _ := json.Marshal(response{ReqPath: uri, RespData: data, Error: err})
 
 	s := strings.Replace(string(b), "172.24.222.54:8082", "172.24.222.42:8082", -1)

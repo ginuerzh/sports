@@ -374,7 +374,11 @@ func findOne(collection string, query interface{}, sortFields []string, result i
 	}
 
 	if err := withCollection(collection, nil, q); err != nil {
-		return errors.NewError(errors.DbError)
+		e := errors.NewError(errors.DbError)
+		if err == mgo.ErrNotFound {
+			e = errors.NewError(errors.NotFoundError)
+		}
+		return e
 	}
 	return nil
 }

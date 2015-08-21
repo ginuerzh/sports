@@ -66,6 +66,11 @@ func BindUserApi(m *martini.ClassicMartini) {
 		binding.Form(socialListForm{}),
 		ErrorHandler,
 		socialListHandler)
+	m.Post("/1/user/action",
+		binding.Json(setActionForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		setActionHandler)
 }
 
 type sendDevForm struct {
@@ -255,4 +260,16 @@ func socialListHandler(request *http.Request, resp http.ResponseWriter,
 	writeResponse(request.RequestURI, resp, respData, nil)
 
 	return
+}
+
+type setActionForm struct {
+	Action string `json:"action"`
+	parameter
+}
+
+func setActionHandler(r *http.Request, w http.ResponseWriter,
+	redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(setActionForm)
+	redis.SetUserAction(user.Id, form.Action)
+	writeResponse(r.RequestURI, w, nil, nil)
 }

@@ -40,6 +40,7 @@ const (
 	redisStatAuthCoachesPrefix  = redisPrefix + ":stat:authcoaches:"    // set per day, auth coaches per day
 	redisStatUserCoinsPrefix    = redisPrefix + ":stat:coins:"          // sorted set per day, coins send by system per day
 	redisStatCoins              = redisPrefix + ":stat:coins"           // sorted set, total coins sended per day
+	redisStatActions            = redisPrefix + ":stat:actions"         // hash, user actions
 
 	//redisUserOnlinesPrefix = redisPrefix + ":user:onlines:" // set per half an hour, current online users
 	redisUserTokens     = redisPrefix + ":user:tokens" // hash, online user token <->userid
@@ -1017,6 +1018,11 @@ func (logger *RedisLogger) UserTotalOnlineTime(skip, limit int, desc bool) (kv [
 	return logger.zrange(redisStatOnlineTime, skip, skip+limit-1, desc)
 }
 
+func (logger *RedisLogger) GetOnlineTime(userid string) int64 {
+	n, _ := redis.Int64(logger.conn.Do("ZSCORE", redisStatOnlineTime, userid))
+	return n
+}
+
 /*
 func (logger *RedisLogger) OnlineUsersCount(days int) []int64 {
 	t := time.Now()
@@ -1223,4 +1229,12 @@ func (logger *RedisLogger) SetTaskShare(userid string, add bool) {
 func (logger *RedisLogger) TaskSharers() []string {
 	sharers, _ := redis.Strings(logger.conn.Do("SMEMBERS", redisTaskShare))
 	return sharers
+}
+
+func (logger *RedisLogger) SetUserAction(userid, action string) {
+	logger.conn.Do("HSET", redisStatActions, userid, action)
+}
+func (logger *RedisLogger) GetUserAction(userid string) string {
+	action, _ := redis.String(logger.conn.Do("HGET", redisStatActions, userid))
+	return action
 }

@@ -221,13 +221,15 @@ func articleCommentsHandler(w http.ResponseWriter, redis *models.RedisLogger, fo
 }
 
 type postForm struct {
-	Id       string      `json:"article_id"`
-	Author   string      `json:"author"`
-	Contents string      `json:"contents"`
-	Title    string      `json:"title"`
-	Image    []string    `json:"image"`
-	Tags     interface{} `json:"tags"`
-	Token    string      `json:"access_token" binding:"required"`
+	Id           string   `json:"article_id"`
+	Author       string   `json:"author"`
+	Contents     string   `json:"contents"`
+	Title        string   `json:"title"`
+	Image        []string `json:"image"`
+	Refer        string   `json:"refer"`
+	ReferArticle string   `json:"refer_article"`
+	//Tags     interface{} `json:"tags"`
+	Token string `json:"access_token" binding:"required"`
 }
 
 func articlePostOptionsHandler(w http.ResponseWriter) {
@@ -242,23 +244,38 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 	}
 	user := &models.Account{Id: uid}
 
+	var rid string
+
+	if form.Refer != "" {
+		refer := &models.Account{}
+		refer.FindByNickname(form.Refer)
+		rid = refer.Id
+		if rid == "" {
+			writeResponse(w, errors.NewError(errors.NotExistsError))
+			return
+		}
+	}
+
 	article := &models.Article{
-		Parent:  form.Id,
-		Author:  form.Author,
-		PubTime: time.Now(),
+		Parent:       form.Id,
+		Author:       form.Author,
+		Refer:        rid,
+		ReferArticle: form.ReferArticle,
+		PubTime:      time.Now(),
 		//Tags:    []string{form.Tags},
 	}
+	/*
+		switch v := form.Tags.(type) {
+		case string:
+			article.Tags = []string{v}
+		case []string:
+			article.Tags = v
+		}
 
-	switch v := form.Tags.(type) {
-	case string:
-		article.Tags = []string{v}
-	case []string:
-		article.Tags = v
-	}
-
-	if len(article.Tags) == 0 {
-		article.Tags = []string{"SPORT_LOG"}
-	}
+		if len(article.Tags) == 0 {
+			article.Tags = []string{"SPORT_LOG"}
+		}
+	*/
 
 	if len(form.Author) == 0 {
 		article.Author = user.Id

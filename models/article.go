@@ -35,18 +35,20 @@ type rewardUser struct {
 }
 
 type Article struct {
-	Id        bson.ObjectId `bson:"_id,omitempty"`
-	Type      string        // record: running record, coach: coach review, pk: pk result, default is post
-	Privilege int           // 0 - public, 2 - private
-	Parent    string        `bson:",omitempty"`
-	Author    string
-	Title     string   `bson:",omitempty"`
-	Image     string   `bson:",omitempty"`
-	Images    []string `bson:",omitempty"`
-	Contents  []Segment
-	Content   string
-	Record    string
-	PubTime   time.Time `bson:"pub_time"`
+	Id           bson.ObjectId `bson:"_id,omitempty"`
+	Type         string        // record: running record, coach: coach review, pk: pk result, default is post
+	Privilege    int           // 0 - public, 2 - private
+	Parent       string        `bson:",omitempty"`
+	Author       string
+	Refer        string   `bson:",omitempty"`
+	ReferArticle string   `bson:"refer_article,omitempty"`
+	Title        string   `bson:",omitempty"`
+	Image        string   `bson:",omitempty"`
+	Images       []string `bson:",omitempty"`
+	Contents     []Segment
+	Content      string
+	Record       string
+	PubTime      time.Time `bson:"pub_time"`
 
 	Views            []string `bson:",omitempty"`
 	Thumbs           []string `bson:",omitempty"`
@@ -102,6 +104,15 @@ func (this *Article) FindById(id string) (bool, error) {
 		return false, nil
 	}
 	return this.findOne(bson.M{"_id": bson.ObjectIdHex(id)})
+}
+
+func (this *Article) FindRefer() error {
+	query := bson.M{
+		"refer": bson.M{
+			"$ne": nil,
+		},
+	}
+	return findOne(articleColl, query, []string{"-pub_time"}, this)
 }
 
 func (this *Article) Save() error {
@@ -319,8 +330,9 @@ func articlePagingFunc(c *mgo.Collection, first, last string, args ...interface{
 	return
 }
 
-func NewArticles(ids []string, last string) (int, error) {
+func NewArticles(ids []string, last string) (int, []string, error) {
 	total := 0
+	var articles []Article
 
 	query := bson.M{
 		"parent":    nil,
@@ -331,7 +343,7 @@ func NewArticles(ids []string, last string) (int, error) {
 		article := &Article{}
 		findOne(articleColl, bson.M{"_id": bson.ObjectIdHex(last)}, nil, article)
 		if len(article.Id) == 0 {
-			return 0, nil
+			return 0, nil, nil
 		}
 
 		query["pub_time"] = bson.M{
@@ -342,9 +354,19 @@ func NewArticles(ids []string, last string) (int, error) {
 		}
 	}
 	sortFields := []string{"-pub_time", "-_id"}
-	err := search(articleColl, query, nil, 0, 0, sortFields, &total, nil)
+	search(articleColl, query, nil, 0, 2, sortFields, &total, &articles)
 
-	return total, err
+	var uids []string
+	for i, _ := range articles {
+		uids = append(uids, articles[i].Author)
+	}
+	//log.Println(len(uids), uids)
+	users, _ := FindUsersByIds(0, uids...)
+	var profiles []string
+	for i, _ := range users {
+		profiles = append(profiles, users[i].Profile)
+	}
+	return total, profiles, nil
 }
 
 func GetUserArticles(ids []string, paging *Paging) (int, []Article, error) {
@@ -629,7 +651,13 @@ func ArticleList(sort string, pageIndex, pageCount int) (total int, articles []A
 	default:
 		sort = "-pub_time"
 	}
-	err = search(articleColl, bson.M{"parent": nil}, bson.M{"content": 0, "contents": 0},
+	query := bson.M{
+		"parent": nil,
+		"type": bson.M{
+			"$ne": "record",
+		},
+	}
+	err = search(articleColl, query, bson.M{"content": 0, "contents": 0},
 		pageIndex*pageCount, pageCount, []string{sort}, &total, &articles)
 	return
 }

@@ -143,18 +143,28 @@ type equips struct {
 type userInfoJsonStruct struct {
 	Userid   string `json:"userid"`
 	Nickname string `json:"nickname"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	Role     string `json:"role"`
+	About    string `json:"about"`
+	Profile  string `json:"profile"`
+	RegTime  int64  `json:"reg_time"`
+	Height   int    `json:"height"`
+	Weight   int    `json:"weight"`
+	Birth    int64  `json:"birthday"`
 
-	Email   string `json:"email"`
-	Phone   string `json:"phone"`
-	Actor   string `json:"actor"`
-	Role    string `json:"role"`
-	About   string `json:"about"`
-	Profile string `json:"profile"`
-	RegTime int64  `json:"reg_time"`
-	Hobby   string `json:"hobby"`
-	Height  int    `json:"height"`
-	Weight  int    `json:"weight"`
-	Birth   int64  `json:"birthday"`
+	Sign        string `json:"sign"`
+	Emotion     string `json:"emotion"`
+	Profession  string `json:"profession"`
+	Hobby       string `json:"fond"`
+	Hometown    string `json:"hometown"`
+	OftenAppear string `json:"oftenAppear"`
+
+	Actor string `json:"actor"`
+	Admin bool   `json:"admin"`
+
+	Online     bool  `json:"online"`
+	OnlineTime int64 `json:"onlinetime"`
 
 	//Props *models.Props `json:"proper_info"`
 	Physical int64 `json:"physique_value"`
@@ -191,6 +201,8 @@ type userInfoJsonStruct struct {
 	Auth *models.UserAuth `json:"auth"`
 
 	Stat *models.UserStat `json:"stat"`
+
+	Action string `json:"action"`
 }
 
 func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonStruct {
@@ -201,11 +213,23 @@ func convertUser(user *models.Account, redis *models.RedisLogger) *userInfoJsonS
 		Phone:    user.Phone,
 		Role:     user.Role,
 		Actor:    user.Actor,
+		Admin:    user.Admin,
 		About:    user.About,
 		Profile:  user.Profile,
 		RegTime:  user.RegTime.Unix(),
 		//RegTimeStr: user.RegTime.Format("2006-01-02 15:04:05"),
-		Hobby:  user.Hobby,
+		Sign:        user.Sign,
+		Emotion:     user.Emotion,
+		Profession:  user.Profession,
+		Hobby:       user.Hobby,
+		Hometown:    user.Hometown,
+		OftenAppear: user.Oftenappear,
+
+		Action: redis.GetUserAction(user.Id),
+
+		Online:     redis.IsOnline(user.Id),
+		OnlineTime: redis.GetOnlineTime(user.Id),
+
 		Height: user.Height,
 		Weight: user.Weight,
 		Birth:  user.Birth,
@@ -367,6 +391,7 @@ type getSearchListForm struct {
 	Age       string `form:"age"`
 	BanStatus string `form:"ban_status"`
 	KeyWord   string `form:"keyword"`
+	Actor     string `form:"actor"`
 	//	Count    int    `form:"count"`
 	Sort string `form:"sort"`
 	//	NextCursor string `form:"next_cursor"`
@@ -388,7 +413,7 @@ func getSearchListHandler(w http.ResponseWriter, redis *models.RedisLogger, form
 	}
 
 	total, users, _ := models.GetSearchListBySort(form.Userid, form.NickName, form.KeyWord,
-		form.Gender, form.Age, form.BanStatus, form.Role, count*form.Page, count, form.Sort)
+		form.Gender, form.Age, form.BanStatus, form.Role, form.Actor, count*form.Page, count, form.Sort)
 
 	list := make([]*userInfoJsonStruct, len(users))
 	for i, _ := range users {

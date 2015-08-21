@@ -347,6 +347,7 @@ func (this *Account) FindPass(id, types, password string) (bool, error) {
 		query["nickname"] = id
 	case AccountWeibo:
 		query["weibo"] = id
+		delete(query, "password")
 	default:
 		query["_id"] = id
 	}
@@ -918,7 +919,7 @@ func GetUserListBySort(skip, limit int, sort string) (total int, users []Account
 
 // This function search users with userid or nickname after preCursor or nextCursor sorted by sortOrder. The return count total should not be more than limit.
 func GetSearchListBySort(id, nickname, keywords string,
-	gender, age, banStatus, role string, skip, limit int, sortOrder string) (total int, users []Account, err error) {
+	gender, age, banStatus, role string, actor string, skip, limit int, sortOrder string) (total int, users []Account, err error) {
 
 	var sortby string
 
@@ -1033,6 +1034,17 @@ func GetSearchListBySort(id, nickname, keywords string,
 	}
 	if len(role) > 0 {
 		and = append(and, bson.M{"role": role})
+	}
+
+	if len(actor) > 0 {
+		switch actor {
+		case "user":
+			and = append(and, bson.M{"actor": bson.M{"$in": []interface{}{nil, ""}}, "admin": nil})
+		case "coach":
+			and = append(and, bson.M{"actor": "coach"})
+		case "admin":
+			and = append(and, bson.M{"admin": true})
+		}
 	}
 
 	query := bson.M{"$and": and}

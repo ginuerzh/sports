@@ -26,18 +26,20 @@ func BindTaskApi(m *martini.ClassicMartini) {
 }
 
 type taskinfo struct {
-	Id        int64    `json:"task_id"`
-	Type      string   `json:"type"`
-	Desc      string   `json:"desc"`
-	BeginTime int64    `json:"begin_time"`
-	EndTime   int64    `json:"end_time"`
-	Duration  int64    `json:"duration"`
-	Distance  int      `json:"distance"`
-	Source    string   `json:"source"`
-	Images    []string `json:"images"`
-	Status    string   `json:"status"`
-	Mood      string   `json:"mood"`
-	Reason    string   `json:"reason"`
+	Id           int64    `json:"task_id"`
+	Type         string   `json:"type"`
+	Desc         string   `json:"desc"`
+	TaskDuration int64    `json:"task_duration"`
+	TaskDistance int      `json:"task_distance"`
+	BeginTime    int64    `json:"begin_time"`
+	EndTime      int64    `json:"end_time"`
+	Duration     int64    `json:"duration"`
+	Distance     int      `json:"distance"`
+	Source       string   `json:"source"`
+	Images       []string `json:"images"`
+	Status       string   `json:"status"`
+	Mood         string   `json:"mood"`
+	Reason       string   `json:"reason"`
 }
 
 /*
@@ -76,7 +78,11 @@ func convertTask(record *models.Record) *taskinfo {
 		info.Status = models.StatusFinish
 	}
 	if info.Id > 0 && info.Id <= int64(len(models.NewTasks)) {
-		info.Desc = models.NewTasks[info.Id-1].Desc
+		t := models.NewTasks[info.Id-1]
+		info.Desc = "目标时间: " + strconv.FormatFloat(float64(t.Duration)/60.0, 'f', 1, 64) +
+			"分钟, 目标距离: " + strconv.FormatFloat(float64(t.Distance)/1000, 'f', 1, 64) + "公里。"
+		info.TaskDistance = t.Distance
+		info.TaskDuration = t.Duration
 	}
 	if record.Sport != nil {
 		info.Source = record.Sport.Source
@@ -91,6 +97,7 @@ func convertTask(record *models.Record) *taskinfo {
 }
 
 type tasklistForm struct {
+	Finished bool `form:"finished"`
 	AdminPaging
 	Token string `form:"access_token"`
 }
@@ -99,6 +106,11 @@ type userTask struct {
 	Id       string      `json:"userid"`
 	Nickname string      `json:"nickname"`
 	Profile  string      `json:"profile"`
+	Birth    int64       `json:"birthday"`
+	Lat      float64     `json:"loc_latitude"`
+	Lng      float64     `json:"loc_longitude"`
+	Gender   string      `json:"gender"`
+	LastLog  int64       `json:"last_login_time"`
 	Tasks    []*taskinfo `json:"tasks"`
 }
 
@@ -114,7 +126,7 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 
 	users := make(map[string]*models.Account)
 	var tasks []*userTask
-	total, records, _ := models.TaskRecords(form.PageIndex, form.PageCount)
+	total, records, _ := models.TaskRecords(form.Finished, form.PageIndex, form.PageCount)
 	for _, record := range records {
 
 		info := convertTask(&record)
@@ -129,6 +141,11 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 			Id:       record.Uid,
 			Nickname: user.Nickname,
 			Profile:  user.Profile,
+			Birth:    user.Birth,
+			Lat:      user.Loc.Lat,
+			Lng:      user.Loc.Lng,
+			Gender:   user.Gender,
+			LastLog:  user.LastLogin.Unix(),
 			Tasks:    []*taskinfo{info},
 		}
 		tasks = append(tasks, task)
