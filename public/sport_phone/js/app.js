@@ -14,9 +14,10 @@ taskmenulist = ["待审批", "已审批"];
 app.factory('taskq', [
   '$http', function($http) {
     return {
-      gettasklist: function(page_index) {
+      gettasklist: function(page_index, finished) {
         return $http.get(httphost + '/admin/task/list', {
           params: {
+            finished: finished,
             page_index: page_index,
             page_count: 50,
             access_token: userToken
@@ -199,6 +200,32 @@ app.filter("statusname", function() {
     }
     return status;
   };
+}).filter("timechange", function() {
+  return function(data) {
+    var hour, min, sec;
+    if (data >= 3600) {
+      hour = Math.floor(data / 3600);
+      min = Math.floor((data % 3600) / 60);
+      sec = (data % 3600) % 60;
+      return hour + " 小时 " + min + " 分 " + sec + " 秒";
+    } else if (data >= 60) {
+      min = Math.floor(data / 60);
+      sec = data % 60;
+      return min + " 分 " + sec + " 秒";
+    } else {
+      sec = data;
+      return sec + " 秒";
+    }
+  };
+}).filter("actorfilter", function() {
+  return function(data) {
+    var actor;
+    actor = "普通用户";
+    if (data.length > 0) {
+      actor = "教练";
+    }
+    return actor;
+  };
 }).filter("typename", function() {
   return function(data) {
     var typename;
@@ -364,7 +391,7 @@ app.factory('utils', function() {
 app.factory('taskService', [
   '$q', 'taskq', function($q, $taskq) {
     return {
-      gettasklist: function(tasktype, page_index) {
+      gettasklist: function(finished, page_index) {
         var deferred, tasklistInfo;
         deferred = $q.defer();
         tasklistInfo = {
@@ -376,7 +403,7 @@ app.factory('taskService', [
             'showPages': []
           }
         };
-        $taskq.gettasklist(page_index).success(function(response, status, headers, config) {
+        $taskq.gettasklist(page_index, finished).success(function(response, status, headers, config) {
           var task, taskitem, taskjson, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2, _results;
           if (checkRequest(response)) {
             _ref = response.users;
@@ -390,6 +417,9 @@ app.factory('taskService', [
                 }
                 taskjson = {
                   taskid: task.task_id,
+                  gender: taskitem.gender,
+                  birthday: taskitem.birthday,
+                  last_login_time: taskitem.last_login_time,
                   type: task.type,
                   desc: task.desc,
                   status: task.status,
@@ -402,20 +432,12 @@ app.factory('taskService', [
                   end_time: task.end_time,
                   distance: task.distance,
                   source: task.source,
-                  duration: task.duration
+                  duration: task.duration,
+                  mood: task.mood,
+                  task_duration: task.task_duration,
+                  task_distance: task.task_distance
                 };
-                switch (tasktype) {
-                  case "Auditting":
-                    if (taskjson.status === "AUTHENTICATION") {
-                      tasklistInfo.tasklist.push(taskjson);
-                    }
-                    break;
-                  case "Audited":
-                    if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {
-                      tasklistInfo.tasklist.push(taskjson);
-                    }
-                    break;
-                }
+                tasklistInfo.tasklist.push(taskjson);
               }
             }
             tasklistInfo.pagination.pageIndex = response.page_index;
@@ -633,7 +655,7 @@ var tasklistController;
 
 tasklistController = app.controller('tasklistController', [
   'app', '$scope', '$rootScope', 'taskService', 'utils', '$mdSidenav', '$routeParams', '$mdDialog', function(app, $scope, $rootScope, taskService, utils, $mdSidenav, $routeParams, $mdDialog) {
-    var Approve, DialogController, Load, Reject, nDealIndex, pageIndex, refreshtable, taskStr, totalPage;
+    var Approve, DialogController, Load, Reject, nDealIndex, pageIndex, refreshtable, taskfinished, totalPage;
     $(function() {
       return $(window).scroll(function() {
         return Load();
@@ -661,7 +683,7 @@ tasklistController = app.controller('tasklistController', [
       }
     };
     nDealIndex = 0;
-    taskStr = 'Auditting';
+    taskfinished = false;
     pageIndex = 0;
     totalPage = 0;
     $scope.taskid = $routeParams.id;
@@ -697,7 +719,7 @@ tasklistController = app.controller('tasklistController', [
     };
     refreshtable = function() {
       if ($scope.taskid == null) {
-        return taskService.gettasklist(taskStr, pageIndex).then(function(data) {
+        return taskService.gettasklist(taskfinished, pageIndex).then(function(data) {
           $scope.showwaiting = false;
           $scope.taskList = data.tasklist;
           pageIndex = data.pagination.pageIndex;
@@ -762,12 +784,13 @@ tasklistController = app.controller('tasklistController', [
       });
     };
     $rootScope.taskmenuClick = function(index) {
-      if (index === 0 && taskStr !== 'Auditting') {
-        taskStr = 'Auditting';
+      var taskStr;
+      if (index === 0 && taskfinished) {
+        taskfinished = false;
         refreshtable();
         return $rootScope.apptile = "运动纪录管理（待审批）";
-      } else if (index === 1 && taskStr !== 'Audited') {
-        taskStr = 'Audited';
+      } else if (index === 1 && !taskfinished) {
+        taskStr = true;
         refreshtable();
         return $rootScope.apptile = "运动纪录管理（已审批）";
       }

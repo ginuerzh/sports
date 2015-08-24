@@ -14,12 +14,12 @@
                         </tr>
                         <tr>
                             <td width="25%">
-                                <div id="genderimg">
-                                    <div>33&nbsp;&nbsp;</div>
+                                <div id="genderimg" ng-style="{'background-image':'url({{item.gender=='male' ? 'images/male.png' : 'images/female.png'}})'}">
+                                    <div>{{item.birthday|age}}&nbsp;&nbsp;</div>
                                 </div>
                             </td>
                             <td id="userlogininfo" width="55%">
-                                2小时前登陆，距离2.5米
+                                最后登录时间:{{item.last_login_time|timeconvert}}
                             </td>
                             <td align="right">
                                 <div>
@@ -41,11 +41,11 @@
                             <td width="20%">
                                 任务
                             </td>
-                            <td width="35%">
-                                距离:{{item.distance|distance}} 公里
+                            <td width="35%" ng-if="item.task_distance>0">
+                                距离:{{item.task_distance|distance}} 公里
                             </td>
-                            <td>
-                                时长:25分钟
+                            <td ng-if="item.task_duration>0">
+                                时长:{{item.task_duration|timechange}}
                             </td>
                         </tr>
                         </tbody>
@@ -64,7 +64,7 @@
                                 距离:{{item.distance|distance}} 公里
                             </td>
                             <td>
-                                时长:30分钟
+                                时长:{{item.duration|timechange}}
                             </td>
                         </tr>
                         </tbody>
@@ -95,8 +95,8 @@
                         </tr>
                         <tr>
                             <td colspan="3">
-                                <div ng-if="!item.showdetail">{{item.desc|descfilter}}</div>
-                                <div ng-if="item.showdetail">{{item.desc|descfilterdetail}}</div>
+                                <div ng-if="!item.showdetail">{{item.mood|descfilter}}</div>
+                                <div ng-if="item.showdetail">{{item.mood|descfilterdetail}}</div>
                             </td>
                         </tr>
                         </tbody>

@@ -26,6 +26,7 @@
                 <th st-sort="nickname">nickname</th>
                 <th st-sort="begin_time">begin_time</th>
                 <th st-sort="end_time">end_time</th>
+                <th st-sort="onlinetime">online_time</th>
                 <th st-sort="distance">distance</th>
                 <th ng-if="!checked">status</th>
                 <th st-sort="reason">reason</th>
@@ -40,7 +41,7 @@
                 <td class="col-md-1">{{row.desc}}</td>
                 <td class="col-md-1">
                     <div align="center">
-                    <div ng-show="row.images.length>0">
+                            <div ng-show="row.images.length>0">
                         <a href="html/task-images.html" target="_blank" data-toggle="tooltip" title="请点击图片查看更多" ng-click="showImgs($index)"><img ng-src="{{row.images[0]}}" class="img-small"><br><p>共{{row.images.length}}张图片</p></a>
                     </div>
                     <p class="inner" ng-show="row.images.length==0">无图片</p>
@@ -50,6 +51,7 @@
                 <td class="col-md-1"><a ng-href="{{'#/detail/'+row.userid}}">{{row.nickname}}</a></td>
                 <td class="col-md-1">{{row.begin_time|timeconvert}}</td>
                 <td class="col-md-1">{{row.end_time|timeconvert}}</td>
+                <td class="col-md-1">{{row.duration|timechange}}</td>
                 <td class="col-md-1">{{row.distance}} m</td>
                 <td class="col-md-2" ng-if="checked">
                     <div>

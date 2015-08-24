@@ -73,7 +73,6 @@
             <th><input type="checkbox" ng-checked="checkAllBool" ng-click="selectAll()">&nbsp&nbsp全选</th>
             <th>头像</th>
             <th ng-click="sort('nickname')">昵称<img ng-src="{{sortImg[sortState.nickname]}}" style="float:right;"></th>
-            <th>注册账号类型</th>
             <th ng-click="sort('gender')">性别<img ng-src="{{sortImg[sortState.gender]}}" style="float:right;"></th>
             <th ng-click="sort('age')">年龄<img ng-src="{{sortImg[sortState.age]}}" style="float:right;"></th>
             <th ng-click="sort('regtime')">注册时间<img ng-src="{{sortImg[sortState.regtime]}}" style="float:right;"></th>
@@ -89,7 +88,6 @@
             <td><input type="checkbox" ng-click="selected($index)" ng-checked="selectedList[$index]"></td>
             <td><a href="{{'#/detail/'+user.userid}}" target="_blank"><img ng-src="{{user.profile}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a></td>
             <td>{{user.nickname}}</td>
-            <td>{{user.role|rolefilter}}</td>
             <td>{{user.gender}}</td>
             <td>{{user.age}}</td>
             <td>{{user.reg_time}}</td>
