@@ -668,11 +668,11 @@ tasklistController = app.controller('tasklistController', [
     Load = function() {
       var documentHeight, loadHeight, scrollHight, windowHeight;
       if (!$scope.showwaiting) {
-        loadHeight = 0;
+        loadHeight = 10;
         documentHeight = parseInt($(document).height(), 10);
         windowHeight = parseInt($(window).height(), 10);
         scrollHight = parseInt($(window).scrollTop(), 10);
-        if (documentHeight - scrollHight - windowHeight <= loadHeight && pageIndex < totalPage - 1) {
+        if (documentHeight - scrollHight - windowHeight <= loadHeight && pageIndex < totalPage - 1 && scrollHight > 0) {
           $scope.showwaiting = true;
           pageIndex++;
           refreshtable();
@@ -784,13 +784,12 @@ tasklistController = app.controller('tasklistController', [
       });
     };
     $rootScope.taskmenuClick = function(index) {
-      var taskStr;
       if (index === 0 && taskfinished) {
         taskfinished = false;
         refreshtable();
         return $rootScope.apptile = "运动纪录管理（待审批）";
       } else if (index === 1 && !taskfinished) {
-        taskStr = true;
+        taskfinished = true;
         refreshtable();
         return $rootScope.apptile = "运动纪录管理（已审批）";
       }

@@ -1429,7 +1429,7 @@ var articleimportController;
 
 articleimportController = app.controller('articleimportController', [
   'app', '$scope', '$rootScope', 'articleService', function(app, $scope, $rootScope, articleService) {
-    var refreshinput, uploadComplete, uploadFailed;
+    var postaticleFail, refreshinput, uploadComplete, uploadFailed;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
@@ -1459,7 +1459,11 @@ articleimportController = app.controller('articleimportController', [
       $scope.title = "";
       $scope.content = "";
       $scope.fileUrl = "";
-      return $scope.nickname = "";
+      $scope.nickname = "";
+      return $scope.artilceid = "";
+    };
+    postaticleFail = function(reason) {
+      return alert("导入不成功，" + reason);
     };
     refreshinput();
     $scope.tag = $scope.tags[0];
@@ -1481,7 +1485,7 @@ articleimportController = app.controller('articleimportController', [
             imglist.unshift($scope.fileUrl);
           }
         }
-        return articleService.articlepost("", $scope.title, userId, imglist, $scope.content, $scope.tag.id, $scope.name, $scope.artilceid).then(refreshinput);
+        return articleService.articlepost("", $scope.title, userId, imglist, $scope.content, $scope.tag.id, $scope.nickname, $scope.artilceid).then(refreshinput, postaticleFail);
       }
     };
     $scope.uploadFile = function() {
@@ -3076,9 +3080,16 @@ app.factory('articleService', [
         return articleinfo;
       },
       articlepost: function(articleId, title, author, imglist, contents, tag, refer, refer_article) {
-        return $articleq.articlepost(articleId, title, author, imglist, contents, tag, refer, refer_article).success(function(response) {
-          return console.log(response);
+        var deferred;
+        deferred = $q.defer();
+        $articleq.articlepost(articleId, title, author, imglist, contents, tag, refer, refer_article).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response.error_desc);
+          }
         });
+        return deferred.promise;
       },
       getimagelist: function(contents) {
         var elem, imglist;
