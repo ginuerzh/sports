@@ -7,6 +7,7 @@
                 <div class="article-info">
                     <i class="fa fa-clock-o" data-original-title="{{article.time}}发布" gen-tooltip> 发布: {{article.time}}</i>
                     标签: <a ng-repeat="tag in article.tags" ng-href="{{'#/tag/'+tag.id}}" class="pure-button pure-button-link">{{tag.name}}</a>
+                    <i class="fa fa-clock-o" data-original-title="{{article.article_id}}" gen-tooltip> 博文ID: {{article.article_id}}</i>
                     <a class="success" ng-href="{{'/'+article.article_id+'/edit'}}" ng-if="false"><i class="fa fa-pencil"></i> 编辑</a>
                 </div>
             </div>

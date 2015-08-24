@@ -41,7 +41,7 @@
                             <table class="table table-bordered table-hover">
                                 <tbody>
                                 <tr>
-                                    <td class="col-md-2" align="center">[<a ng-repeat="tag in article.tags" ng-href="{{'#/tag/'+tag}}" class="pure-button pure-button-link">{{tag|articletag}}</a>]</td>
+                                    <td class="col-md-2" align="center">ID:{{article.article_id}}</td>
                                     <td class="col-md-7">
                                         <div class="col-md-12"><a ng-href="{{'#/articledetail/'+article.article_id}}"> {{article.cover_text|articletitle}}</a> <font color="gray">(  评论数:{{article.comments_count}}  赞: {{article.thumbs_count}} )</font></div>
                                     </td>
