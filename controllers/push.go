@@ -129,18 +129,18 @@ func wsPushHandler(request *http.Request, resp http.ResponseWriter, redisLogger 
 	redisLogger.LogVisitor(user.Id)
 	psc := redisLogger.PubSub(user.Id)
 
+	redisLogger.SetOnline(user.Id, user.IsActor(models.ActorCoach), true, 0)
+	start := time.Now()
+
+	defer func() {
+		dur := int64(time.Since(start) / time.Second)
+		redisLogger.SetOnline(user.Id, user.IsActor(models.ActorCoach), false, dur)
+		user.UpdateStat(models.StatOnlineTime, dur)
+		//log.Println("set online off")
+	}()
+
 	go func(conn *websocket.Conn) {
-		redisLogger.SetOnline(user.Id, user.IsActor(models.ActorCoach), true, 0)
-		start := time.Now()
-
-		defer func() {
-			dur := int64(time.Since(start) / time.Second)
-			redisLogger.SetOnline(user.Id, user.IsActor(models.ActorCoach), false, dur)
-			user.UpdateStat(models.StatOnlineTime, dur)
-			//log.Println("set online off")
-
-			psc.Close()
-		}()
+		defer psc.Close()
 
 		for {
 			event := &models.Event{}
