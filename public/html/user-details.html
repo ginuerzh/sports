@@ -24,7 +24,7 @@
                       <table class="table table-bordered table-hover">
                         <tbody>
                         <tr>
-                          <td>昵称：</td>
+                          <td width="30%">昵称：</td>
                           <td>{{userDetail.nickname}}</td>
                         </tr>
                         <tr>
@@ -34,6 +34,18 @@
                         <tr>
                           <td>账号类型：</td>
                           <td>{{userDetail.role|rolefilter}}</td>
+                        </tr>
+                        <tr>
+                          <td>是否在线：</td>
+                          <td>{{userDetail.online|yesornofilter}}</td>
+                        </tr>
+                        <tr>
+                          <td>是否为管理员：</td>
+                          <td>{{userDetail.admin|yesornofilter}}</td>
+                        </tr>
+                        <tr>
+                          <td>角色：</td>
+                          <td>{{userDetail.actor|actorfilter}}</td>
                         </tr>
                         <tr>
                           <td>状态：</td>
@@ -68,6 +80,10 @@
                           <td>{{userDetail.last_login_time}}</td>
                         </tr>
                         <tr>
+                          <td>在线时长：</td>
+                          <td>{{userDetail.onlinetime|timechange}}</td>
+                        </tr>
+                        <tr>
                           <td>注册时间：</td>
                           <td>{{userDetail.reg_time}}</td>
                         </tr>
@@ -76,8 +92,36 @@
                           <td>{{userDetail.address}}</td>
                         </tr>
                         <tr>
+                          <td>经常出没地：</td>
+                          <td>{{userDetail.oftenAppear}}</td>
+                        </tr>
+                        <tr>
+                          <td>用户访问行为：</td>
+                          <td>{{userDetail.action}}</td>
+                        </tr>
+                        <tr>
                           <td>用户个人说明：</td>
                           <td>{{userDetail.about}}</td>
+                        </tr>
+                        <tr>
+                          <td>个人签名：</td>
+                          <td>{{userDetail.sign}}</td>
+                        </tr>
+                        <tr>
+                          <td>心情：</td>
+                          <td>{{userDetail.emotion}}</td>
+                        </tr>
+                        <tr>
+                          <td>职业：</td>
+                          <td>{{userDetail.profession}}</td>
+                        </tr>
+                        <tr>
+                          <td>爱好：</td>
+                          <td>{{userDetail.fond}}</td>
+                        </tr>
+                        <tr>
+                          <td>家乡：</td>
+                          <td>{{userDetail.hometown}}</td>
                         </tr>
                         <tr>
                           <td>身高：</td>

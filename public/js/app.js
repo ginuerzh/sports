@@ -127,7 +127,7 @@ User = (function() {
     })(this));
   };
 
-  User.search = function(token, keyword, gender, age, ban_status, role, sort, callback, pageIndex, pageCount) {
+  User.search = function(token, keyword, gender, age, ban_status, role, actor, sort, callback, pageIndex, pageCount) {
     if (pageIndex == null) {
       pageIndex = 0;
     }
@@ -140,6 +140,7 @@ User = (function() {
       age: age,
       ban_status: ban_status,
       role: role,
+      actor: actor,
       sort: sort,
       page_index: pageIndex,
       page_count: pageCount,
@@ -211,6 +212,17 @@ User = (function() {
     this.phone = data.phone;
     this.about = data.about;
     this.address = data.address;
+    this.online = data.online;
+    this.onlinetime = data.onlinetime;
+    this.actor = data.actor;
+    this.admin = data.admin;
+    this.sign = data.sign;
+    this.emotion = data.emotion;
+    this.profession = data.profession;
+    this.fond = data.fond;
+    this.hometown = data.hometown;
+    this.oftenAppear = data.oftenAppear;
+    this.action = data.action;
     if (data.photos != null) {
       this.photos = data.photos;
     }
@@ -537,7 +549,7 @@ Tag = (function() {
 app.factory('articleq', [
   '$http', function($http) {
     return {
-      articlepost: function(article_id, title, author, imglist, contents, tag) {
+      articlepost: function(article_id, title, author, imglist, contents, tag, refer, refer_article) {
         return $http.post(Util.host + "/admin/article/post", {
           article_id: article_id,
           title: title,
@@ -545,6 +557,8 @@ app.factory('articleq', [
           image: imglist,
           contents: contents,
           tags: tag,
+          refer: refer,
+          refer_article: refer_article,
           access_token: userToken
         });
       },
@@ -651,9 +665,10 @@ Task = (function() {
 app.factory('taskq', [
   '$http', function($http) {
     return {
-      gettasklist: function(page_index) {
+      gettasklist: function(page_index, finished) {
         return $http.get(Util.host + '/admin/task/list', {
           params: {
+            finished: finished,
             page_index: page_index,
             page_count: 50,
             access_token: userToken
@@ -1007,6 +1022,41 @@ app.filter("statusname", function() {
     d = [date.getFullYear(), checkDate(date.getMonth() + 1), checkDate(date.getDate())].join("-");
     t = [checkDate(date.getHours()), checkDate(date.getMinutes()), checkDate(date.getSeconds())].join(":");
     return [d, t].join(" ");
+  };
+}).filter("timechange", function() {
+  return function(data) {
+    var hour, min, sec;
+    if (data >= 3600) {
+      hour = Math.floor(data / 3600);
+      min = Math.floor((data % 3600) / 60);
+      sec = (data % 3600) % 60;
+      return hour + " 小时 " + min + " 分 " + sec + " 秒";
+    } else if (data >= 60) {
+      min = Math.floor(data / 60);
+      sec = data % 60;
+      return min + " 分 " + sec + " 秒";
+    } else {
+      sec = data;
+      return sec + " 秒";
+    }
+  };
+}).filter("actorfilter", function() {
+  return function(data) {
+    var actor;
+    actor = "普通用户";
+    if (data.length > 0) {
+      actor = "教练";
+    }
+    return actor;
+  };
+}).filter("yesornofilter", function() {
+  return function(data) {
+    var yesorno;
+    yesorno = "否";
+    if (data) {
+      yesorno = "是";
+    }
+    return yesorno;
   };
 }).filter("articletitle", function() {
   return function(data) {
@@ -1379,12 +1429,14 @@ var articleimportController;
 
 articleimportController = app.controller('articleimportController', [
   'app', '$scope', '$rootScope', 'articleService', function(app, $scope, $rootScope, articleService) {
-    var refreshinput;
+    var refreshinput, uploadComplete, uploadFailed;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
     }
-    console.log($scope.content);
+    $scope.fileUrl = "";
+    $scope.errorShow = false;
+    $scope.updateError = false;
     $scope.tags = [
       {
         id: "SPORT_THEORY",
@@ -1405,11 +1457,13 @@ articleimportController = app.controller('articleimportController', [
     ];
     refreshinput = function() {
       $scope.title = "";
-      return $scope.content = "";
+      $scope.content = "";
+      $scope.fileUrl = "";
+      return $scope.nickname = "";
     };
     refreshinput();
     $scope.tag = $scope.tags[0];
-    return $scope.importarticle = function() {
+    $scope.importarticle = function() {
       var imglist;
       console.log("enter importarticle");
       if ($scope.title === "") {
@@ -1418,9 +1472,43 @@ articleimportController = app.controller('articleimportController', [
         return imglist = articleService.getimagelist($scope.content);
       } else {
         imglist = articleService.getimagelist($scope.content);
-        console.log(imglist);
-        articleService.articlepost("", $scope.title, userId, imglist, $scope.content, $scope.tag.id);
-        return refreshinput();
+        if ($scope.fileUrl.length > 0) {
+          if (($scope.nickname == null) || $scope.nickname.length === 0) {
+            $scope.errorShow = true;
+            return;
+          } else {
+            $scope.errorShow = false;
+            imglist.unshift($scope.fileUrl);
+          }
+        }
+        return articleService.articlepost("", $scope.title, userId, imglist, $scope.content, $scope.tag.id, $scope.name, $scope.artilceid).then(refreshinput);
+      }
+    };
+    $scope.uploadFile = function() {
+      var fd, url, xhr;
+      $scope.fileUrl = "";
+      fd = new FormData();
+      fd.append("filedata", document.getElementById('fileToUpload').files[0]);
+      xhr = new XMLHttpRequest();
+      xhr.addEventListener("load", uploadComplete, false);
+      xhr.addEventListener("error", uploadFailed, false);
+      xhr.addEventListener("abort", uploadFailed, false);
+      url = Util.host + '/1/file/upload';
+      xhr.open("POST", url);
+      return xhr.send(fd);
+    };
+    uploadFailed = function(evt) {
+      return $scope.updateError = true;
+    };
+    return uploadComplete = function(evt) {
+      var jsonData;
+      jsonData = JSON.parse(evt.target.response);
+      if (jsonData.error.error_id === 0) {
+        $scope.fileUrl = jsonData.response_data.fileurl;
+        $scope.$apply();
+        return $scope.updateError = false;
+      } else {
+        return $scope.updateError = true;
       }
     };
   }
@@ -1701,10 +1789,10 @@ var tasklistController;
 
 tasklistController = app.controller('tasklistController', [
   'app', '$scope', '$rootScope', 'taskService', 'utils', function(app, $scope, $rootScope, taskService, utils) {
-    var pageIndex, refreshtable, taskReason, taskStr, timeline;
+    var pageIndex, refreshtable, taskReason, taskfinished, timeline;
     $scope.checked = true;
     $scope.itemsByPage = 50;
-    taskStr = 'Auditting';
+    taskfinished = false;
     pageIndex = 0;
     taskReason = {
       "accept": "不错呦，加油！",
@@ -1721,15 +1809,15 @@ tasklistController = app.controller('tasklistController', [
       var tasklistInfo;
       if (!$scope.checked) {
         $scope.checked = true;
-        taskStr = 'Auditting';
+        taskfinished = fasle;
       }
       if (window.location.href.indexOf('tasklisthistory') > 0) {
         if ($scope.checked) {
           $scope.checked = false;
-          taskStr = 'Audited';
+          taskfinished = true;
         }
       }
-      tasklistInfo = taskService.gettasklist(taskStr, pageIndex);
+      tasklistInfo = taskService.gettasklist(taskfinished, pageIndex);
       $scope.rowCollection = tasklistInfo.tasklist;
       $scope.displayedCollection = [].concat($scope.rowCollection);
       return $scope.pagination = tasklistInfo.pagination;
@@ -1981,8 +2069,8 @@ userlistController = app.controller('userlistController', [
       return;
     }
     $scope.dropdowmItems = ["50项", "100项", "200项"];
-    $scope.selectType = ["选择", "性别", "年龄", "状态", "账号类型"];
-    $scope.selectItemList = [["选择"], ["男", "女"], ["< 20岁", "20～40岁", "> 40岁"], ["正常", "禁言", "拉黑"], ["手机", "微博", "邮箱"]];
+    $scope.selectType = ["选择", "性别", "年龄", "状态", "账号类型", "角色"];
+    $scope.selectItemList = [["选择"], ["男", "女"], ["< 20岁", "20～40岁", "> 40岁"], ["正常", "禁言", "拉黑"], ["手机", "微博", "邮箱"], ["管理员", "教练", "普通用户"]];
     $scope.selectItem = $scope.selectItemList[0];
     $scope.filtStr = ["启用过滤", "取消过滤"];
     $scope.filtState = 0;
@@ -2104,13 +2192,21 @@ userlistController = app.controller('userlistController', [
           } else {
             searchDetail.role = "email";
           }
+        } else if ($scope.typeIndex === 5) {
+          if ($scope.filtItemIndex === 0) {
+            searchDetail.actor = "admin";
+          } else if ($scope.filtItemIndex === 1) {
+            searchDetail.actor = "coach";
+          } else {
+            searchDetail.actor = "user";
+          }
         }
       } else {
         searchDetail.gender = "";
         searchDetail.age = "";
         searchDetail.ban_status = "";
       }
-      return User.search(userToken, searchDetail.keyword, searchDetail.gender, searchDetail.age, searchDetail.ban_status, searchDetail.role, sortStr, function(retData, page_index, page_total, total_count) {
+      return User.search(userToken, searchDetail.keyword, searchDetail.gender, searchDetail.age, searchDetail.ban_status, searchDetail.role, searchDetail.actor, sortStr, function(retData, page_index, page_total, total_count) {
         var useritem, _i, _j, _len, _results;
         if (checkRequest(retData)) {
           $scope.total_num = total_count;
@@ -2512,7 +2608,7 @@ app.factory('configq', [
 app.factory('taskService', [
   '$q', 'taskq', function($q, $taskq) {
     return {
-      gettasklist: function(tasktype, page_index) {
+      gettasklist: function(finished, page_index) {
         var tasklistInfo;
         tasklistInfo = {
           'tasklist': [],
@@ -2523,7 +2619,7 @@ app.factory('taskService', [
             'showPages': []
           }
         };
-        $taskq.gettasklist(page_index).success(function(response) {
+        $taskq.gettasklist(page_index, finished).success(function(response) {
           var task, taskitem, taskjson, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2, _results;
           _ref = response.users;
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
@@ -2551,18 +2647,7 @@ app.factory('taskService', [
                 duration: task.duration,
                 pass: -1
               };
-              switch (tasktype) {
-                case "Auditting":
-                  if (taskjson.status === "AUTHENTICATION") {
-                    tasklistInfo.tasklist.push(taskjson);
-                  }
-                  break;
-                case "Audited":
-                  if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {
-                    tasklistInfo.tasklist.push(taskjson);
-                  }
-                  break;
-              }
+              tasklistInfo.tasklist.push(taskjson);
             }
           }
           tasklistInfo.pagination.pageIndex = response.page_index;
@@ -2990,8 +3075,8 @@ app.factory('articleService', [
         });
         return articleinfo;
       },
-      articlepost: function(articleId, title, author, imglist, contents, tag) {
-        return $articleq.articlepost(articleId, title, author, imglist, contents, tag).success(function(response) {
+      articlepost: function(articleId, title, author, imglist, contents, tag, refer, refer_article) {
+        return $articleq.articlepost(articleId, title, author, imglist, contents, tag, refer, refer_article).success(function(response) {
           return console.log(response);
         });
       },
