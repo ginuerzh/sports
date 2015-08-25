@@ -375,6 +375,7 @@ func GetUserArticles(ids []string, paging *Paging) (int, []Article, error) {
 
 	query := bson.M{
 		"parent":    nil,
+		"refer":     nil,
 		"privilege": bson.M{"$ne": 2},
 		"author":    bson.M{"$in": ids},
 	}
@@ -426,6 +427,7 @@ func GetArticles(tag string, paging *Paging, withoutContent bool) (int, []Articl
 
 	query := bson.M{
 		"parent": nil,
+		"refer":  nil,
 	}
 	if len(tag) > 0 {
 		query["tags"] = tag

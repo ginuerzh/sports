@@ -221,13 +221,13 @@ func articleCommentsHandler(w http.ResponseWriter, redis *models.RedisLogger, fo
 }
 
 type postForm struct {
-	Id           string   `json:"article_id"`
-	Author       string   `json:"author"`
-	Contents     string   `json:"contents"`
-	Title        string   `json:"title"`
-	Image        []string `json:"image"`
-	Refer        string   `json:"refer"`
-	ReferArticle string   `json:"refer_article"`
+	Id       string   `json:"article_id"`
+	Author   string   `json:"author"`
+	Contents string   `json:"contents"`
+	Title    string   `json:"title"`
+	Image    []string `json:"image"`
+	//Refer        string   `json:"refer"`
+	ReferArticle string `json:"refer_article"`
 	//Tags     interface{} `json:"tags"`
 	Token string `json:"access_token" binding:"required"`
 }
@@ -243,24 +243,36 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 		return
 	}
 	user := &models.Account{Id: uid}
+	/*
+		var rid string
 
-	var rid string
-
-	if form.Refer != "" {
-		refer := &models.Account{}
-		refer.FindByNickname(form.Refer)
-		rid = refer.Id
+		if form.Refer != "" {
+			refer := &models.Account{}
+			refer.FindByNickname(form.Refer)
+			rid = refer.Id
+			if rid == "" {
+				writeResponse(w, errors.NewError(errors.NotExistsError))
+				return
+			}
+		}
+	*/
+	var aid, rid string
+	if form.ReferArticle != "" {
+		a := &models.Article{}
+		a.FindById(form.ReferArticle)
+		rid = a.Author
 		if rid == "" {
-			writeResponse(w, errors.NewError(errors.NotExistsError))
+			writeResponse(w, errors.NewError(errors.NotFoundError))
 			return
 		}
+		aid = a.Id.Hex()
 	}
 
 	article := &models.Article{
 		Parent:       form.Id,
 		Author:       form.Author,
 		Refer:        rid,
-		ReferArticle: form.ReferArticle,
+		ReferArticle: aid,
 		PubTime:      time.Now(),
 		//Tags:    []string{form.Tags},
 	}
