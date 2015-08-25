@@ -1602,7 +1602,7 @@ func (this *Account) Articles(typ string, paging *Paging) (int, []Article, error
 		query = bson.M{"author": this.Id, "parent": bson.M{"$ne": nil}}
 		//selector = bson.M{"content": 0, "contents": 0}
 	case "ARTICLES":
-		query = bson.M{"author": this.Id, "parent": nil}
+		query = bson.M{"author": this.Id, "parent": nil, "refer": nil}
 	default:
 		query = bson.M{"author": this.Id}
 	}
