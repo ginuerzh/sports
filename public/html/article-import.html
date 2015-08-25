@@ -9,8 +9,8 @@
             <br>
         <div class="ueditor"  config="config" ng-model="content"></div>
         <br>
-        <div>
-            昵&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;称:   <input type="text" size=100 ng-model="nickname" ng-init=""><p style="color: #ff0000" ng-if="errorShow">( *存在图片资源，昵称不能为空)</p>
+        <div ng-if="0">
+            昵&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;称:   <input type="text" size=100 ng-model="nickname" ng-init="test"><p style="color: #ff0000" ng-if="errorShow">( *存在图片资源，昵称不能为空)</p>
         </div>
         <br>
         <div>
@@ -19,7 +19,7 @@
 
         <br>
         <div align="right" >
-            <button type="button" class="btn btn-primary" ng-click="importarticle()" ng-disabled="content.length==0">提交</button>
+            <button type="button" class="btn btn-primary" ng-click="importarticle()" ng-disabled="content.length==0 && title.length==0 && fileUrl.length==0 && artilceid.length==0">提交</button>
         </div>
         <br>
         <div>
