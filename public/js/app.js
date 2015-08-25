@@ -1459,7 +1459,7 @@ articleimportController = app.controller('articleimportController', [
       $scope.title = "";
       $scope.content = "";
       $scope.fileUrl = "";
-      $scope.nickname = "";
+      $scope.nickname = "test";
       return $scope.artilceid = "";
     };
     postaticleFail = function(reason) {
