@@ -336,6 +336,7 @@ func NewArticles(ids []string, last string) (int, []string, error) {
 
 	query := bson.M{
 		"parent":    nil,
+		"refer":     nil,
 		"privilege": bson.M{"$ne": 2},
 		"author":    bson.M{"$in": ids},
 	}
