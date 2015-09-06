@@ -1,0 +1,49 @@
+<div ng-controller="userlistController">
+    <md-content style="background-color: rgb(134,176,185)" layout layout-align="center center" layout-wrap>
+        <div flex-sm="100" flex-md="50" flex-lg="33" flex-gt-lg="25" ng-repeat="individual in userList">
+            <div class="thumbnail">
+                <div layout="row" layout-wrap>
+                    <div flex="20">
+                        <a><img ng-src="{{individual.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a>
+                    </div>
+                    <div flex="30">
+                        昵称：{{individual.nickname}}
+                    </div>
+                    <div flex="25">
+                        性别：{{individual.gender|gender}}
+                    </div>
+                    <div flex="25">
+                        年龄：{{individual.age|age}}
+                    </div>
+                    <div flex="50">
+                        注册时间：{{individual.reg_time}}
+                    </div>
+                    <div flex="50">
+                        最后登陆时间：{{individual.last_login_time}}
+                    </div>
+                    <div flex="100">
+                        登录地址：{{individual.address}}
+                    </div>
+                    <div flex="100">
+                        状态：
+                    </div>
+                    <div flex="100">
+                        备注：
+                    </div>
+                </div>
+                <!--<tr>-->
+                    <!--<td rowspan="2" width="18%">-->
+                        <!--<a><img ng-src="{{individual.profile|profilefilter}}" class="img-circle" alt="资源无效，不能加载" onerror="this.src='../images/profile-404.png'"></a>-->
+                    <!--</td>-->
+                    <!--<td colspan="2">-->
+                        <!--昵称：{{individual.nickname}}-->
+                    <!--</td>-->
+                <!--</tr>-->
+                <!--{{individual.gender}}-->
+                <!--{{individual.address}}-->
+                <!--{{individual.last_login_time}}-->
+                <!--{{individual.reg_time}}-->
+            </div>
+        </div>
+    </md-content>
+</div>
