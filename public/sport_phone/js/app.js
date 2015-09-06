@@ -69,6 +69,15 @@ app.factory('userreq', [
             access_token: userToken
           }
         });
+      },
+      getuserlist: function(page_count, page_index) {
+        return $http.get(httphost + '/admin/user/list', {
+          params: {
+            access_token: userToken,
+            page_index: page_index,
+            page_count: page_count
+          }
+        });
       }
     };
   }
@@ -113,7 +122,7 @@ checkDate = function(data) {
 };
 
 app.config(function($routeProvider) {
-  var login, tasklist;
+  var login, tasklist, userlistlist;
   login = {
     templateUrl: 'html/user-login.html',
     controller: 'loginController'
@@ -122,7 +131,10 @@ app.config(function($routeProvider) {
     templateUrl: 'html/task-list.html',
     controller: 'tasklistController'
   };
-  return $routeProvider.when('/', login).when('/task', tasklist).when('/task/:id', tasklist);
+  userlistlist = {
+    templateUrl: 'html/user-list.html'
+  };
+  return $routeProvider.when('/', login).when('/task', tasklist).when('/task/:id', tasklist).when('/users', userlistlist);
 });
 
 app.run([
@@ -598,10 +610,71 @@ app.factory('userService', [
           return deferred.reject(data);
         });
         return deferred.promise;
+      },
+      getuserlist: function(page_count, page_list) {
+        var deferred, userJsonResult;
+        deferred = $q.defer();
+        userJsonResult = {
+          userList: []
+        };
+        $userreq.getuserlist(page_count, page_list).success(function(data, status, headers, config) {
+          var individual, user, _i, _len, _ref;
+          if (checkRequest(data)) {
+            _ref = data.users;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              user = _ref[_i];
+              individual = {
+                userid: user.userid,
+                nickname: user.nickname,
+                profile: user.profile,
+                gender: user.gender,
+                birth: Util._formatDate(new Date(user.birthday * 1000)),
+                age: user.birthday,
+                reg_time: Util._formatDate(new Date(user.reg_time * 1000)),
+                last_login_time: Util._formatDate(new Date(user.last_login_time * 1000)),
+                address: user.address
+              };
+              userJsonResult.userList.push(individual);
+            }
+            return deferred.resolve(userJsonResult);
+          } else {
+            return deferred.reject(userJsonResult);
+          }
+        }).error(function(data, status, headers, config) {
+          return deferred.reject(userJsonResult);
+        });
+        return deferred.promise;
       }
     };
   }
 ]);
+
+var Util;
+
+Util = (function() {
+  function Util() {}
+
+  Util._checkDate = function(data) {
+    var retData;
+    retData = data;
+    retData += "";
+    return retData.replace(/^(\d)$/, "0$1");
+  };
+
+  Util._formatDate = function(date) {
+    var d, t;
+    d = [date.getFullYear(), Util._checkDate(date.getMonth() + 1), Util._checkDate(date.getDate())].join("-");
+    t = [Util._checkDate(date.getHours()), Util._checkDate(date.getMinutes()), Util._checkDate(date.getSeconds())].join(":");
+    return [d, t].join(" ");
+  };
+
+  Util._birth2Age = function(birth) {
+    return new Date().getFullYear() - birth.getFullYear();
+  };
+
+  return Util;
+
+})();
 
 var loginController;
 
@@ -688,6 +761,7 @@ tasklistController = app.controller('tasklistController', [
     totalPage = 0;
     $scope.taskid = $routeParams.id;
     $rootScope.taskmenu = taskmenulist;
+    $rootScope.isTasklist = true;
     $rootScope.apptile = "运动纪录管理（待审批）";
     $scope.chatlist = [
       {
@@ -801,5 +875,28 @@ tasklistController = app.controller('tasklistController', [
       };
     };
     return refreshtable();
+  }
+]);
+
+var userlistController;
+
+userlistController = app.controller('userlistController', [
+  'app', '$scope', '$rootScope', 'userService', 'utils', '$mdSidenav', '$routeParams', '$mdDialog', function(app, $scope, $rootScope, userService, utils, $mdSidenav, $routeParams, $mdDialog) {
+    var page_count, page_index, refreshUserList;
+    if (!app.getCookie("isLogin")) {
+      window.location.href = "#/";
+      return;
+    }
+    page_count = 50;
+    page_index = 0;
+    $rootScope.taskmenu = [];
+    $rootScope.isTasklist = false;
+    $rootScope.apptile = "用户管理";
+    refreshUserList = function() {
+      return userService.getuserlist(page_count, page_index).then(function(data) {
+        return $scope.userList = data.userList;
+      });
+    };
+    return refreshUserList();
   }
 ]);
