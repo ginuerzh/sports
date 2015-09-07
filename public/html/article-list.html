@@ -42,10 +42,10 @@
                                 <tbody>
                                 <tr>
                                     <td class="col-md-2" align="center">ID:{{article.article_id}}</td>
-                                    <td class="col-md-7">
+                                    <td class="col-md-4">
                                         <div class="col-md-12"><a ng-href="{{'#/articledetail/'+article.article_id}}"> {{article.cover_text|articletitle}}</a> <font color="gray">(  评论数:{{article.comments_count}}  赞: {{article.thumbs_count}} )</font></div>
                                     </td>
-                                    <td class="col-md-3">
+                                    <td class="col-md-2">
                                         <div>
                                             <a ng-href="{{'#/detail/'+article.author.userid}}">{{article.author.nickname}}</a>
                                         </div>
@@ -53,7 +53,20 @@
                                             {{article.time|timeconvert}}
                                         </div>
                                     </td>
-
+                                    <td>
+                                        <div>
+                                            <label class="checkbox-inline">
+                                                <input type="radio" ng-click="article($index)" name="{{$index}}" checked>普通博文
+                                            </label>
+                                            <label class="checkbox-inline">
+                                                <input type="radio" ng-click="interview($index)" name="{{$index}}">访谈
+                                            </label>
+                                            <label class="checkbox-inline">
+                                                <input type="radio" ng-click="recommend($index)" name="{{$index}}">精华博文
+                                            </label>
+                                        </div>
+                                    </td>
+                                </tr>
                                 </tbody>
                             </table>
                         </div>
