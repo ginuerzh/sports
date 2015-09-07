@@ -1,0 +1,126 @@
+<div class="main-bg" ng-controller="coverController">
+    <div class="row"><h2 class="col-md-12">封面推荐设置</h2></div>
+    <div class="row">
+        <div class="col-md-6">
+            <table >
+                <tr>
+                    <td width="20%">
+                        访谈文章ID:
+                    </td>
+                    <td>
+                        <input type="text" size=90 ng-model="interviewid" ng-init="">
+                    </td>
+                </tr>
+                <tr>
+                    <td width="20%">
+                        封面图片:
+                    </td>
+                    <td>
+                        <input type="file"  name="fileToUpload" id="fileToUpload" />
+                        <p style="color: #ff0000" ng-if="updateError">( *上传失败，请重新上传)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        <img ng-src="{{fileUrl}}" class="img-small" ng-if="fileUrl.length>0">
+                    </td>
+                </tr>
+                <tr>
+                    <td width="20%">
+                        精华文章ID:
+                    </td>
+                    <td>
+                        <input type="text" size=90 ng-model="articleid" ng-init="">
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        <div align="right" >
+                            <button type="button" class="btn btn-primary" ng-click="uploadFile()">上传</button>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="col-md-6">
+            <div class="dashboard-rightSide">
+                <div class="">
+                    <ul role="tablist" class="nav nav-tabs" id="coverTab">
+                        <li class="active" role="presentation"><a aria-expanded="true" aria-controls="interview" data-toggle="tab" role="tab" id="interview-tab"  href="#interview" target="_self">访谈文章</a></li>
+                        <li role="presentation" class=""><a aria-controls="articletab" data-toggle="tab" id="article-tab"  role="tab" href="#article" aria-expanded="false" target="_self">精华博文</a></li>
+
+                    </ul>
+                    <div class="tab-content" id="dashboardTabContent">
+                        <div aria-labelledby="interview-tab" id="interview" class="tab-pane fade active in" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead>
+                                    <tr>
+                                        <th>访谈ID</th>
+                                        <th>访谈标题</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr ng-repeat="interview in interviewlist">
+                                        <td>{{interview.article_id}}</td>
+                                        <td><a ng-href="{{'#/articledetail/'+interview.article_id}}" target="_blank">{{interview.cover_text|articletitle}}</a></td>
+                                    </tr>
+
+                                    </tbody>
+                                </table>
+                                <div gen-pagination="pagination" id="interviewpage"></div>
+                            </div>
+                        </div>
+                        <div aria-labelledby="article-tab" id="articletab" class="tab-pane fade" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover">
+                                    <thead>
+                                    <tr>
+                                        <th>推荐博文ID</th>
+                                        <th>推荐博文标题</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr ng-repeat="article in articlelist">
+                                        <td>{{article.article_id}}</td>
+                                        <td><a ng-href="{{'#/articledetail/'+article.article_id}}" target="_blank">{{article.cover_text|articletitle}}</a></td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                                <div gen-pagination="articlepagination" id="articlepage"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <p class="col-md-12">历史封面推荐</p>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead>
+                <tr>
+                    <th>访谈文章</th>
+                    <th>封面图片</th>
+                    <th>精华文章</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr ng-repeat="cover in coversettinglist">
+                    <td><a ng-href="{{'#/articledetail/'+cover.article_id}}">{{cover.cover_text|articletitle}}(ID:{{cover.article_id}})</a></td>
+                    <td>
+                        <div align="center">
+                            <a ng-href="{{cover.image}}" target="_blank" data-toggle="tooltip"><img ng-src="{{cover.image}}" class="img-small"></a>
+                        </div>
+                    </td>
+                    <td><a ng-href="{{'#/articledetail/'+cover.article_id}}">{{cover.cover_text|articletitle}}(ID:{{cover.article_id}})</a></td>
+                    <td><button type="button" class="btn btn-primary" ng-click="delete($index)">删除</button></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

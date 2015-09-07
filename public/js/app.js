@@ -750,7 +750,7 @@ checkDate = function(data) {
 };
 
 app.config(function($routeProvider) {
-  var aricledetail, ariclelist, articleimport, authdetail, authenticationlist, configsetting, dashboard, login, tasklist, userdetail, userlist;
+  var aricledetail, ariclelist, articleimport, authdetail, authenticationlist, configsetting, coversetting, dashboard, login, tasklist, userdetail, userlist;
   login = {
     templateUrl: 'html/user-login.html',
     controller: 'loginController'
@@ -795,7 +795,11 @@ app.config(function($routeProvider) {
     templateUrl: 'html/system-setting.html',
     controller: 'configController'
   };
-  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/0', dashboard).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/5', authenticationlist).when('/6', configsetting).when('/authdetail/:authid', authdetail).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
+  coversetting = {
+    templateUrl: 'html/cover-setting.html',
+    controller: 'coverController'
+  };
+  return $routeProvider.when('/', login).when('/userlist', userlist).when('/detail/:id', userdetail).when('/articledetail/:artid', aricledetail).when('/0', dashboard).when('/1', userlist).when('/2', ariclelist).when('/3', tasklist).when('/4', articleimport).when('/5', authenticationlist).when('/6', configsetting).when('/7', coversetting).when('/authdetail/:authid', authdetail).when('/tag/:tagid', ariclelist).when('/tasklisthistory', tasklist);
 });
 
 app.run([
@@ -904,7 +908,7 @@ app.run([
       };
       return $rootScope.showDialog(dialogInfo);
     };
-    $rootScope.navBarItems = ["Dashboard", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理", "系统设置"];
+    $rootScope.navBarItems = ["Dashboard", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理", "系统设置", "封面推荐设置"];
     return app.rootScope = $rootScope;
   }
 ]);
@@ -1673,6 +1677,51 @@ configController = app.controller('configController', [
       }
     };
     return getconfiginfo();
+  }
+]);
+
+var coverController;
+
+coverController = app.controller('coverController', [
+  'app', '$scope', '$rootScope', 'articleService', function(app, $scope, $rootScope, articleService) {
+    var uploadComplete, uploadFailed;
+    if (!app.getCookie("isLogin")) {
+      window.location.href = "#/";
+      return;
+    }
+    $scope.uploadFile = function() {
+      var fd, url, xhr;
+      $scope.fileUrl = "";
+      fd = new FormData();
+      fd.append("filedata", document.getElementById('fileToUpload').files[0]);
+      xhr = new XMLHttpRequest();
+      xhr.addEventListener("load", uploadComplete, false);
+      xhr.addEventListener("error", uploadFailed, false);
+      xhr.addEventListener("abort", uploadFailed, false);
+      url = Util.host + '/1/file/upload';
+      xhr.open("POST", url);
+      return xhr.send(fd);
+    };
+    uploadFailed = function(evt) {
+      return $scope.updateError = true;
+    };
+    uploadComplete = function(evt) {
+      var jsonData;
+      jsonData = JSON.parse(evt.target.response);
+      if (jsonData.error.error_id === 0) {
+        $scope.fileUrl = jsonData.response_data.fileurl;
+        $scope.$apply();
+        return $scope.updateError = false;
+      } else {
+        return $scope.updateError = true;
+      }
+    };
+    $scope.selectinterview = function(interviewid) {
+      return $scope.interviewid = interviewid;
+    };
+    return $scope.selectaritcle = function(articleid) {
+      return $scope.articleid = articleid;
+    };
   }
 ]);
 
@@ -3009,101 +3058,6 @@ app.factory('configService', [
       },
       setconfig: function(info) {
         return $configq.setconfig(info).success();
-      }
-    };
-  }
-]);
-
-app.factory('articleService', [
-  '$q', 'articleq', function($q, $articleq) {
-    return {
-      getarticlelist: function(sort, page_index, page_count) {
-        var articleinfo;
-        articleinfo = {
-          'articlelist': [],
-          'pagination': {
-            'total': 0,
-            'pageIndex': 0,
-            'pagetotal': 0,
-            'showPages': []
-          }
-        };
-        $articleq.getarticlelist(sort, page_index, page_count).success(function(response) {
-          var item, _i, _j, _len, _ref, _ref1, _results;
-          if (checkRequest(response)) {
-            _ref = response.articles;
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              item = _ref[_i];
-              articleinfo.articlelist.push(item);
-            }
-            articleinfo.pagination.pageIndex = response.page_index;
-            articleinfo.pagination.total = response.total_number;
-            articleinfo.pagination.showPages = (function() {
-              _results = [];
-              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
-              return _results;
-            }).apply(this);
-            return articleinfo.pagination.pagetotal = response.page_total;
-          }
-        });
-        return articleinfo;
-      },
-      searcharticle: function(keyword, tag, sort, pageIndex, pageCount) {
-        var articleinfo;
-        articleinfo = {
-          'articlelist': [],
-          'pagination': {
-            'total': 0,
-            'pageIndex': 0,
-            'pagetotal': 0,
-            'showPages': []
-          }
-        };
-        $articleq.searcharticle(keyword, tag, sort, pageIndex, pageCount).success(function(response) {
-          var item, _i, _j, _len, _ref, _ref1, _results;
-          if (checkRequest(response)) {
-            _ref = response.articles;
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              item = _ref[_i];
-              articleinfo.articlelist.push(item);
-            }
-            articleinfo.pagination.pageIndex = response.page_index;
-            articleinfo.pagination.total = response.total_number;
-            articleinfo.pagination.showPages = (function() {
-              _results = [];
-              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
-              return _results;
-            }).apply(this);
-            return articleinfo.pagination.pagetotal = response.page_total;
-          }
-        });
-        return articleinfo;
-      },
-      articlepost: function(articleId, title, author, imglist, contents, tag, refer, refer_article) {
-        var deferred;
-        deferred = $q.defer();
-        $articleq.articlepost(articleId, title, author, imglist, contents, tag, refer, refer_article).success(function(response) {
-          if (checkRequest(response)) {
-            return deferred.resolve(response);
-          } else {
-            return deferred.reject(response.error_desc);
-          }
-        });
-        return deferred.promise;
-      },
-      getimagelist: function(contents) {
-        var elem, imglist;
-        imglist = (function() {
-          var _i, _len, _ref, _results;
-          _ref = $(contents).find("img");
-          _results = [];
-          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-            elem = _ref[_i];
-            _results.push(elem.src);
-          }
-          return _results;
-        })();
-        return imglist;
       }
     };
   }
