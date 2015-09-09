@@ -106,6 +106,7 @@
                 <thead>
                 <tr>
                     <th>访谈标题</th>
+                    <th>访谈ID</th>
                     <th>访谈内容</th>
                     <th>封面图片</th>
                     <th>推荐作者ID</th>
@@ -116,10 +117,12 @@
                 <tbody>
                 <tr ng-repeat="cover in coversettinglist">
                     <td>{{cover.cover_text}}</td>
+                    <td><a ng-href="{{'#/articledetail/'+cover.article_id}}">{{cover.article_id}}</a></td>
                     <td><a ng-href="{{'#/articledetail/'+cover.article_id}}">{{cover.contents|articletitle}}</a></td>
                     <td>
                         <div align="center">
-                            <a ng-href="{{cover.cover_image}}" target="_blank" data-toggle="tooltip"><img ng-src="{{cover.cover_image}}" class="img-small"></a>
+                            <a ng-href="{{cover.cover_image}}" target="_blank" data-toggle="tooltip" ng-if="cover.cover_image.length>0"><img ng-src="{{cover.cover_image}}" class="img-small"></a>
+                            <p ng-if="cover.cover_image.length==0">未设置封面图片</p>
                         </div>
                     </td>
                     <td><a ng-href="{{'#/detail/'+cover.refer}}" target="_blank">{{cover.refer}}</a></td>
