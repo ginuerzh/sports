@@ -1374,7 +1374,7 @@ var articleListController;
 
 articleListController = app.controller('articleListController', [
   'app', '$scope', '$routeParams', '$rootScope', 'articleService', function(app, $scope, $routeParams, $rootScope, articleService) {
-    var articleMark, articleMarkFailed, articlePageIndex, pageCount, searchMode, searchStr, tagID;
+    var articleMark, articleMarkFailed, articlePageIndex, getTopicList, pageCount, searchMode, searchStr, tagID;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
@@ -1401,6 +1401,12 @@ articleListController = app.controller('articleListController', [
     };
     articleMark = function(artcile_id, type) {
       return articleService.articlemark(artcile_id, type).then('', articleMarkFailed);
+    };
+    getTopicList = function(index) {
+      var topiclist;
+      topiclist = articleService.gettopiclist('', '', index, pageCount);
+      $scope.topiclist = topiclist.articlelist;
+      return $scope.topicpagination = topiclist.pagination;
     };
     $scope.getArticleList = function(page_index) {
       var articleinfo;
@@ -1466,17 +1472,22 @@ articleListController = app.controller('articleListController', [
     };
     $scope.$on('genPagination', function(event, p) {
       event.stopPropagation();
-      if (searchMode || (typeof tagID !== "undefined" && tagID !== null)) {
-        return $scope.search(p);
-      } else {
-        return $scope.getArticleList(p);
+      if (id === 'articlepage') {
+        if (searchMode || (typeof tagID !== "undefined" && tagID !== null)) {
+          return $scope.search(p);
+        } else {
+          return $scope.getArticleList(p);
+        }
+      } else if (id === 'topiclistpage') {
+        return getTopicList(p);
       }
     });
     tagID = $routeParams.tagid;
     if (tagID != null) {
       return $scope.search(0);
     } else {
-      return $scope.getArticleList(0);
+      $scope.getArticleList(0);
+      return getTopicList(0);
     }
   }
 ]);
