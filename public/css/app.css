@@ -1937,3 +1937,7 @@ table{
     margin-left: 2%;
     margin-right: 2%;
 }
+
+#topictable tr{
+    height: 40px;
+}

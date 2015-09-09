@@ -56,13 +56,13 @@
                                     <td>
                                         <div>
                                             <label class="checkbox-inline">
-                                                <input type="radio" ng-click="article($index)" name="{{$index}}" checked>普通博文
+                                                <input type="radio" ng-click="article($index)" name="{{$index}}" ng-checked="article.type==0">普通博文
                                             </label>
                                             <label class="checkbox-inline">
-                                                <input type="radio" ng-click="interview($index)" name="{{$index}}">访谈
+                                                <input type="radio" ng-click="interview($index)" name="{{$index}}" ng-checked="article.type==1">访谈
                                             </label>
                                             <label class="checkbox-inline">
-                                                <input type="radio" ng-click="recommend($index)" name="{{$index}}">精华博文
+                                                <input type="radio" ng-click="recommend($index)" name="{{$index}}" ng-checked="article.type==2">精华博文
                                             </label>
                                         </div>
                                     </td>
