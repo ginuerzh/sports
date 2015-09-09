@@ -2,17 +2,17 @@
     <div class="row"><h2 class="col-md-12">封面推荐设置</h2></div>
     <div class="row">
         <div class="col-md-6">
-            <table >
+            <table id="topictable">
                 <tr>
-                    <td width="20%">
+                    <td >
                         访谈文章ID:
                     </td>
                     <td>
-                        <input type="text" size=90 ng-model="interviewid" ng-init="">
+                        <input type="text" size=50 ng-model="interviewid" ng-init="">
                     </td>
                 </tr>
                 <tr>
-                    <td width="20%">
+                    <td >
                         封面图片:
                     </td>
                     <td>
@@ -26,17 +26,17 @@
                     </td>
                 </tr>
                 <tr>
-                    <td width="20%">
+                    <td >
                         精华文章ID:
                     </td>
                     <td>
-                        <input type="text" size=90 ng-model="articleid" ng-init="">
+                        <input type="text" size=50 ng-model="articleid" ng-init="">
                     </td>
                 </tr>
                 <tr>
                     <td colspan="2">
                         <div align="right" >
-                            <button type="button" class="btn btn-primary" ng-click="uploadFile()">上传</button>
+                            <button type="button" class="btn btn-primary" ng-click="uploadFile()" ng-disabled="interviewid.length==0">上传</button>
                         </div>
                     </td>
                 </tr>
@@ -47,12 +47,12 @@
                 <div class="">
                     <ul role="tablist" class="nav nav-tabs" id="coverTab">
                         <li class="active" role="presentation"><a aria-expanded="true" aria-controls="interview" data-toggle="tab" role="tab" id="interview-tab"  href="#interview" target="_self">访谈文章</a></li>
-                        <li role="presentation" class=""><a aria-controls="articletab" data-toggle="tab" id="article-tab"  role="tab" href="#article" aria-expanded="false" target="_self">精华博文</a></li>
+                        <li role="presentation" class=""><a aria-controls="articletab" data-toggle="tab" id="article-tab"  role="tab" href="#articletab" aria-expanded="false" target="_self">精华博文</a></li>
 
                     </ul>
                     <div class="tab-content" id="dashboardTabContent">
                         <div aria-labelledby="interview-tab" id="interview" class="tab-pane fade active in" role="tabpanel">
-                            <div class="table-responsive">
+                            <div class="table-responsive" ng-if="interviewlist.length>0">
                                 <table class="table table-bordered table-hover">
                                     <thead>
                                     <tr>
@@ -62,7 +62,7 @@
                                     </thead>
                                     <tbody>
                                     <tr ng-repeat="interview in interviewlist">
-                                        <td>{{interview.article_id}}</td>
+                                        <td ng-click="selectinterview(interview.article_id)">{{interview.article_id}}</td>
                                         <td><a ng-href="{{'#/articledetail/'+interview.article_id}}" target="_blank">{{interview.cover_text|articletitle}}</a></td>
                                     </tr>
 
@@ -70,9 +70,10 @@
                                 </table>
                                 <div gen-pagination="pagination" id="interviewpage"></div>
                             </div>
+                            <p ng-if="interviewlist.length==0">&nbsp&nbsp&nbsp&nbsp暂无访谈文章</p>
                         </div>
                         <div aria-labelledby="article-tab" id="articletab" class="tab-pane fade" role="tabpanel">
-                            <div class="table-responsive">
+                            <div class="table-responsive" ng-if="articlelist.length>0">
                                 <table class="table table-bordered table-hover">
                                     <thead>
                                     <tr>
@@ -82,13 +83,14 @@
                                     </thead>
                                     <tbody>
                                     <tr ng-repeat="article in articlelist">
-                                        <td>{{article.article_id}}</td>
+                                        <td ng-click="selectaritcle(article.article_id)">{{article.article_id}}</td>
                                         <td><a ng-href="{{'#/articledetail/'+article.article_id}}" target="_blank">{{article.cover_text|articletitle}}</a></td>
                                     </tr>
                                     </tbody>
                                 </table>
                                 <div gen-pagination="articlepagination" id="articlepage"></div>
                             </div>
+                            <p ng-if="articlelist.length==0">&nbsp&nbsp&nbsp&nbsp暂无推荐博文</p>
                         </div>
                     </div>
                 </div>
@@ -96,31 +98,39 @@
             </div>
         </div>
     </div>
+    <div class="row"><p class="col-md-12">历史封面推荐</p></div>
     <div class="row">
-        <p class="col-md-12">历史封面推荐</p>
-        <div class="table-responsive">
+        <div class="table-responsive" ng-if="coversettinglist.length>0">
+
             <table class="table table-bordered table-hover">
                 <thead>
                 <tr>
-                    <th>访谈文章</th>
+                    <th>访谈标题</th>
+                    <th>访谈内容</th>
                     <th>封面图片</th>
-                    <th>精华文章</th>
+                    <th>推荐作者ID</th>
+                    <th>精华文章ID</th>
                     <th>操作</th>
                 </tr>
                 </thead>
                 <tbody>
                 <tr ng-repeat="cover in coversettinglist">
-                    <td><a ng-href="{{'#/articledetail/'+cover.article_id}}">{{cover.cover_text|articletitle}}(ID:{{cover.article_id}})</a></td>
+                    <td>{{cover.cover_text}}</td>
+                    <td><a ng-href="{{'#/articledetail/'+cover.article_id}}">{{cover.contents|articletitle}}</a></td>
                     <td>
                         <div align="center">
-                            <a ng-href="{{cover.image}}" target="_blank" data-toggle="tooltip"><img ng-src="{{cover.image}}" class="img-small"></a>
+                            <a ng-href="{{cover.cover_image}}" target="_blank" data-toggle="tooltip"><img ng-src="{{cover.cover_image}}" class="img-small"></a>
                         </div>
                     </td>
-                    <td><a ng-href="{{'#/articledetail/'+cover.article_id}}">{{cover.cover_text|articletitle}}(ID:{{cover.article_id}})</a></td>
+                    <td><a ng-href="{{'#/detail/'+cover.refer}}" target="_blank">{{cover.refer}}</a></td>
+                    <td><a ng-href="{{'#/articledetail/'+cover.refer_article}}">{{cover.refer_article}}</a></td>
                     <td><button type="button" class="btn btn-primary" ng-click="delete($index)">删除</button></td>
                 </tr>
                 </tbody>
             </table>
+            <div gen-pagination="topiclistpagination" id="topiclistpage"></div>
         </div>
+        <p ng-if="coversettinglist.length==0">&nbsp&nbsp&nbsp&nbsp暂未设置推荐</p>
+    </div>
     </div>
 </div>

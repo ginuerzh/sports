@@ -549,7 +549,7 @@ Tag = (function() {
 app.factory('articleq', [
   '$http', function($http) {
     return {
-      articlepost: function(article_id, title, author, imglist, contents, tag, refer, refer_article) {
+      articlepost: function(article_id, title, author, imglist, contents, tag) {
         return $http.post(Util.host + "/admin/article/post", {
           article_id: article_id,
           title: title,
@@ -557,17 +557,16 @@ app.factory('articleq', [
           image: imglist,
           contents: contents,
           tags: tag,
-          refer: refer,
-          refer_article: refer_article,
           access_token: userToken
         });
       },
-      getarticlelist: function(sort, page_index, page_count) {
+      getarticlelist: function(sort, tag, page_index, page_count) {
         return $http.get(Util.host + "/admin/article/list", {
           params: {
             sort: sort,
             page_index: page_index,
             page_count: page_count,
+            tag: tag,
             access_token: userToken
           }
         });
@@ -582,6 +581,38 @@ app.factory('articleq', [
             page_count: pageCount,
             access_token: userToken
           }
+        });
+      },
+      articlemark: function(article_id, type) {
+        return $http.post(Util.host + "/admin/article/mark", {
+          article_id: article_id,
+          type: type,
+          access_token: userToken
+        });
+      },
+      topicpost: function(topic, rec, image) {
+        return $http.post(Util.host + "/admin/article/topic/post", {
+          topic: topic,
+          rec: rec,
+          image: image,
+          access_token: userToken
+        });
+      },
+      gettopiclist: function(sort, tag, page_index, page_count) {
+        return $http.get(Util.host + "/admin/article/topic/list", {
+          params: {
+            sort: sort,
+            page_index: page_index,
+            page_count: page_count,
+            tag: tag,
+            access_token: userToken
+          }
+        });
+      },
+      deletearticle: function(article_id) {
+        return $http.post(Util.host + "/admin/article/delete", {
+          article_id: article_id,
+          access_token: userToken
         });
       }
     };
@@ -1343,7 +1374,7 @@ var articleListController;
 
 articleListController = app.controller('articleListController', [
   'app', '$scope', '$routeParams', '$rootScope', 'articleService', function(app, $scope, $routeParams, $rootScope, articleService) {
-    var articlePageIndex, pageCount, searchMode, searchStr, tagID;
+    var articleMark, articleMarkFailed, articlePageIndex, pageCount, searchMode, searchStr, tagID;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
@@ -1365,9 +1396,15 @@ articleListController = app.controller('articleListController', [
       "data": ""
     };
     $scope.pagination = {};
+    articleMarkFailed = function(reason) {
+      return alert("设置不成功，" + reason);
+    };
+    articleMark = function(artcile_id, type) {
+      return articleService.articlemark(artcile_id, type).then('', articleMarkFailed);
+    };
     $scope.getArticleList = function(page_index) {
       var articleinfo;
-      articleinfo = articleService.getarticlelist('', page_index, pageCount);
+      articleinfo = articleService.getarticlelist('', '', page_index, pageCount);
       $scope.articleList = articleinfo.articlelist;
       return $scope.pagination = articleinfo.pagination;
     };
@@ -1412,6 +1449,21 @@ articleListController = app.controller('articleListController', [
         return $scope.getArticleList(articlePageIndex);
       }
     };
+    $scope.article = function(index) {
+      if ($scope.articleList[index].type !== 0) {
+        return articleMark($scope.articleList[index].article_id, '');
+      }
+    };
+    $scope.interview = function(index) {
+      if ($scope.articleList[index].type !== 1) {
+        return articleMark($scope.articleList[index].article_id, 'topic');
+      }
+    };
+    $scope.recommend = function(index) {
+      if ($scope.articleList[index].type !== 2) {
+        return articleMark($scope.articleList[index].article_id, 'rec');
+      }
+    };
     $scope.$on('genPagination', function(event, p) {
       event.stopPropagation();
       if (searchMode || (typeof tagID !== "undefined" && tagID !== null)) {
@@ -1433,14 +1485,11 @@ var articleimportController;
 
 articleimportController = app.controller('articleimportController', [
   'app', '$scope', '$rootScope', 'articleService', function(app, $scope, $rootScope, articleService) {
-    var postaticleFail, refreshinput, uploadComplete, uploadFailed;
+    var postaticleFail, refreshinput;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
     }
-    $scope.fileUrl = "";
-    $scope.errorShow = false;
-    $scope.updateError = false;
     $scope.tags = [
       {
         id: "SPORT_THEORY",
@@ -1461,17 +1510,14 @@ articleimportController = app.controller('articleimportController', [
     ];
     refreshinput = function() {
       $scope.title = "";
-      $scope.content = "";
-      $scope.fileUrl = "";
-      $scope.nickname = "test";
-      return $scope.artilceid = "";
+      return $scope.content = "";
     };
     postaticleFail = function(reason) {
       return alert("导入不成功，" + reason);
     };
     refreshinput();
     $scope.tag = $scope.tags[0];
-    $scope.importarticle = function() {
+    return $scope.importarticle = function() {
       var imglist;
       console.log("enter importarticle");
       if ($scope.title === "") {
@@ -1480,43 +1526,7 @@ articleimportController = app.controller('articleimportController', [
         return imglist = articleService.getimagelist($scope.content);
       } else {
         imglist = articleService.getimagelist($scope.content);
-        if ($scope.fileUrl.length > 0) {
-          if (($scope.nickname == null) || $scope.nickname.length === 0) {
-            $scope.errorShow = true;
-            return;
-          } else {
-            $scope.errorShow = false;
-            imglist.unshift($scope.fileUrl);
-          }
-        }
-        return articleService.articlepost("", $scope.title, userId, imglist, $scope.content, $scope.tag.id, $scope.nickname, $scope.artilceid).then(refreshinput, postaticleFail);
-      }
-    };
-    $scope.uploadFile = function() {
-      var fd, url, xhr;
-      $scope.fileUrl = "";
-      fd = new FormData();
-      fd.append("filedata", document.getElementById('fileToUpload').files[0]);
-      xhr = new XMLHttpRequest();
-      xhr.addEventListener("load", uploadComplete, false);
-      xhr.addEventListener("error", uploadFailed, false);
-      xhr.addEventListener("abort", uploadFailed, false);
-      url = Util.host + '/1/file/upload';
-      xhr.open("POST", url);
-      return xhr.send(fd);
-    };
-    uploadFailed = function(evt) {
-      return $scope.updateError = true;
-    };
-    return uploadComplete = function(evt) {
-      var jsonData;
-      jsonData = JSON.parse(evt.target.response);
-      if (jsonData.error.error_id === 0) {
-        $scope.fileUrl = jsonData.response_data.fileurl;
-        $scope.$apply();
-        return $scope.updateError = false;
-      } else {
-        return $scope.updateError = true;
+        return articleService.articlepost("", $scope.title, userId, imglist, $scope.content, $scope.tag.id).then(refreshinput, postaticleFail);
       }
     };
   }
@@ -1684,44 +1694,104 @@ var coverController;
 
 coverController = app.controller('coverController', [
   'app', '$scope', '$rootScope', 'articleService', function(app, $scope, $rootScope, articleService) {
-    var uploadComplete, uploadFailed;
+    var getArticleList, getInterviewList, getList, getTopicList, pageCount, refreshCover, setFailed, topicPost, topic_index, uploadComplete, uploadFailed;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
     }
-    $scope.uploadFile = function() {
-      var fd, url, xhr;
-      $scope.fileUrl = "";
-      fd = new FormData();
-      fd.append("filedata", document.getElementById('fileToUpload').files[0]);
-      xhr = new XMLHttpRequest();
-      xhr.addEventListener("load", uploadComplete, false);
-      xhr.addEventListener("error", uploadFailed, false);
-      xhr.addEventListener("abort", uploadFailed, false);
-      url = Util.host + '/1/file/upload';
-      xhr.open("POST", url);
-      return xhr.send(fd);
+    $scope.interviewid = "";
+    pageCount = 20;
+    topic_index = 0;
+    getList = function(type, page_index) {
+      var articleinfo;
+      articleinfo = articleService.getarticlelist('', type, page_index, pageCount);
+      if (type === 'topic') {
+        $scope.interviewlist = articleinfo.articlelist;
+        return $scope.pagination = articleinfo.pagination;
+      } else if (type === 'rec') {
+        $scope.articlelist = articleinfo.articlelist;
+        return $scope.articlepagination = articleinfo.pagination;
+      }
+    };
+    setFailed = function(reason) {
+      return alert("操作不成功，" + reason);
+    };
+    getInterviewList = function(page_index) {
+      return getList('topic', page_index);
+    };
+    getArticleList = function(page_index) {
+      return getList('rec', page_index);
+    };
+    getTopicList = function(index) {
+      var topiclist;
+      topiclist = articleService.gettopiclist('', '', index, pageCount);
+      topic_index = index;
+      $scope.coversettinglist = topiclist.articlelist;
+      return $scope.topiclistpagination = topiclist.pagination;
     };
     uploadFailed = function(evt) {
       return $scope.updateError = true;
+    };
+    refreshCover = function() {
+      getInterviewList(0);
+      getArticleList(0);
+      getTopicList(topic_index);
+      $scope.interviewid = '';
+      $scope.articleid = '';
+      return $scope.fileUrl = '';
+    };
+    topicPost = function() {
+      return articleService.topicpost($scope.interviewid, $scope.articleid, $scope.fileUrl).then(refreshCover, setFailed);
     };
     uploadComplete = function(evt) {
       var jsonData;
       jsonData = JSON.parse(evt.target.response);
       if (jsonData.error.error_id === 0) {
         $scope.fileUrl = jsonData.response_data.fileurl;
+        topicPost();
         $scope.$apply();
         return $scope.updateError = false;
       } else {
         return $scope.updateError = true;
       }
     };
+    $scope.uploadFile = function() {
+      var fd, url, xhr;
+      $scope.fileUrl = "";
+      if (document.getElementById('fileToUpload').files[0] != null) {
+        fd = new FormData();
+        fd.append("filedata", document.getElementById('fileToUpload').files[0]);
+        xhr = new XMLHttpRequest();
+        xhr.addEventListener("load", uploadComplete, false);
+        xhr.addEventListener("error", uploadFailed, false);
+        xhr.addEventListener("abort", uploadFailed, false);
+        url = Util.host + '/1/file/upload';
+        xhr.open("POST", url);
+        return xhr.send(fd);
+      } else {
+        return topicPost();
+      }
+    };
     $scope.selectinterview = function(interviewid) {
       return $scope.interviewid = interviewid;
     };
-    return $scope.selectaritcle = function(articleid) {
+    $scope.selectaritcle = function(articleid) {
       return $scope.articleid = articleid;
     };
+    $scope["delete"] = function(index) {
+      return articleService.deletearticle($scope.coversettinglist[index].article_id).then(refreshCover, setFailed);
+    };
+    $scope.$on('genPagination', function(event, p, id) {
+      event.stopPropagation();
+      if (id === 'interviewpage') {
+        return getInterviewList(p);
+      } else if (id === 'articlepage') {
+        return getArticleList(p);
+      } else if (id === 'topiclistpage') {
+        return getTopicList(p);
+      }
+    });
+    return refreshCover();
   }
 ]);
 
@@ -3058,6 +3128,183 @@ app.factory('configService', [
       },
       setconfig: function(info) {
         return $configq.setconfig(info).success();
+      }
+    };
+  }
+]);
+
+app.factory('articleService', [
+  '$q', 'articleq', function($q, $articleq) {
+    return {
+      getarticlelist: function(sort, tag, page_index, page_count) {
+        var articleinfo;
+        articleinfo = {
+          'articlelist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $articleq.getarticlelist(sort, tag, page_index, page_count).success(function(response) {
+          var item, _i, _j, _len, _ref, _ref1, _results;
+          if (checkRequest(response)) {
+            _ref = response.articles;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              item.type = 0;
+              if (item.tags != null) {
+                if (item.tags.indexOf('rec') !== -1) {
+                  item.type = 2;
+                } else if (item.tags.indexOf('topic') !== -1) {
+                  item.type = 1;
+                }
+              }
+              articleinfo.articlelist.push(item);
+            }
+            articleinfo.pagination.pageIndex = response.page_index;
+            articleinfo.pagination.total = response.total_number;
+            articleinfo.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return articleinfo.pagination.pagetotal = response.page_total;
+          }
+        });
+        return articleinfo;
+      },
+      searcharticle: function(keyword, tag, sort, pageIndex, pageCount) {
+        var articleinfo;
+        articleinfo = {
+          'articlelist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $articleq.searcharticle(keyword, tag, sort, pageIndex, pageCount).success(function(response) {
+          var item, _i, _j, _len, _ref, _ref1, _results;
+          if (checkRequest(response)) {
+            _ref = response.articles;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              if (item.tags.indexOf('rec') !== -1) {
+                item.type = 2;
+              } else if (item.tags.indexOf('topic') !== -1) {
+                item.type = 1;
+              } else {
+                item.type = 0;
+              }
+              articleinfo.articlelist.push(item);
+            }
+            articleinfo.pagination.pageIndex = response.page_index;
+            articleinfo.pagination.total = response.total_number;
+            articleinfo.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return articleinfo.pagination.pagetotal = response.page_total;
+          }
+        });
+        return articleinfo;
+      },
+      articlepost: function(articleId, title, author, imglist, contents, tag) {
+        var deferred;
+        deferred = $q.defer();
+        $articleq.articlepost(articleId, title, author, imglist, contents, tag).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response.error_desc);
+          }
+        });
+        return deferred.promise;
+      },
+      getimagelist: function(contents) {
+        var elem, imglist;
+        imglist = (function() {
+          var _i, _len, _ref, _results;
+          _ref = $(contents).find("img");
+          _results = [];
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            elem = _ref[_i];
+            _results.push(elem.src);
+          }
+          return _results;
+        })();
+        return imglist;
+      },
+      articlemark: function(article_id, type) {
+        var deferred;
+        deferred = $q.defer();
+        $articleq.articlemark(article_id, type).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response.error_desc);
+          }
+        });
+        return deferred.promise;
+      },
+      topicpost: function(topic, rec, image) {
+        var deferred;
+        deferred = $q.defer();
+        $articleq.topicpost(topic, rec, image).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response.error_desc);
+          }
+        });
+        return deferred.promise;
+      },
+      gettopiclist: function(sort, tag, page_index, page_count) {
+        var topiclist;
+        topiclist = {
+          'articlelist': [],
+          'pagination': {
+            'total': 0,
+            'pageIndex': 0,
+            'pagetotal': 0,
+            'showPages': []
+          }
+        };
+        $articleq.gettopiclist(sort, tag, page_index, page_count).success(function(response) {
+          var item, _i, _j, _len, _ref, _ref1, _results;
+          if (checkRequest(response)) {
+            _ref = response.articles;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              item = _ref[_i];
+              topiclist.articlelist.push(item);
+            }
+            topiclist.pagination.pageIndex = response.page_index;
+            topiclist.pagination.total = response.total_number;
+            topiclist.pagination.showPages = (function() {
+              _results = [];
+              for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
+              return _results;
+            }).apply(this);
+            return topiclist.pagination.pagetotal = response.page_total;
+          }
+        });
+        return topiclist;
+      },
+      deletearticle: function(article_id) {
+        var deferred;
+        deferred = $q.defer();
+        $articleq.deletearticle(article_id).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response.error_desc);
+          }
+        });
+        return deferred.promise;
       }
     };
   }
