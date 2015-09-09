@@ -29,12 +29,12 @@
     <div class="row">
         <div class="col-md-12 profile-rightSide">
         <ul role="tablist" class="nav nav-tabs">
-            <li class="active" role="presentation"><a aria-expanded="true" aria-controls="home" data-toggle="tab" role="tab" id="new-tab" target="_self">最新博文</a></li>
+            <li class="active" role="presentation"><a aria-expanded="true" aria-controls="home" data-toggle="tab" role="tab" id="new-tab" href="#home" target="_self">最新博文</a></li>
             <li role="presentation" class=""><a a aria-controls="interviewtab" data-toggle="tab" id="interview-tab"  role="tab" href="#interviewtab" aria-expanded="false" target="_self">悦动达人</a></li>
 
         </ul>
         <div class="tab-content">
-            <div aria-labelledby="new-tab" class="tab-pane fade active in" role="tabpanel">
+            <div aria-labelledby="new-tab" id="home" class="tab-pane fade active in" role="tabpanel">
                 <ul class="media-list">
                     <li ng-repeat="article in articleList">
                         <div >
