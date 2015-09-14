@@ -614,6 +614,14 @@ app.factory('articleq', [
           article_id: article_id,
           access_token: userToken
         });
+      },
+      getarticleinfo: function(article_id) {
+        return $http.get(Util.host + "/admin/article/info", {
+          params: {
+            article_id: article_id,
+            access_token: userToken
+          }
+        });
       }
     };
   }
@@ -834,7 +842,8 @@ app.config(function($routeProvider) {
 });
 
 app.run([
-  'app', '$rootScope', 'utils', '$filter', function(app, $rootScope, utils, $filter) {
+  'app', '$rootScope', 'utils', '$filter', 'authService', 'taskService', function(app, $rootScope, utils, $filter, authService, taskService) {
+    var checkTaskAndAuth;
     $rootScope.isLogin = utils.getItem('isLogin');
     $rootScope.profile = utils.getItem('profile');
     $rootScope.note = {
@@ -939,8 +948,57 @@ app.run([
       };
       return $rootScope.showDialog(dialogInfo);
     };
-    $rootScope.navBarItems = ["Dashboard", "用户管理", "博文管理", "任务管理", "文章导入", "认证管理", "系统设置", "封面推荐设置"];
-    return app.rootScope = $rootScope;
+    $rootScope.navBarItems = [
+      {
+        title: "Dashboard",
+        shownew: false
+      }, {
+        title: "用户管理",
+        shownew: false
+      }, {
+        title: "博文管理",
+        shownew: false
+      }, {
+        title: "任务管理",
+        shownew: false
+      }, {
+        title: "文章导入",
+        shownew: false
+      }, {
+        title: "认证管理",
+        shownew: false
+      }, {
+        title: "系统设置",
+        shownew: false
+      }, {
+        title: "封面推荐设置",
+        shownew: false
+      }
+    ];
+    app.rootScope = $rootScope;
+    $rootScope.checkAuthList = function(data) {
+      if (data.authlist.length > 0) {
+        return $rootScope.navBarItems[5].shownew = true;
+      } else {
+        return $rootScope.navBarItems[5].shownew = false;
+      }
+    };
+    $rootScope.checkTaskList = function(data) {
+      if (data.tasklist.length > 0) {
+        return $rootScope.navBarItems[3].shownew = true;
+      } else {
+        return $rootScope.navBarItems[3].shownew = false;
+      }
+    };
+    checkTaskAndAuth = function() {
+      var authlist;
+      authlist = authService.getauthlist('', 0, 20).then($rootScope.checkAuthList);
+      taskService.gettasklist(false, 0).then($rootScope.checkTaskList);
+      return window.setTimeout(checkTaskAndAuth, 360000);
+    };
+    if ($rootScope.isLogin) {
+      return checkTaskAndAuth();
+    }
   }
 ]);
 
@@ -1567,10 +1625,11 @@ authenticationController = app.controller('authenticationController', [
       }
     };
     getAuthList = function() {
-      var authlistInfo;
-      authlistInfo = authService.getauthlist('', pageIndex, 50);
-      $scope.pagination = authlistInfo.pagination;
-      return $scope.authList = authlistInfo.authlist;
+      return authService.getauthlist('', pageIndex, 50).then(function(data) {
+        $scope.pagination = data.pagination;
+        $scope.authList = data.authlist;
+        return $rootScope.checkAuthList(data);
+      });
     };
     $scope.$on('genPagination', function(event, p) {
       event.stopPropagation();
@@ -1705,12 +1764,18 @@ var coverController;
 
 coverController = app.controller('coverController', [
   'app', '$scope', '$rootScope', 'articleService', function(app, $scope, $rootScope, articleService) {
-    var getArticleList, getInterviewList, getList, getTopicList, pageCount, refreshCover, setFailed, topicPost, topic_index, uploadComplete, uploadFailed;
+    var getArticleList, getInterviewList, getList, getTopicList, pageCount, refreshCover, setFailed, topic_index, uploadComplete, uploadFailed;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
     }
     $scope.interviewid = "";
+    $scope.previewinfo = {
+      title: '',
+      interview_id: '',
+      cover_image: '',
+      article_id: ''
+    };
     pageCount = 20;
     topic_index = 0;
     getList = function(type, page_index) {
@@ -1749,17 +1814,14 @@ coverController = app.controller('coverController', [
       getTopicList(topic_index);
       $scope.interviewid = '';
       $scope.articleid = '';
+      $scope.cover_image = '';
       return $scope.fileUrl = '';
-    };
-    topicPost = function() {
-      return articleService.topicpost($scope.interviewid, $scope.articleid, $scope.fileUrl).then(refreshCover, setFailed);
     };
     uploadComplete = function(evt) {
       var jsonData;
       jsonData = JSON.parse(evt.target.response);
       if (jsonData.error.error_id === 0) {
         $scope.fileUrl = jsonData.response_data.fileurl;
-        topicPost();
         $scope.$apply();
         return $scope.updateError = false;
       } else {
@@ -1767,9 +1829,11 @@ coverController = app.controller('coverController', [
       }
     };
     $scope.uploadFile = function() {
+      return articleService.topicpost($scope.interviewid, $scope.articleid, $scope.fileUrl).then(refreshCover, setFailed);
+    };
+    $scope.uploadimg = function() {
       var fd, url, xhr;
-      $scope.fileUrl = "";
-      if (document.getElementById('fileToUpload').files[0] != null) {
+      if ((document.getElementById('fileToUpload').files[0] != null) && (document.getElementById('fileToUpload').files[0].name != null)) {
         fd = new FormData();
         fd.append("filedata", document.getElementById('fileToUpload').files[0]);
         xhr = new XMLHttpRequest();
@@ -1779,8 +1843,6 @@ coverController = app.controller('coverController', [
         url = Util.host + '/1/file/upload';
         xhr.open("POST", url);
         return xhr.send(fd);
-      } else {
-        return topicPost();
       }
     };
     $scope.selectinterview = function(interviewid) {
@@ -1802,6 +1864,27 @@ coverController = app.controller('coverController', [
         return getTopicList(p);
       }
     });
+    $scope.preview = function() {
+      var item, _i, _len, _ref;
+      $scope.previewinfo = {
+        title: '',
+        interview_id: '',
+        cover_image: '',
+        article_id: ''
+      };
+      $scope.previewinfo.cover_image = $scope.fileUrl;
+      $scope.previewinfo.article_id = $scope.articleid;
+      _ref = $scope.interviewlist;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        item = _ref[_i];
+        if (item.article_id === $scope.interviewid) {
+          $scope.previewinfo.title = item.cover_text;
+          break;
+        }
+      }
+      return $scope.previewinfo.interview_id = $scope.interviewid;
+    };
+    $scope.previewhistory = function(index) {};
     return refreshCover();
   }
 ]);
@@ -1940,7 +2023,6 @@ tasklistController = app.controller('tasklistController', [
       return;
     }
     refreshtable = function() {
-      var tasklistInfo;
       if (!$scope.checked) {
         $scope.checked = true;
         taskfinished = fasle;
@@ -1951,10 +2033,14 @@ tasklistController = app.controller('tasklistController', [
           taskfinished = true;
         }
       }
-      tasklistInfo = taskService.gettasklist(taskfinished, pageIndex);
-      $scope.rowCollection = tasklistInfo.tasklist;
-      $scope.displayedCollection = [].concat($scope.rowCollection);
-      return $scope.pagination = tasklistInfo.pagination;
+      return taskService.gettasklist(taskfinished, pageIndex).then(function(data) {
+        $scope.rowCollection = data.tasklist;
+        $scope.displayedCollection = [].concat($scope.rowCollection);
+        $scope.pagination = data.pagination;
+        if (!taskfinished) {
+          return $rootScope.checkTaskList(data);
+        }
+      });
     };
     timeline = function() {
       var tasklistInfo;
@@ -2743,7 +2829,8 @@ app.factory('taskService', [
   '$q', 'taskq', function($q, $taskq) {
     return {
       gettasklist: function(finished, page_index) {
-        var tasklistInfo;
+        var deferred, tasklistInfo;
+        deferred = $q.defer();
         tasklistInfo = {
           'tasklist': [],
           'pagination': {
@@ -2755,45 +2842,50 @@ app.factory('taskService', [
         };
         $taskq.gettasklist(page_index, finished).success(function(response) {
           var task, taskitem, taskjson, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2, _results;
-          _ref = response.users;
-          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-            taskitem = _ref[_i];
-            _ref1 = taskitem.tasks;
-            for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-              task = _ref1[_j];
-              if (task.status === null) {
-                continue;
+          if (checkRequest(response)) {
+            _ref = response.users;
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              taskitem = _ref[_i];
+              _ref1 = taskitem.tasks;
+              for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+                task = _ref1[_j];
+                if (task.status === null) {
+                  continue;
+                }
+                taskjson = {
+                  taskid: task.task_id,
+                  type: task.type,
+                  desc: task.desc,
+                  status: task.status,
+                  reason: task.reason,
+                  images: task.images,
+                  userid: taskitem.userid,
+                  nickname: taskitem.nickname,
+                  profile: taskitem.profile,
+                  begin_time: task.begin_time,
+                  end_time: task.end_time,
+                  distance: task.distance,
+                  source: task.source,
+                  duration: task.duration,
+                  pass: -1
+                };
+                tasklistInfo.tasklist.push(taskjson);
               }
-              taskjson = {
-                taskid: task.task_id,
-                type: task.type,
-                desc: task.desc,
-                status: task.status,
-                reason: task.reason,
-                images: task.images,
-                userid: taskitem.userid,
-                nickname: taskitem.nickname,
-                profile: taskitem.profile,
-                begin_time: task.begin_time,
-                end_time: task.end_time,
-                distance: task.distance,
-                source: task.source,
-                duration: task.duration,
-                pass: -1
-              };
-              tasklistInfo.tasklist.push(taskjson);
             }
+            tasklistInfo.pagination.pageIndex = response.page_index;
+            tasklistInfo.pagination.total = response.total_number;
+            tasklistInfo.pagination.showPages = (function() {
+              _results = [];
+              for (var _k = 0, _ref2 = response.page_total; 0 <= _ref2 ? _k < _ref2 : _k > _ref2; 0 <= _ref2 ? _k++ : _k--){ _results.push(_k); }
+              return _results;
+            }).apply(this);
+            tasklistInfo.pagination.pagetotal = response.page_total;
+            return deferred.resolve(tasklistInfo);
+          } else {
+            return deferred.reject(response);
           }
-          tasklistInfo.pagination.pageIndex = response.page_index;
-          tasklistInfo.pagination.total = response.total_number;
-          tasklistInfo.pagination.showPages = (function() {
-            _results = [];
-            for (var _k = 0, _ref2 = response.page_total; 0 <= _ref2 ? _k < _ref2 : _k > _ref2; 0 <= _ref2 ? _k++ : _k--){ _results.push(_k); }
-            return _results;
-          }).apply(this);
-          return tasklistInfo.pagination.pagetotal = response.page_total;
         });
-        return tasklistInfo;
+        return deferred.promise;
       },
       taskapprove: function(userid, taskid, reason) {
         return $taskq.taskaudit(userid, taskid, true, reason).success();
@@ -2872,7 +2964,8 @@ app.factory('authService', [
   '$q', 'authq', function($q, $authq) {
     return {
       getauthlist: function(sort, page_index, page_count) {
-        var authlistinfo;
+        var authlistinfo, deferred;
+        deferred = $q.defer();
         authlistinfo = {
           'authlist': [],
           'pagination': {
@@ -2897,10 +2990,13 @@ app.factory('authService', [
               for (var _j = 0, _ref1 = response.page_total; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; 0 <= _ref1 ? _j++ : _j--){ _results.push(_j); }
               return _results;
             }).apply(this);
-            return authlistinfo.pagination.pagetotal = response.page_total;
+            authlistinfo.pagination.pagetotal = response.page_total;
+            return deferred.resolve(authlistinfo);
+          } else {
+            return deferred.reject(response);
           }
         });
-        return authlistinfo;
+        return deferred.promise;
       },
       authpost: function(userid, auth_type, auth_status, authreview) {
         return $authq.authactionpost(userid, auth_type, auth_status, authreview).success(function(response) {
@@ -3309,6 +3405,18 @@ app.factory('articleService', [
         var deferred;
         deferred = $q.defer();
         $articleq.deletearticle(article_id).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response.error_desc);
+          }
+        });
+        return deferred.promise;
+      },
+      getarticleinfo: function(article_id) {
+        var deferred;
+        deferred = $q.defer();
+        $articleq.getarticleinfo(article_id).success(function(response) {
           if (checkRequest(response)) {
             return deferred.resolve(response);
           } else {
