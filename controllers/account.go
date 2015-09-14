@@ -1036,20 +1036,21 @@ func loginAwards(days, level int) Awards {
 		factor = 1.0
 		r = ran.Intn(level*2) + 1
 	}
-	awards.Wealth = int64(float64(days)*scale+float64(level)*factor+float64(r)) * models.Satoshi
-
-	// calc score
-	scale = 5.0
-	factor = 1.0
-	r = ran.Intn(level) + 1
-	if days > 7 {
-		scale = 10.0
-		factor = 1.5
-		r = ran.Intn(level*5) + 1
-	}
-	awards.Physical = int64(float64(days)*scale + float64(level)*factor + float64(r))
-	awards.Score = awards.Physical
-
+	awards.Score = int64(float64(days)*scale + float64(level)*factor + float64(r))
+	awards.Wealth = awards.Score * models.Satoshi
+	/*
+		// calc score
+		scale = 5.0
+		factor = 1.0
+		r = ran.Intn(level) + 1
+		if days > 7 {
+			scale = 10.0
+			factor = 1.5
+			r = ran.Intn(level*5) + 1
+		}
+		awards.Physical = int64(float64(days)*scale + float64(level)*factor + float64(r))
+		awards.Score = awards.Physical
+	*/
 	return awards
 }
 
@@ -1074,7 +1075,7 @@ func loginAwardsHandler(request *http.Request, resp http.ResponseWriter,
 	}
 
 	index := (user.LoginDays - 1) % 7
-	awards := Awards{Wealth: a[index*2], Physical: a[index*2+1], Score: a[index*2+1]}
+	awards := Awards{Wealth: a[index*2], Score: a[index*2+1]}
 	awards.Level = models.Score2Level(user.Props.Score+awards.Score) - user.Level()
 	GiveAwards(user, awards, redis)
 

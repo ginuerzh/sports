@@ -23,6 +23,11 @@ const (
 	ArticleComment = "comment"
 )
 
+const (
+	TagRec   = "rec"   // recommend article
+	TagTopic = "topic" // interview article
+)
+
 type Segment struct {
 	ContentType string `bson:"seg_type" json:"seg_type"`
 	ContentText string `bson:"seg_content" json:"seg_content"`
@@ -241,18 +246,22 @@ func (this *Article) Remove() error {
 func (article *Article) Update() error {
 	m := bson.M{}
 
-	if len(article.Author) > 0 {
-		m["author"] = article.Author
+	if article.Content != "" {
+		m["content"] = article.Content
 	}
 	if len(article.Contents) > 0 {
 		m["contents"] = article.Contents
 	}
-	if len(article.Tags) > 0 {
-		m["tags"] = article.Tags
+	if article.Title != "" {
+		m["title"] = article.Title
 	}
-	if article.PubTime.Unix() > 0 {
-		m["pub_time"] = article.PubTime
-	}
+
+	m["image"] = article.Image
+	m["images"] = article.Images
+	m["tags"] = article.Tags
+	m["refer"] = article.Refer
+	m["refer_article"] = article.ReferArticle
+	m["pub_time"] = time.Now()
 
 	change := bson.M{
 		"$set": m,
@@ -645,7 +654,7 @@ func AdminSearchArticle(keyword string, tag string,
 	return
 }
 
-func ArticleList(sort string, pageIndex, pageCount int) (total int, articles []Article, err error) {
+func ArticleList(tag string, sort string, pageIndex, pageCount int) (total int, articles []Article, err error) {
 	switch sort {
 	case "pubtime":
 		sort = "pub_time"
@@ -659,7 +668,12 @@ func ArticleList(sort string, pageIndex, pageCount int) (total int, articles []A
 		"type": bson.M{
 			"$ne": "record",
 		},
+		"refer": nil,
 	}
+	if tag != "" {
+		query["tags"] = tag
+	}
+
 	err = search(articleColl, query, bson.M{"content": 0, "contents": 0},
 		pageIndex*pageCount, pageCount, []string{sort}, &total, &articles)
 	return
@@ -676,4 +690,43 @@ func (this *Article) SetPrivilege(priv int) error {
 		},
 	}
 	return updateId(articleColl, this.Id, change, true)
+}
+
+func (this *Article) SetTag(tag string) error {
+	change := bson.M{
+		"$addToSet": bson.M{
+			"tags": tag,
+		},
+	}
+
+	return updateId(articleColl, this.Id, change, true)
+}
+
+func (this *Article) UnsetTag(tag string) error {
+	change := bson.M{
+		"$pull": bson.M{
+			"tags": tag,
+		},
+	}
+
+	if tag == "" {
+		change = bson.M{
+			"$unset": bson.M{
+				"tags": 1,
+			},
+		}
+	}
+	return updateId(articleColl, this.Id, change, true)
+}
+
+func TopicList(pageIndex, pageCount int) (total int, articles []Article, err error) {
+	query := bson.M{
+		"refer": bson.M{
+			"$ne": nil,
+		},
+	}
+
+	err = search(articleColl, query, nil,
+		pageIndex*pageCount, pageCount, []string{"-pub_time"}, &total, &articles)
+	return
 }

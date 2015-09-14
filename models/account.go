@@ -405,6 +405,13 @@ func FindUsersByPhones(phones []string) ([]Account, error) {
 	return users, nil
 }
 
+func FindAdmins() ([]Account, error) {
+	var users []Account
+	selector := bson.M{"_id": 1, "nickname": 1, "profile": 1}
+	err := search(accountColl, bson.M{"admin": true}, selector, 0, 0, nil, nil, &users)
+	return users, err
+}
+
 func (this *Account) FindByWeibo(weibo string) (bool, error) {
 	if len(weibo) == 0 {
 		return false, nil

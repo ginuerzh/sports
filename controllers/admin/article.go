@@ -19,8 +19,14 @@ func BindArticleApi(m *martini.ClassicMartini) {
 	m.Get("/admin/article/list", binding.Form(articleListForm{}), adminErrorHandler, articleListHandler)
 	m.Get("/admin/article/timeline", binding.Form(articleListForm{}), adminErrorHandler, articleTimelineHandler)
 	m.Get("/admin/article/comments", binding.Form(articleListForm{}), adminErrorHandler, articleCommentsHandler)
-	m.Options("/admin/article/post", articlePostOptionsHandler)
+	m.Options("/admin/article/post", optionsHandler)
 	m.Post("/admin/article/post", binding.Json(postForm{}), adminErrorHandler, articlePostHandler)
+	m.Options("/admin/article/topic/post", optionsHandler)
+	m.Post("/admin/article/topic/post", binding.Json(topicPostForm{}), adminErrorHandler, postTopicHandler)
+	m.Options("/admin/article/mark", optionsHandler)
+	m.Post("/admin/article/mark", binding.Json(articleMarkForm{}), adminErrorHandler, markArticleHandler)
+	m.Get("/admin/article/topic/list", binding.Form(topicListForm{}), adminErrorHandler, topicListHandler)
+	m.Options("/admin/article/delete", optionsHandler)
 	m.Post("/admin/article/delete", binding.Json(delArticleForm{}), adminErrorHandler, delArticleHandler)
 	m.Get("/admin/article/search", binding.Form(articleSearchForm{}), adminErrorHandler, articleSearchHandler)
 	m.Post("/admin/article/update", binding.Json(articleUpdateForm{}), adminErrorHandler, articleUpdateHandler)
@@ -41,6 +47,8 @@ type articleInfo struct {
 	RewardUsers  []string       `json:"rewards_users"`
 	Tags         []string       `json:"tags"`
 	Contents     string         `json:"contents"`
+	Refer        string         `json:"refer"`
+	ReferArticle string         `json:"refer_article"`
 }
 
 func convertArticle(article *models.Article, redis *models.RedisLogger) *articleInfo {
@@ -64,6 +72,9 @@ func convertArticle(article *models.Article, redis *models.RedisLogger) *article
 	if len(article.Contents) > 0 {
 		info.Contents = formatArticleContent(article.Contents)
 	}
+	info.Refer = article.Refer
+	info.ReferArticle = article.ReferArticle
+
 	return info
 }
 
@@ -128,6 +139,7 @@ func comments(redis *models.RedisLogger, article *models.Article, pageIndex, pag
 type articleListForm struct {
 	Userid string `form:"userid"`
 	Id     string `form:"article_id"`
+	Tag    string `form:"tag"`
 	Sort   string `form:"sort"`
 	AdminPaging
 	Token string `form:"access_token" binding:"required"`
@@ -142,7 +154,7 @@ func articleListHandler(w http.ResponseWriter, redis *models.RedisLogger, form a
 	if form.PageCount == 0 {
 		form.PageCount = 50
 	}
-	total, articles, _ := models.ArticleList(form.Sort, form.PageIndex, form.PageCount)
+	total, articles, _ := models.ArticleList(form.Tag, form.Sort, form.PageIndex, form.PageCount)
 	list := make([]*articleInfo, len(articles))
 	for i, _ := range articles {
 		list[i] = convertArticle(&articles[i], redis)
@@ -226,9 +238,7 @@ type postForm struct {
 	Contents string   `json:"contents"`
 	Title    string   `json:"title"`
 	Image    []string `json:"image"`
-	//Refer        string   `json:"refer"`
-	ReferArticle string `json:"refer_article"`
-	//Tags     interface{} `json:"tags"`
+
 	Token string `json:"access_token" binding:"required"`
 }
 
@@ -243,37 +253,13 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 		return
 	}
 	user := &models.Account{Id: uid}
-	/*
-		var rid string
-
-		if form.Refer != "" {
-			refer := &models.Account{}
-			refer.FindByNickname(form.Refer)
-			rid = refer.Id
-			if rid == "" {
-				writeResponse(w, errors.NewError(errors.NotExistsError))
-				return
-			}
-		}
-	*/
-	var aid, rid string
-	if form.ReferArticle != "" {
-		a := &models.Article{}
-		a.FindById(form.ReferArticle)
-		rid = a.Author
-		if rid == "" {
-			writeResponse(w, errors.NewError(errors.NotFoundError))
-			return
-		}
-		aid = a.Id.Hex()
-	}
 
 	article := &models.Article{
-		Parent:       form.Id,
-		Author:       form.Author,
-		Refer:        rid,
-		ReferArticle: aid,
-		PubTime:      time.Now(),
+		Parent: form.Id,
+		Author: form.Author,
+		//Refer:        rid,
+		//ReferArticle: aid,
+		PubTime: time.Now(),
 		//Tags:    []string{form.Tags},
 	}
 	/*
@@ -309,6 +295,40 @@ func articlePostHandler(w http.ResponseWriter, redis *models.RedisLogger, form p
 	}
 
 	writeResponse(w, map[string]string{"article_id": article.Id.Hex()})
+}
+
+type topicPostForm struct {
+	Topic string `json:"topic" binding:"required"`
+	Rec   string
+	Image string `json:"image"`
+	Token string `json:"access_token" binding:"required"`
+}
+
+func postTopicHandler(w http.ResponseWriter, redis *models.RedisLogger, form topicPostForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
+	topic := &models.Article{}
+	topic.FindById(form.Topic)
+	if topic.Author == "" {
+		writeResponse(w, errors.NewError(errors.NotFoundError))
+		return
+	}
+
+	rec := &models.Article{}
+	rec.FindById(form.Rec)
+	if rec.Author != "" {
+		topic.Refer = rec.Author
+		topic.ReferArticle = rec.Id.Hex()
+		topic.Image = form.Image
+	}
+
+	topic.Update()
+	topic.UnsetTag(models.TagTopic)
+	rec.UnsetTag(models.TagRec)
+	writeResponse(w, map[string]interface{}{})
 }
 
 type delArticleForm struct {
@@ -377,7 +397,7 @@ type articleUpdateForm struct {
 	Time     int64            `json:"time,omitempty"`
 	Tags     []string         `json:"tags,omitempty"`
 	Contents []models.MsgBody `json:"contents,omitempty"`
-	Token    string           `json:"access_token"`
+	Token    string           `json:"access_token" binding:"required"`
 }
 
 func articleUpdateHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleUpdateForm) {
@@ -408,4 +428,60 @@ func articleUpdateHandler(w http.ResponseWriter, redis *models.RedisLogger, form
 	}
 
 	writeResponse(w, map[string]interface{}{})
+}
+
+type articleMarkForm struct {
+	Id    string `json:"article_id" binding:"required"`
+	Type  string `json:"type"`
+	Token string `json:"access_token" binding:"required"`
+}
+
+func markArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form articleMarkForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
+	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
+	if form.Type == "" {
+		article.UnsetTag("")
+	} else {
+		article.SetTag(form.Type)
+	}
+
+	writeResponse(w, map[string]interface{}{})
+}
+
+type topicListForm struct {
+	AdminPaging
+	Token string `form:"access_token" binding:"required"`
+}
+
+func topicListHandler(w http.ResponseWriter, redis *models.RedisLogger, form topicListForm) {
+	if ok, err := checkToken(redis, form.Token); !ok {
+		writeResponse(w, err)
+		return
+	}
+
+	if form.PageCount == 0 {
+		form.PageCount = 50
+	}
+	total, articles, _ := models.TopicList(form.PageIndex, form.PageCount)
+	list := make([]*articleInfo, len(articles))
+	for i, _ := range articles {
+		list[i] = convertArticle(&articles[i], redis)
+	}
+	pages := total / form.PageCount
+	if total%form.PageCount > 0 {
+		pages++
+	}
+	resp := map[string]interface{}{
+		"articles":     list,
+		"page_index":   form.PageIndex,
+		"page_total":   pages,
+		"total_number": total,
+	}
+
+	writeResponse(w, resp)
+
 }
