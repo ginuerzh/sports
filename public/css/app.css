@@ -1790,6 +1790,13 @@ body{
     width: 160px;
     height: 150px;
 }
+
+#newitemtext{
+    color: #ff0000;
+    font-size: 10px;
+    font-style: italic;
+    float: right;
+}
 	
 	
 	
@@ -1938,6 +1945,21 @@ table{
     margin-right: 2%;
 }
 
-#topictable tr{
+.topictable tr{
     height: 40px;
+}
+
+.img-preview{
+    width:320px;
+    height:300px;
+}
+
+#preview{
+    width:320px;
+}
+
+#previewtitle{
+    text-align: center;
+    font-weight: bold;
+    font-size: 20px;
 }
