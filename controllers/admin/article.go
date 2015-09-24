@@ -326,8 +326,8 @@ func postTopicHandler(w http.ResponseWriter, redis *models.RedisLogger, form top
 	}
 
 	topic.Update()
-	topic.UnsetTag(models.TagTopic)
-	rec.UnsetTag(models.TagRec)
+	topic.SetTag("")
+	rec.SetTag("")
 	writeResponse(w, map[string]interface{}{})
 }
 
@@ -443,11 +443,7 @@ func markArticleHandler(w http.ResponseWriter, redis *models.RedisLogger, form a
 	}
 
 	article := &models.Article{Id: bson.ObjectIdHex(form.Id)}
-	if form.Type == "" {
-		article.UnsetTag("")
-	} else {
-		article.SetTag(form.Type)
-	}
+	article.SetTag(form.Type)
 
 	writeResponse(w, map[string]interface{}{})
 }

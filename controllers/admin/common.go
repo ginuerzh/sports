@@ -37,7 +37,6 @@ func writeResponse(w http.ResponseWriter, data interface{}) []byte {
 	b, _ := json.Marshal(data)
 
 	s := strings.Replace(string(b), "172.24.222.54:8082", "172.24.222.42:8082", -1)
-
 	w.Write([]byte(s))
 
 	return b

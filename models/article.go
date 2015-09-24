@@ -345,7 +345,6 @@ func NewArticles(ids []string, last string) (int, []string, error) {
 
 	query := bson.M{
 		"parent":    nil,
-		"refer":     nil,
 		"privilege": bson.M{"$ne": 2},
 		"author":    bson.M{"$in": ids},
 	}
@@ -385,7 +384,6 @@ func GetUserArticles(ids []string, paging *Paging) (int, []Article, error) {
 
 	query := bson.M{
 		"parent":    nil,
-		"refer":     nil,
 		"privilege": bson.M{"$ne": 2},
 		"author":    bson.M{"$in": ids},
 	}
@@ -437,7 +435,6 @@ func GetArticles(tag string, paging *Paging, withoutContent bool) (int, []Articl
 
 	query := bson.M{
 		"parent": nil,
-		"refer":  nil,
 	}
 	if len(tag) > 0 {
 		query["tags"] = tag
@@ -668,7 +665,6 @@ func ArticleList(tag string, sort string, pageIndex, pageCount int) (total int, 
 		"type": bson.M{
 			"$ne": "record",
 		},
-		"refer": nil,
 	}
 	if tag != "" {
 		query["tags"] = tag
@@ -693,29 +689,16 @@ func (this *Article) SetPrivilege(priv int) error {
 }
 
 func (this *Article) SetTag(tag string) error {
+	tags := []string{}
+	if tag != "" {
+		tags = []string{tag}
+	}
 	change := bson.M{
-		"$addToSet": bson.M{
-			"tags": tag,
+		"$set": bson.M{
+			"tags": tags,
 		},
 	}
 
-	return updateId(articleColl, this.Id, change, true)
-}
-
-func (this *Article) UnsetTag(tag string) error {
-	change := bson.M{
-		"$pull": bson.M{
-			"tags": tag,
-		},
-	}
-
-	if tag == "" {
-		change = bson.M{
-			"$unset": bson.M{
-				"tags": 1,
-			},
-		}
-	}
 	return updateId(articleColl, this.Id, change, true)
 }
 

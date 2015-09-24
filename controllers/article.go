@@ -568,7 +568,7 @@ type articleListForm struct {
 	Token  string `form:"access_token"`
 	models.Paging
 	parameter
-	Tag string `form:"article_tag"`
+	Tag string // `form:"article_tag"`
 }
 
 func articleListHandler(request *http.Request, resp http.ResponseWriter,
