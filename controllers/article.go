@@ -647,7 +647,7 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
 	author := convertUser(u, redis)
 	jsonStruct := convertArticle(user, article, author)
 	if form.Id == "" && article.Content == "" {
-		article.Content = content2Html(article.Contents)
+		jsonStruct.Content = content2Html(article.Contents)
 	}
 
 	jsonStruct.Relation = redis.Relationship(user.Id, article.Author)
