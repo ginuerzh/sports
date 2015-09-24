@@ -2,7 +2,7 @@
 package controllers
 
 import (
-	//"bytes"
+	"bytes"
 	//"encoding/json"
 	"github.com/ginuerzh/sports/errors"
 	"github.com/ginuerzh/sports/models"
@@ -199,7 +199,6 @@ func convertArticle(user *models.Account, article *models.Article, author *userJ
 	return jsonStruct
 }
 
-/*
 func content2Html(contents []models.Segment) string {
 	buf := &bytes.Buffer{}
 	for _, content := range contents {
@@ -212,13 +211,13 @@ func content2Html(contents []models.Segment) string {
 				}
 			}
 		case "IMAGE":
-			buf.WriteString("<div class=\"divimg\"><img src=\"" + content.ContentText + "\" /></div>")
+			buf.WriteString("<div><img src=\"" + content.ContentText + "\" /></div>")
 		}
 	}
 
 	return buf.String()
 }
-*/
+
 type newArticleForm struct {
 	Parent   string           `json:"parent_article_id"`
 	Contents []models.Segment `json:"article_segments" binding:"required"`
@@ -647,6 +646,9 @@ func articleInfoHandler(request *http.Request, resp http.ResponseWriter,
 	u.FindByUserid(article.Author)
 	author := convertUser(u, redis)
 	jsonStruct := convertArticle(user, article, author)
+	if form.Id == "" && article.Content == "" {
+		article.Content = content2Html(article.Contents)
+	}
 
 	jsonStruct.Relation = redis.Relationship(user.Id, article.Author)
 	switch jsonStruct.Relation {
