@@ -1275,6 +1275,17 @@ app.filter("statusname", function() {
     }
     return age;
   };
+}).filter("previewinfofilter", function() {
+  return function(data) {
+    var previewinfostr;
+    previewinfostr = data;
+    if (angular.isString(data)) {
+      if (data.length > 60) {
+        previewinfostr = data.substr(0, 60);
+      }
+    }
+    return previewinfostr;
+  };
 });
 
 app.directive('zjcustomize', function() {
@@ -1513,7 +1524,7 @@ articleListController = app.controller('articleListController', [
         return $scope.getArticleList(articlePageIndex);
       }
     };
-    $scope.article = function(index) {
+    $scope.articlecheck = function(index) {
       if ($scope.articleList[index].type !== 0) {
         return articleMark($scope.articleList[index].article_id, '');
       }
@@ -2006,7 +2017,7 @@ var tasklistController;
 
 tasklistController = app.controller('tasklistController', [
   'app', '$scope', '$rootScope', 'taskService', 'utils', function(app, $scope, $rootScope, taskService, utils) {
-    var pageIndex, refreshtable, taskReason, taskfinished, timeline;
+    var acceptReason, pageIndex, refreshtable, rejectReason, resetreasondropdown, taskReason, taskfinished, timeline;
     $scope.checked = true;
     $scope.itemsByPage = 50;
     taskfinished = false;
@@ -2018,6 +2029,8 @@ tasklistController = app.controller('tasklistController', [
     $scope.searchData = {
       "data": ""
     };
+    acceptReason = ["请选择", "不错呦，加油！", "很好"];
+    rejectReason = ["请选择", "您上传的资料有误，请重新检查！"];
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
@@ -2105,18 +2118,34 @@ tasklistController = app.controller('tasklistController', [
         return taskService.dealalltask(authlist).then(refreshtable);
       }
     };
+    resetreasondropdown = function(index, passtype) {
+      $scope.displayedCollection[index].reasonindex = 0;
+      if (passtype === -1) {
+        return $scope.displayedCollection[index].showdropdown = false;
+      } else {
+        $scope.displayedCollection[index].showdropdown = true;
+        if (passtype === 1) {
+          return $scope.displayedCollection[index].reasonItems = acceptReason;
+        } else if (passtype === 0) {
+          return $scope.displayedCollection[index].reasonItems = rejectReason;
+        }
+      }
+    };
     $scope.approveSelect = function(index) {
       $scope.displayedCollection[index].pass = 1;
-      return $scope.displayedCollection[index].reason = taskReason.accept;
+      $scope.displayedCollection[index].reason = taskReason.accept;
+      return resetreasondropdown(index, 1);
     };
     $scope.rejectSelect = function(index) {
       $scope.displayedCollection[index].pass = 0;
-      return $scope.displayedCollection[index].reason = taskReason.reject;
+      $scope.displayedCollection[index].reason = taskReason.reject;
+      return resetreasondropdown(index, 0);
     };
     $scope.cancelSelect = function(index) {
       $scope.displayedCollection[index].pass = -1;
       if ($scope.displayedCollection[index].reason.length > 0) {
-        return $scope.displayedCollection[index].reason = "";
+        $scope.displayedCollection[index].reason = "";
+        return resetreasondropdown(index, -1);
       }
     };
     $scope.changeContent = function(index) {
@@ -2135,6 +2164,14 @@ tasklistController = app.controller('tasklistController', [
         return refreshtable();
       }
     });
+    $scope.reasonChange = function(parentIndex, index) {
+      $scope.displayedCollection[parentIndex].reasonindex = index;
+      if ($scope.displayedCollection[parentIndex].pass === 1 && index !== 0) {
+        return taskReason.accept = $scope.displayedCollection[parentIndex].reason = acceptReason[index];
+      } else if ($scope.displayedCollection[parentIndex].pass === 0 && index !== 0) {
+        return taskReason.reject = $scope.displayedCollection[parentIndex].reason = rejectReason[index];
+      }
+    };
     return refreshtable();
   }
 ]);
@@ -2867,7 +2904,10 @@ app.factory('taskService', [
                   distance: task.distance,
                   source: task.source,
                   duration: task.duration,
-                  pass: -1
+                  pass: -1,
+                  showdropdown: false,
+                  reasonindex: 0,
+                  reasonItems: []
                 };
                 tasklistInfo.tasklist.push(taskjson);
               }
