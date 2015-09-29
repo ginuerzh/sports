@@ -1,4 +1,5 @@
 <div ng-controller="tasklistController" class="doc-content ng-scope" >
+
     <md-content ng-if="!taskid" style="background-color: rgb(134,176,185)" layout layout-align="center center" layout-wrap> 
             <div flex-sm="100" flex-md="50" flex-lg="33" flex-gt-lg="25" ng-repeat="item in taskList">
                 <div class="thumbnail">
@@ -198,6 +199,7 @@
                 </div>
                 </div>
         <md-progress-linear md-mode="indeterminate" ng-if="showwaiting"></md-progress-linear>
+
     </md-content>
     <md-sidenav class="md-sidenav-right md-whiteframe-z2" md-component-id="right">
         <md-toolbar class="md-theme-light">
@@ -205,16 +207,30 @@
         </md-toolbar>
         <md-content layout-padding>
             <form>
-                <md-radio-group ng-model="submitData">
-                    <md-radio-button value="accept" class="md-primary">批准</md-radio-button>
-                    <md-radio-button value="reject" class="md-primary">拒绝</md-radio-button>
-                </md-radio-group>
+                <div layout="row">
+                    <md-radio-group ng-model="submitData">
+                        <md-radio-button value="accept" class="md-primary">批准</md-radio-button>
+                        <md-radio-button value="reject" class="md-primary">拒绝</md-radio-button>
+                    </md-radio-group>
 
+
+                </div>
+                <div layout="row" ng-disabled="!showdropdown">
+                    <p>请选择</p>
+                    <md-input-container style="margin-right: 10px;">
+
+                        <md-select ng-model="reasoninfo">
+                            <md-option ng-repeat="reasoninfo in reasonlist" value="{{reasoninfo}}">{{reasoninfo}}</md-option>
+                        </md-select>
+                    </md-input-container>
+                </div>
                 <md-input-container>
                     <label for="reason">审批意见</label>
                     <input type="text" id="reason" ng-model="reasondata">
                 </md-input-container>
             </form>
+
+
             <md-button ng-click="submit()" class="md-raised md-primary" ng-disabled="reasondata.length==0">
                 提交
             </md-button>
@@ -222,9 +238,12 @@
                 取消
             </md-button>
         </md-content>
+
     </md-sidenav>
 
     <md-content ng-if="taskid">
         adfklsdjfajsdf
+
+
     </md-content>
 </div>
