@@ -1466,7 +1466,8 @@ articleListController = app.controller('articleListController', [
     };
     $scope.pagination = {};
     articleMarkFailed = function(reason) {
-      return alert("设置不成功，" + reason);
+      alert("设置不成功，" + reason);
+      return $scope.getArticleList(articlePageIndex);
     };
     articleMark = function(artcile_id, type) {
       return articleService.articlemark(artcile_id, type).then('', articleMarkFailed);
@@ -1526,22 +1527,26 @@ articleListController = app.controller('articleListController', [
     };
     $scope.articlecheck = function(index) {
       if ($scope.articleList[index].type !== 0) {
-        return articleMark($scope.articleList[index].article_id, '');
+        articleMark($scope.articleList[index].article_id, '');
+        return $scope.articleList[index].type = 0;
       }
     };
     $scope.interview = function(index) {
       if ($scope.articleList[index].type !== 1) {
-        return articleMark($scope.articleList[index].article_id, 'topic');
+        articleMark($scope.articleList[index].article_id, 'topic');
+        return $scope.articleList[index].type = 1;
       }
     };
     $scope.recommend = function(index) {
       if ($scope.articleList[index].type !== 2) {
-        return articleMark($scope.articleList[index].article_id, 'rec');
+        articleMark($scope.articleList[index].article_id, 'rec');
+        return $scope.articleList[index].type = 2;
       }
     };
     $scope.$on('genPagination', function(event, p) {
       event.stopPropagation();
       if (id === 'articlepage') {
+        articlePageIndex = p;
         if (searchMode || (typeof tagID !== "undefined" && tagID !== null)) {
           return $scope.search(p);
         } else {
