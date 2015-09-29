@@ -1780,7 +1780,7 @@ var coverController;
 
 coverController = app.controller('coverController', [
   'app', '$scope', '$rootScope', 'articleService', function(app, $scope, $rootScope, articleService) {
-    var getArticleList, getInterviewList, getList, getTopicList, pageCount, refreshCover, setFailed, topic_index, uploadComplete, uploadFailed;
+    var getArticleList, getInterviewList, getList, getTopicList, pageCount, refreshCover, refreshPreivew, setFailed, topic_index, uploadComplete, uploadFailed;
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
       return;
@@ -1880,8 +1880,10 @@ coverController = app.controller('coverController', [
         return getTopicList(p);
       }
     });
+    refreshPreivew = function(data) {
+      return $scope.previewinfo.title = data.cover_text;
+    };
     $scope.preview = function() {
-      var item, _i, _len, _ref;
       $scope.previewinfo = {
         title: '',
         interview_id: '',
@@ -1890,13 +1892,8 @@ coverController = app.controller('coverController', [
       };
       $scope.previewinfo.cover_image = $scope.fileUrl;
       $scope.previewinfo.article_id = $scope.articleid;
-      _ref = $scope.interviewlist;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        item = _ref[_i];
-        if (item.article_id === $scope.interviewid) {
-          $scope.previewinfo.title = item.cover_text;
-          break;
-        }
+      if ($scope.interviewid.length > 0) {
+        articleService.getarticleinfo($scope.interviewid).then(refreshPreivew);
       }
       return $scope.previewinfo.interview_id = $scope.interviewid;
     };
