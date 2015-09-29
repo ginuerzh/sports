@@ -1275,6 +1275,17 @@ app.filter("statusname", function() {
     }
     return age;
   };
+}).filter("previewinfofilter", function() {
+  return function(data) {
+    var previewinfostr;
+    previewinfostr = data;
+    if (angular.isString(data)) {
+      if (data.length > 60) {
+        previewinfostr = data.substr(0, 60);
+      }
+    }
+    return previewinfostr;
+  };
 });
 
 app.directive('zjcustomize', function() {
@@ -1513,7 +1524,7 @@ articleListController = app.controller('articleListController', [
         return $scope.getArticleList(articlePageIndex);
       }
     };
-    $scope.article = function(index) {
+    $scope.articlecheck = function(index) {
       if ($scope.articleList[index].type !== 0) {
         return articleMark($scope.articleList[index].article_id, '');
       }
@@ -2006,17 +2017,19 @@ var tasklistController;
 
 tasklistController = app.controller('tasklistController', [
   'app', '$scope', '$rootScope', 'taskService', 'utils', function(app, $scope, $rootScope, taskService, utils) {
-    var pageIndex, refreshtable, taskReason, taskfinished, timeline;
+    var acceptReason, pageIndex, refreshtable, rejectReason, resetreasondropdown, taskReason, taskfinished, timeline;
     $scope.checked = true;
     $scope.itemsByPage = 50;
     taskfinished = false;
     pageIndex = 0;
-    taskReason = {
-      "accept": "不错呦，加油！",
-      "reject": "您上传的资料有误，请重新检查！"
-    };
     $scope.searchData = {
       "data": ""
+    };
+    acceptReason = ["请选择", "成绩不错，加油！", "基础非常好，可以抽空看看我们的跑步教学视频！", " 起点很好，注意跑步姿势和换步的节奏，可以看看我们的运动提示！"];
+    rejectReason = ["请选择", "请提交一下运动成绩记录的相关截图，比如GPS轨迹图等。谢谢！", "你提交的图片无法证明成绩，请重新提交相关GPS轨迹图。谢谢！", "重复提交了，一次运动只能作为一次记录。谢谢！"];
+    taskReason = {
+      "accept": acceptReason[1],
+      "reject": rejectReason[1]
     };
     if (!app.getCookie("isLogin")) {
       window.location.href = "#/";
@@ -2105,18 +2118,34 @@ tasklistController = app.controller('tasklistController', [
         return taskService.dealalltask(authlist).then(refreshtable);
       }
     };
+    resetreasondropdown = function(index, passtype) {
+      $scope.displayedCollection[index].reasonindex = 0;
+      if (passtype === -1) {
+        return $scope.displayedCollection[index].showdropdown = false;
+      } else {
+        $scope.displayedCollection[index].showdropdown = true;
+        if (passtype === 1) {
+          return $scope.displayedCollection[index].reasonItems = acceptReason;
+        } else if (passtype === 0) {
+          return $scope.displayedCollection[index].reasonItems = rejectReason;
+        }
+      }
+    };
     $scope.approveSelect = function(index) {
       $scope.displayedCollection[index].pass = 1;
-      return $scope.displayedCollection[index].reason = taskReason.accept;
+      $scope.displayedCollection[index].reason = taskReason.accept;
+      return resetreasondropdown(index, 1);
     };
     $scope.rejectSelect = function(index) {
       $scope.displayedCollection[index].pass = 0;
-      return $scope.displayedCollection[index].reason = taskReason.reject;
+      $scope.displayedCollection[index].reason = taskReason.reject;
+      return resetreasondropdown(index, 0);
     };
     $scope.cancelSelect = function(index) {
       $scope.displayedCollection[index].pass = -1;
       if ($scope.displayedCollection[index].reason.length > 0) {
-        return $scope.displayedCollection[index].reason = "";
+        $scope.displayedCollection[index].reason = "";
+        return resetreasondropdown(index, -1);
       }
     };
     $scope.changeContent = function(index) {
@@ -2135,6 +2164,14 @@ tasklistController = app.controller('tasklistController', [
         return refreshtable();
       }
     });
+    $scope.reasonChange = function(parentIndex, index) {
+      $scope.displayedCollection[parentIndex].reasonindex = index;
+      if ($scope.displayedCollection[parentIndex].pass === 1 && index !== 0) {
+        return taskReason.accept = $scope.displayedCollection[parentIndex].reason = acceptReason[index];
+      } else if ($scope.displayedCollection[parentIndex].pass === 0 && index !== 0) {
+        return taskReason.reject = $scope.displayedCollection[parentIndex].reason = rejectReason[index];
+      }
+    };
     return refreshtable();
   }
 ]);
@@ -2867,7 +2904,10 @@ app.factory('taskService', [
                   distance: task.distance,
                   source: task.source,
                   duration: task.duration,
-                  pass: -1
+                  pass: -1,
+                  showdropdown: false,
+                  reasonindex: 0,
+                  reasonItems: []
                 };
                 tasklistInfo.tasklist.push(taskjson);
               }
@@ -2931,7 +2971,11 @@ app.factory('taskService', [
                   profile: taskitem.profile,
                   begin_time: task.begin_time,
                   end_time: task.end_time,
-                  distance: task.distance
+                  distance: task.distance,
+                  pass: -1,
+                  showdropdown: false,
+                  reasonindex: 0,
+                  reasonItems: []
                 };
                 if (finish) {
                   if (taskjson.status === "FINISH" || taskjson.status === "UNFINISH") {

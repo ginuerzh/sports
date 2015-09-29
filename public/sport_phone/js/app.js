@@ -1,15 +1,19 @@
-var app, httphost, taskmenulist, taskreason;
+var acceptReason, app, httphost, rejectReason, taskmenulist, taskreason;
 
 app = angular.module('app', ['ngRoute', 'ngMaterial']);
 
 httphost = "http://172.24.222.54:8080";
 
 taskreason = {
-  accept: "不错呦，加油！",
-  reject: "您上传的资料有误，请重新检查！"
+  accept: "成绩不错，加油！",
+  reject: "请提交一下运动成绩记录的相关截图，比如GPS轨迹图等。谢谢！"
 };
 
 taskmenulist = ["待审批", "已审批"];
+
+acceptReason = ["成绩不错，加油！", "基础非常好，可以抽空看看我们的跑步教学视频！", "起点很好，注意跑步姿势和换步的节奏，可以看看我们的运动提示！"];
+
+rejectReason = ["请提交一下运动成绩记录的相关截图，比如GPS轨迹图等。谢谢！", "你提交的图片无法证明成绩，请重新提交相关GPS轨迹图。谢谢！", "重复提交了，一次运动只能作为一次记录。谢谢！"];
 
 app.factory('taskq', [
   '$http', function($http) {
@@ -775,6 +779,7 @@ tasklistController = app.controller('tasklistController', [
         "content": "加油，稍作休整"
       }
     ];
+    $scope.showdropdown = false;
     $scope.toggleRight = function(index) {
       nDealIndex = index;
       return $mdSidenav('right').toggle();
@@ -804,19 +809,33 @@ tasklistController = app.controller('tasklistController', [
     };
     $scope.submit = function() {
       if ($scope.submitData === "accept") {
+        taskreason.accept = $scope.reasondata;
         Approve();
       } else {
+        taskreason.reject = $scope.reasondata;
         Reject();
       }
       return $scope.close();
     };
     $scope.$watch("submitData", function(newData, oldData) {
       if ($scope.submitData === "accept") {
-        return $scope.reasondata = taskreason.accept;
+        $scope.reasondata = taskreason.accept;
+        $scope.showdropdown = true;
+        return $scope.reasonlist = acceptReason;
       } else if ($scope.submitData === "reject") {
-        return $scope.reasondata = taskreason.reject;
+        $scope.reasondata = taskreason.reject;
+        $scope.showdropdown = true;
+        return $scope.reasonlist = rejectReason;
       } else {
-        return $scope.reasondata = "";
+        $scope.reasondata = "";
+        return $scope.showdropdown = false;
+      }
+    });
+    $scope.$watch("reasoninfo", function(newData, oldData) {
+      if ($scope.submitData === "accept") {
+        return $scope.reasondata = taskreason.accept = newData;
+      } else if ($scope.submitData === "reject") {
+        return $scope.reasondata = taskreason.reject = newData;
       }
     });
     $scope.showdetail = function(index) {

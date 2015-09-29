@@ -65,10 +65,23 @@
                         <input type="radio" ng-click="rejectSelect($index)" name="{{$index}}">拒绝
                     </label>
                     </div>
+                    <div class="dropdown" ng-if="row.showdropdown">
+                        <br>
+                        <button class="dropdown-toggle" data-toggle="dropdown">
+                            {{row.reasonItems[row.reasonindex]}}
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li role="presentation" ng-repeat="item in row.reasonItems">
+                                <a role="menuitem" href="#/3" ng-click="reasonChange($parent.$index,$index)" target="_self">{{item}}</a>
+                            </li>
+                        </ul>
+                    </div>
                     <br>
                     <div>
                     <textarea rows="1" name="S1" cols="40" ng-model="row.reason" style="resize: none" ng-change="changeContent($index)"></textarea>
                     </div>
+
                 </td>
                 <td class="col-md-1" ng-if="!checked">
                     {{row.status|statusname}}
