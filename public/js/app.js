@@ -1316,6 +1316,9 @@ app.directive('zjcustomize', function() {
     link: function(scope, element, attrs) {
       return scope.$watchCollection(attrs.genPagination, function(value) {
         var lastPage, pageIndex, showPages, _ref, _ref1;
+        if (value == null) {
+          return;
+        }
         showPages = [];
         lastPage = value.pagetotal;
         pageIndex = value.pageIndex;
@@ -2040,7 +2043,7 @@ tasklistController = app.controller('tasklistController', [
     refreshtable = function() {
       if (!$scope.checked) {
         $scope.checked = true;
-        taskfinished = fasle;
+        taskfinished = false;
       }
       if (window.location.href.indexOf('tasklisthistory') > 0) {
         if ($scope.checked) {
@@ -2930,13 +2933,38 @@ app.factory('taskService', [
         return deferred.promise;
       },
       taskapprove: function(userid, taskid, reason) {
-        return $taskq.taskaudit(userid, taskid, true, reason).success();
+        $taskq.taskaudit(userid, taskid, true, reason).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response);
+          }
+        });
+        return deferred.promise;
       },
       taskreject: function(userid, taskid, reason) {
-        return $taskq.taskaudit(userid, taskid, false, reason).success();
+        var deferred;
+        deferred = $q.defer();
+        $taskq.taskaudit(userid, taskid, false, reason).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response);
+          }
+        });
+        return deferred.promise;
       },
       dealalltask: function(authlist) {
-        return $taskq.taskauditall(authlist).success();
+        var deferred;
+        deferred = $q.defer();
+        $taskq.taskauditall(authlist).success(function(response) {
+          if (checkRequest(response)) {
+            return deferred.resolve(response);
+          } else {
+            return deferred.reject(response);
+          }
+        });
+        return deferred.promise;
       },
       searchtask: function(nickname, finish, page_index) {
         var tasklistInfo;
