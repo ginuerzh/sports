@@ -2888,33 +2888,35 @@ app.factory('taskService', [
             _ref = response.users;
             for (_i = 0, _len = _ref.length; _i < _len; _i++) {
               taskitem = _ref[_i];
-              _ref1 = taskitem.tasks;
-              for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-                task = _ref1[_j];
-                if (task.status === null) {
-                  continue;
+              if (taskitem != null) {
+                _ref1 = taskitem.tasks;
+                for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+                  task = _ref1[_j];
+                  if (task.status === null) {
+                    continue;
+                  }
+                  taskjson = {
+                    taskid: task.task_id,
+                    type: task.type,
+                    desc: task.desc,
+                    status: task.status,
+                    reason: task.reason,
+                    images: task.images,
+                    userid: taskitem.userid,
+                    nickname: taskitem.nickname,
+                    profile: taskitem.profile,
+                    begin_time: task.begin_time,
+                    end_time: task.end_time,
+                    distance: task.distance,
+                    source: task.source,
+                    duration: task.duration,
+                    pass: -1,
+                    showdropdown: false,
+                    reasonindex: 0,
+                    reasonItems: []
+                  };
+                  tasklistInfo.tasklist.push(taskjson);
                 }
-                taskjson = {
-                  taskid: task.task_id,
-                  type: task.type,
-                  desc: task.desc,
-                  status: task.status,
-                  reason: task.reason,
-                  images: task.images,
-                  userid: taskitem.userid,
-                  nickname: taskitem.nickname,
-                  profile: taskitem.profile,
-                  begin_time: task.begin_time,
-                  end_time: task.end_time,
-                  distance: task.distance,
-                  source: task.source,
-                  duration: task.duration,
-                  pass: -1,
-                  showdropdown: false,
-                  reasonindex: 0,
-                  reasonItems: []
-                };
-                tasklistInfo.tasklist.push(taskjson);
               }
             }
             tasklistInfo.pagination.pageIndex = response.page_index;
