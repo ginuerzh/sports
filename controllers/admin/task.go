@@ -125,7 +125,7 @@ func tasklistHandler(w http.ResponseWriter, redis *models.RedisLogger, form task
 	}
 
 	users := make(map[string]*models.Account)
-	var tasks []*userTask
+	tasks := []*userTask{}
 	total, records, _ := models.TaskRecords(form.Finished, form.PageIndex, form.PageCount)
 	for _, record := range records {
 
