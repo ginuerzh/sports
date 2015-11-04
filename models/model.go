@@ -3,7 +3,7 @@ package models
 
 import (
 	"github.com/garyburd/redigo/redis"
-	"labix.org/v2/mgo"
+	"gopkg.in/mgo.v2"
 	"log"
 	"time"
 )

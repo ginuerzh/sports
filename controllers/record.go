@@ -6,7 +6,7 @@ import (
 	"github.com/ginuerzh/sports/models"
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2/bson"
 	"log"
 	"net/http"
 	"sort"
@@ -68,6 +68,7 @@ type record struct {
 	Coins     int64    `json:"coin_value"`
 	Magic     int      `json:"magic"`
 	Status    string   `json:"status"`
+	Result    string   `json:"result"`
 }
 
 func convertRecord(r *models.Record) *record {
@@ -88,6 +89,7 @@ func convertRecord(r *models.Record) *record {
 		rec.Mood = r.Sport.Mood
 		rec.HeartRate = r.Sport.HeartRate
 		rec.Pics = r.Sport.Pics
+		rec.Result = r.Sport.Review
 	}
 	if r.Game != nil {
 		rec.GameName = r.Game.Name

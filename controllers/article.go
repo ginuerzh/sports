@@ -9,7 +9,7 @@ import (
 	"github.com/martini-contrib/binding"
 	"gopkg.in/go-martini/martini.v1"
 	//"io/ioutil"
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2/bson"
 	"log"
 	"net/http"
 	"strconv"
@@ -25,6 +25,13 @@ func BindArticleApi(m *martini.ClassicMartini) {
 		loadUserHandler,
 		checkLimitHandler,
 		newArticleHandler)
+	m.Post("/1/article/repost",
+		binding.Json(repostArticleForm{}, (*Parameter)(nil)),
+		ErrorHandler,
+		checkTokenHandler,
+		loadUserHandler,
+		checkLimitHandler,
+		repostArticleHander)
 	m.Post("/1/article/delete",
 		binding.Json(deleteArticleForm{}, (*Parameter)(nil)),
 		ErrorHandler,
@@ -434,6 +441,47 @@ func newArticleHandler(request *http.Request, resp http.ResponseWriter,
 	respData := map[string]interface{}{
 		//"articles_without_content": convertArticle(article),
 		"ExpEffect": awards,
+	}
+	writeResponse(request.RequestURI, resp, respData, nil)
+}
+
+type repostArticleForm struct {
+	ReferArticle string `json:"refer_article" binding:"required"`
+	models.Location
+	parameter
+}
+
+func repostArticleHander(request *http.Request, resp http.ResponseWriter,
+	client *ApnClient, redis *models.RedisLogger, user *models.Account, p Parameter) {
+	form := p.(repostArticleForm)
+	ref := &models.Article{}
+	ref.FindById(form.ReferArticle)
+	if ref.Id == "" {
+		writeResponse(request.RequestURI, resp, nil,
+			errors.NewError(errors.NotFoundError, "文章不存在!"))
+		return
+	}
+
+	article := &models.Article{
+		Author:  user.Id,
+		PubTime: time.Now(),
+		Loc:     form.Location,
+		Type:    models.ArticleRepost,
+		//Refer:        ref.Author,
+		ReferArticle: ref.Id.Hex(),
+		Title:        ref.Title,
+		Image:        ref.Image,
+		Images:       ref.Images,
+	}
+
+	if err := article.Save(); err != nil {
+		log.Println(err)
+		writeResponse(request.RequestURI, resp, nil, err)
+		return
+	}
+
+	respData := map[string]interface{}{
+		"ExpEffect": Awards{},
 	}
 	writeResponse(request.RequestURI, resp, respData, nil)
 }

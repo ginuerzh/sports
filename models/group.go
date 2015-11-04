@@ -3,7 +3,7 @@ package models
 
 import (
 	"github.com/ginuerzh/sports/errors"
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2/bson"
 	"time"
 )
 

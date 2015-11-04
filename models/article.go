@@ -3,9 +3,9 @@ package models
 
 import (
 	"github.com/ginuerzh/sports/errors"
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
-	"labix.org/v2/mgo/txn"
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
+	"gopkg.in/mgo.v2/txn"
 	"log"
 	//"strings"
 	"time"
@@ -21,6 +21,7 @@ const (
 	ArticleCoach   = "coach"
 	ArticleRecord  = "record"
 	ArticleComment = "comment"
+	ArticleRepost  = "repost"
 )
 
 const (
